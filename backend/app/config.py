@@ -19,6 +19,7 @@ class Config:
     # Qdrant
     QDRANT_HOST = os.getenv('QDRANT_HOST', 'localhost')
     QDRANT_PORT = int(os.getenv('QDRANT_PORT', 6333))
+    QDRANT_URL = os.getenv('QDRANT_URL', f'http://{QDRANT_HOST}:{QDRANT_PORT}')
     QDRANT_COLLECTION = os.getenv('QDRANT_COLLECTION', 'knowledge_base')
     
     # Google AI

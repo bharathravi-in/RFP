@@ -6,6 +6,7 @@ from .document import Document
 from .question import Question
 from .answer import Answer, AnswerComment
 from .knowledge import KnowledgeItem
+from .knowledge_folder import KnowledgeFolder
 
 __all__ = [
     'User',
@@ -16,5 +17,7 @@ __all__ = [
     'Question',
     'Answer',
     'AnswerComment',
-    'KnowledgeItem'
+    'KnowledgeItem',
+    'KnowledgeFolder'
 ]
+

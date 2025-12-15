@@ -1,337 +1,288 @@
-import { useState, useEffect } from 'react';
-import { knowledgeApi } from '@/api/client';
-import { KnowledgeItem } from '@/types';
-import toast from 'react-hot-toast';
+import { useState, useEffect, useCallback } from 'react';
 import {
     PlusIcon,
-    BookOpenIcon,
     MagnifyingGlassIcon,
-    TagIcon,
-    TrashIcon,
-    PencilIcon,
-    DocumentTextIcon,
+    FolderIcon,
 } from '@heroicons/react/24/outline';
-import clsx from 'clsx';
+import FolderTree, { KnowledgeItemList } from '../components/knowledge/FolderTree';
+import CreateFolderModal from '../components/knowledge/CreateFolderModal';
+import FileUploadModal from '../components/knowledge/FileUploadModal';
+import DocumentPreviewSidebar from '../components/knowledge/DocumentPreviewSidebar';
+import api from '../api/client';
 
-export default function KnowledgeBase() {
-    const [items, setItems] = useState<KnowledgeItem[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedTag, setSelectedTag] = useState<string | null>(null);
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
-
-    useEffect(() => {
-        loadItems();
-    }, []);
-
-    const loadItems = async () => {
-        try {
-            const response = await knowledgeApi.list();
-            setItems(response.data.items || []);
-        } catch {
-            toast.error('Failed to load knowledge base');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Get all unique tags
-    const allTags = [...new Set(items.flatMap(item => item.tags))];
-
-    const filteredItems = items.filter(item => {
-        const matchesSearch =
-            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.content.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesTag = !selectedTag || item.tags.includes(selectedTag);
-        return matchesSearch && matchesTag;
-    });
-
-    const handleDelete = async (id: number) => {
-        if (!confirm('Are you sure you want to delete this item?')) return;
-
-        try {
-            await knowledgeApi.delete(id);
-            setItems(items.filter(item => item.id !== id));
-            toast.success('Item deleted');
-        } catch {
-            toast.error('Failed to delete item');
-        }
-    };
-
-    return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-semibold text-text-primary">Knowledge Base</h1>
-                    <p className="mt-1 text-text-secondary">
-                        Manage your organization's knowledge for AI-powered answers
-                    </p>
-                </div>
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-                    <PlusIcon className="h-5 w-5" />
-                    Add Knowledge
-                </button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="card">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-primary-light">
-                            <BookOpenIcon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-semibold text-text-primary">{items.length}</p>
-                            <p className="text-sm text-text-secondary">Total Items</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="card">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-success-light">
-                            <DocumentTextIcon className="h-5 w-5 text-success" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-semibold text-text-primary">
-                                {items.filter(i => i.source_type === 'document').length}
-                            </p>
-                            <p className="text-sm text-text-secondary">From Documents</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="card">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-purple-100">
-                            <TagIcon className="h-5 w-5 text-purple-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-semibold text-text-primary">{allTags.length}</p>
-                            <p className="text-sm text-text-secondary">Tags</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Filters */}
-            <div className="flex items-center gap-4">
-                <div className="relative flex-1 max-w-md">
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-muted" />
-                    <input
-                        type="text"
-                        placeholder="Search knowledge..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input pl-10"
-                    />
-                </div>
-                {allTags.length > 0 && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={() => setSelectedTag(null)}
-                            className={clsx(
-                                'badge cursor-pointer transition-colors',
-                                !selectedTag ? 'badge-primary' : 'badge-neutral hover:bg-primary-light'
-                            )}
-                        >
-                            All
-                        </button>
-                        {allTags.slice(0, 5).map(tag => (
-                            <button
-                                key={tag}
-                                onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                                className={clsx(
-                                    'badge cursor-pointer transition-colors',
-                                    selectedTag === tag ? 'badge-primary' : 'badge-neutral hover:bg-primary-light'
-                                )}
-                            >
-                                {tag}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Items Grid */}
-            {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[1, 2, 3, 4, 5, 6].map(i => (
-                        <div key={i} className="card animate-pulse">
-                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-3" />
-                            <div className="h-3 bg-gray-200 rounded w-full mb-2" />
-                            <div className="h-3 bg-gray-200 rounded w-2/3" />
-                        </div>
-                    ))}
-                </div>
-            ) : filteredItems.length === 0 ? (
-                <div className="card text-center py-12">
-                    <BookOpenIcon className="h-12 w-12 text-text-muted mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-text-primary mb-2">No knowledge items</h3>
-                    <p className="text-text-secondary mb-6">
-                        {searchQuery || selectedTag
-                            ? 'Try adjusting your filters'
-                            : 'Add knowledge to power your AI answers'}
-                    </p>
-                    {!searchQuery && !selectedTag && (
-                        <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-                            <PlusIcon className="h-5 w-5" />
-                            Add Knowledge
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredItems.map(item => (
-                        <div key={item.id} className="card group">
-                            <div className="flex items-start justify-between mb-3">
-                                <span className={`badge ${item.source_type === 'document' ? 'badge-primary' :
-                                        item.source_type === 'csv' ? 'badge-success' :
-                                            'badge-neutral'
-                                    }`}>
-                                    {item.source_type}
-                                </span>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={() => setEditingItem(item)}
-                                        className="p-1.5 rounded-lg hover:bg-background text-text-muted hover:text-text-primary"
-                                    >
-                                        <PencilIcon className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(item.id)}
-                                        className="p-1.5 rounded-lg hover:bg-error-light text-text-muted hover:text-error"
-                                    >
-                                        <TrashIcon className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-                            <h3 className="font-semibold text-text-primary mb-2">{item.title}</h3>
-                            <p className="text-sm text-text-secondary line-clamp-3 mb-3">{item.content}</p>
-                            {item.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                    {item.tags.map(tag => (
-                                        <span key={tag} className="text-xs text-text-muted bg-background px-2 py-0.5 rounded">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Create/Edit Modal */}
-            {(showCreateModal || editingItem) && (
-                <KnowledgeModal
-                    item={editingItem}
-                    onClose={() => {
-                        setShowCreateModal(false);
-                        setEditingItem(null);
-                    }}
-                    onSaved={(item) => {
-                        if (editingItem) {
-                            setItems(items.map(i => i.id === item.id ? item : i));
-                        } else {
-                            setItems([item, ...items]);
-                        }
-                        setShowCreateModal(false);
-                        setEditingItem(null);
-                    }}
-                />
-            )}
-        </div>
-    );
+interface Folder {
+    id: number;
+    name: string;
+    description?: string;
+    icon: string;
+    color?: string;
+    item_count: number;
+    children?: Folder[];
+    items?: KnowledgeItem[];
 }
 
-function KnowledgeModal({
-    item,
-    onClose,
-    onSaved,
-}: {
-    item: KnowledgeItem | null;
-    onClose: () => void;
-    onSaved: (item: KnowledgeItem) => void;
-}) {
-    const [title, setTitle] = useState(item?.title || '');
-    const [content, setContent] = useState(item?.content || '');
-    const [tags, setTags] = useState(item?.tags?.join(', ') || '');
-    const [isLoading, setIsLoading] = useState(false);
+interface KnowledgeItem {
+    id: number;
+    title: string;
+    content: string;
+    source_type: string;
+    file_type?: string;
+    folder_id?: number;
+    created_at: string;
+}
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title.trim() || !content.trim()) {
-            toast.error('Title and content are required');
-            return;
-        }
+interface PreviewData {
+    type: 'text' | 'document';
+    title: string;
+    content: string;
+    file_type?: string;
+    file_name?: string;
+    can_download?: boolean;
+}
 
-        setIsLoading(true);
-        const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean);
+export default function KnowledgeBasePage() {
+    const [folders, setFolders] = useState<Folder[]>([]);
+    const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
+    const [items, setItems] = useState<KnowledgeItem[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
 
+    // Modal state
+    const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [createFolderParentId, setCreateFolderParentId] = useState<number | null>(null);
+    const [uploadFolderId, setUploadFolderId] = useState<number | null>(null);
+
+    // Sidebar preview state
+    const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+    const [previewItemId, setPreviewItemId] = useState<number | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+    // Load folders
+    const loadFolders = useCallback(async () => {
         try {
-            let response;
-            if (item) {
-                response = await knowledgeApi.update(item.id, { title, content, tags: tagArray });
+            const response = await api.get('/folders');
+            setFolders(response.data.folders || []);
+        } catch (error) {
+            console.error('Failed to load folders:', error);
+        }
+    }, []);
+
+    // Load items for selected folder
+    const loadItems = useCallback(async () => {
+        try {
+            if (selectedFolder) {
+                const response = await api.get(`/folders/${selectedFolder.id}`);
+                setItems(response.data.folder?.items || []);
             } else {
-                response = await knowledgeApi.create({ title, content, tags: tagArray });
+                const response = await api.get('/knowledge', {
+                    params: { search: searchQuery || undefined },
+                });
+                setItems(response.data.items || []);
             }
-            toast.success(item ? 'Knowledge updated!' : 'Knowledge added!');
-            onSaved(response.data.item);
-        } catch {
-            toast.error('Failed to save knowledge');
-        } finally {
-            setIsLoading(false);
+        } catch (error) {
+            console.error('Failed to load items:', error);
+        }
+    }, [selectedFolder, searchQuery]);
+
+    useEffect(() => {
+        setIsLoading(true);
+        Promise.all([loadFolders(), loadItems()]).finally(() => setIsLoading(false));
+    }, [loadFolders, loadItems]);
+
+    // Handlers
+    const handleCreateFolder = (parentId: number | null) => {
+        setCreateFolderParentId(parentId);
+        setIsCreateFolderOpen(true);
+    };
+
+    const handleCreateFolderSubmit = async (data: { name: string; description?: string; color?: string }) => {
+        await api.post('/folders', {
+            ...data,
+            parent_id: createFolderParentId,
+        });
+        await loadFolders();
+    };
+
+    const handleUploadFiles = (folderId: number) => {
+        setUploadFolderId(folderId);
+        setIsUploadOpen(true);
+    };
+
+    const handleUpload = async (files: File[]) => {
+        if (!uploadFolderId) return;
+
+        const formData = new FormData();
+        files.forEach((file) => formData.append('files', file));
+
+        await api.post(`/folders/${uploadFolderId}/upload`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        await loadItems();
+    };
+
+    const handleSelectItem = async (item: KnowledgeItem) => {
+        try {
+            setPreviewItemId(item.id);
+
+            // Get preview metadata
+            const response = await api.get(`/preview/${item.id}`);
+            setPreviewData(response.data);
+
+            // If it's a PDF, fetch the file as blob for iframe
+            if (response.data.file_type?.includes('pdf') && response.data.can_download !== false) {
+                const fileResponse = await api.get(`/preview/${item.id}/file`, {
+                    responseType: 'blob',
+                });
+                const blobUrl = window.URL.createObjectURL(fileResponse.data);
+                setPdfUrl(blobUrl);
+            } else {
+                setPdfUrl(null);
+            }
+
+            setIsSidebarOpen(true);
+        } catch (error) {
+            console.error('Failed to load preview:', error);
+        }
+    };
+
+    const handleCloseSidebar = () => {
+        setIsSidebarOpen(false);
+        setPreviewData(null);
+        setPreviewItemId(null);
+        // Cleanup blob URL
+        if (pdfUrl) {
+            window.URL.revokeObjectURL(pdfUrl);
+            setPdfUrl(null);
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!previewItemId) return;
+        try {
+            const response = await api.get(`/preview/${previewItemId}/download`, {
+                responseType: 'blob',
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', previewData?.file_name || previewData?.title || 'download');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to download:', error);
+        }
+    };
+
+    const handleDeleteItem = async () => {
+        if (!previewItemId) return;
+        try {
+            await api.delete(`/knowledge/${previewItemId}`);
+            handleCloseSidebar();
+            await loadItems();
+        } catch (error) {
+            console.error('Failed to delete:', error);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-            <div className="bg-surface rounded-2xl shadow-modal w-full max-w-lg p-6 animate-scale-in">
-                <h2 className="text-xl font-semibold text-text-primary mb-6">
-                    {item ? 'Edit Knowledge' : 'Add Knowledge'}
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-text-primary mb-2">Title</label>
-                        <input
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="input"
-                            placeholder="e.g., Company Security Policy"
-                            autoFocus
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-text-primary mb-2">Content</label>
-                        <textarea
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            className="input min-h-[150px] resize-none"
-                            placeholder="Enter the knowledge content..."
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-text-primary mb-2">
-                            Tags <span className="text-text-muted">(comma-separated)</span>
-                        </label>
-                        <input
-                            value={tags}
-                            onChange={(e) => setTags(e.target.value)}
-                            className="input"
-                            placeholder="security, compliance, policy"
-                        />
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={onClose} className="btn-secondary flex-1">
-                            Cancel
-                        </button>
-                        <button type="submit" disabled={isLoading} className="btn-primary flex-1">
-                            {isLoading ? 'Saving...' : item ? 'Update' : 'Add Knowledge'}
-                        </button>
-                    </div>
-                </form>
+        <div className="h-screen flex bg-background">
+            {/* Sidebar - Folder Tree */}
+            <div className="w-64 bg-surface border-r border-border flex-shrink-0">
+                <FolderTree
+                    folders={folders}
+                    selectedFolderId={selectedFolder?.id || null}
+                    onSelectFolder={setSelectedFolder}
+                    onCreateFolder={handleCreateFolder}
+                    onUploadFiles={handleUploadFiles}
+                />
             </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface">
+                    <div className="flex items-center gap-3">
+                        <FolderIcon className="h-6 w-6 text-primary" />
+                        <h1 className="text-xl font-semibold text-text-primary">
+                            {selectedFolder ? selectedFolder.name : 'All Knowledge Items'}
+                        </h1>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* Search */}
+                        <div className="relative">
+                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search knowledge..."
+                                className="input pl-9 w-64"
+                            />
+                        </div>
+
+                        {/* Add Item */}
+                        {selectedFolder && (
+                            <button
+                                onClick={() => handleUploadFiles(selectedFolder.id)}
+                                className="btn-primary flex items-center gap-2"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                Upload Files
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Content Area with Sidebar */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Items List */}
+                    <div className="flex-1 overflow-y-auto">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center h-64">
+                                <div className="text-text-muted">Loading...</div>
+                            </div>
+                        ) : (
+                            <KnowledgeItemList items={items} onSelect={handleSelectItem} />
+                        )}
+                    </div>
+
+                    {/* Document Preview Sidebar */}
+                    <DocumentPreviewSidebar
+                        isOpen={isSidebarOpen}
+                        preview={previewData}
+                        pdfUrl={pdfUrl}
+                        onClose={handleCloseSidebar}
+                        onDownload={handleDownload}
+                        onDelete={handleDeleteItem}
+                    />
+                </div>
+            </div>
+
+            {/* Modals */}
+            <CreateFolderModal
+                isOpen={isCreateFolderOpen}
+                onClose={() => setIsCreateFolderOpen(false)}
+                parentFolderName={
+                    createFolderParentId
+                        ? folders.find((f) => f.id === createFolderParentId)?.name
+                        : undefined
+                }
+                onSubmit={handleCreateFolderSubmit}
+            />
+
+            <FileUploadModal
+                isOpen={isUploadOpen}
+                onClose={() => setIsUploadOpen(false)}
+                folderId={uploadFolderId || 0}
+                folderName={selectedFolder?.name || 'Knowledge Base'}
+                onUpload={handleUpload}
+            />
         </div>
     );
 }

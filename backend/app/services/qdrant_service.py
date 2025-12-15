@@ -1,0 +1,235 @@
+"""
+Qdrant Vector Database Service.
+
+Handles embeddings storage and semantic search.
+"""
+import logging
+import hashlib
+from typing import List, Dict, Optional
+from flask import current_app
+import google.generativeai as genai
+
+logger = logging.getLogger(__name__)
+
+# Try to import Qdrant client
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import (
+        Distance, VectorParams, PointStruct,
+        Filter, FieldCondition, MatchValue
+    )
+    QDRANT_AVAILABLE = True
+except ImportError:
+    QDRANT_AVAILABLE = False
+    logger.warning("qdrant-client not installed")
+
+
+class QdrantService:
+    """Service for vector storage and semantic search using Qdrant."""
+    
+    COLLECTION_NAME = "knowledge_base"
+    EMBEDDING_DIMENSION = 768  # Google text-embedding dimension
+    
+    def __init__(self):
+        self.enabled = False
+        self.client = None
+        
+        if not QDRANT_AVAILABLE:
+            logger.warning("Qdrant client not available")
+            return
+        
+        qdrant_url = current_app.config.get('QDRANT_URL', 'http://localhost:6333')
+        api_key = current_app.config.get('QDRANT_API_KEY')
+        
+        try:
+            self.client = QdrantClient(
+                url=qdrant_url,
+                api_key=api_key,
+                timeout=10
+            )
+            self._ensure_collection()
+            self.enabled = True
+            logger.info("Qdrant connection established")
+        except Exception as e:
+            logger.error(f"Failed to connect to Qdrant: {e}")
+    
+    def _ensure_collection(self):
+        """Create collection if it doesn't exist."""
+        collections = self.client.get_collections().collections
+        exists = any(c.name == self.COLLECTION_NAME for c in collections)
+        
+        if not exists:
+            self.client.create_collection(
+                collection_name=self.COLLECTION_NAME,
+                vectors_config=VectorParams(
+                    size=self.EMBEDDING_DIMENSION,
+                    distance=Distance.COSINE
+                )
+            )
+            logger.info(f"Created collection: {self.COLLECTION_NAME}")
+    
+    def _get_embedding(self, text: str) -> List[float]:
+        """Generate embedding using Google AI."""
+        api_key = current_app.config.get('GOOGLE_API_KEY')
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not configured")
+        
+        genai.configure(api_key=api_key)
+        result = genai.embed_content(
+            model="models/text-embedding-004",
+            content=text,
+            task_type="retrieval_document"
+        )
+        return result['embedding']
+    
+    def _generate_point_id(self, item_id: int, org_id: int) -> str:
+        """Generate unique point ID."""
+        return hashlib.md5(f"{org_id}:{item_id}".encode()).hexdigest()
+    
+    def upsert_item(
+        self,
+        item_id: int,
+        org_id: int,
+        title: str,
+        content: str,
+        folder_id: Optional[int] = None,
+        tags: List[str] = None,
+        metadata: Dict = None
+    ) -> str:
+        """
+        Add or update a knowledge item in Qdrant.
+        
+        Returns:
+            The point ID (embedding_id)
+        """
+        if not self.enabled:
+            logger.debug("Qdrant not enabled, skipping upsert")
+            return ""
+        
+        # Combine title and content for embedding
+        text_to_embed = f"{title}\n\n{content}"
+        embedding = self._get_embedding(text_to_embed)
+        
+        point_id = self._generate_point_id(item_id, org_id)
+        
+        payload = {
+            "item_id": item_id,
+            "org_id": org_id,
+            "title": title,
+            "content_preview": content[:500],
+            "folder_id": folder_id,
+            "tags": tags or [],
+            **(metadata or {})
+        }
+        
+        self.client.upsert(
+            collection_name=self.COLLECTION_NAME,
+            points=[
+                PointStruct(
+                    id=point_id,
+                    vector=embedding,
+                    payload=payload
+                )
+            ]
+        )
+        
+        return point_id
+    
+    def delete_item(self, item_id: int, org_id: int) -> bool:
+        """Delete a knowledge item from Qdrant."""
+        if not self.enabled:
+            return False
+        
+        point_id = self._generate_point_id(item_id, org_id)
+        
+        try:
+            self.client.delete(
+                collection_name=self.COLLECTION_NAME,
+                points_selector=[point_id]
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete from Qdrant: {e}")
+            return False
+    
+    def search(
+        self,
+        query: str,
+        org_id: int,
+        folder_id: Optional[int] = None,
+        limit: int = 10,
+        score_threshold: float = 0.5
+    ) -> List[Dict]:
+        """
+        Semantic search in knowledge base.
+        
+        Returns:
+            List of results with item_id, score, and preview
+        """
+        if not self.enabled:
+            return []
+        
+        # Get query embedding
+        query_embedding = self._get_embedding(query)
+        
+        # Build filter
+        filter_conditions = [
+            FieldCondition(key="org_id", match=MatchValue(value=org_id))
+        ]
+        if folder_id is not None:
+            filter_conditions.append(
+                FieldCondition(key="folder_id", match=MatchValue(value=folder_id))
+            )
+        
+        results = self.client.search(
+            collection_name=self.COLLECTION_NAME,
+            query_vector=query_embedding,
+            query_filter=Filter(must=filter_conditions),
+            limit=limit,
+            score_threshold=score_threshold
+        )
+        
+        return [
+            {
+                "item_id": r.payload.get("item_id"),
+                "title": r.payload.get("title"),
+                "content_preview": r.payload.get("content_preview"),
+                "folder_id": r.payload.get("folder_id"),
+                "tags": r.payload.get("tags", []),
+                "score": round(r.score, 4)
+            }
+            for r in results
+        ]
+    
+    def reindex_all(self, items: List[Dict], org_id: int) -> int:
+        """Reindex all knowledge items for an organization."""
+        if not self.enabled:
+            return 0
+        
+        count = 0
+        for item in items:
+            try:
+                self.upsert_item(
+                    item_id=item['id'],
+                    org_id=org_id,
+                    title=item['title'],
+                    content=item['content'],
+                    folder_id=item.get('folder_id'),
+                    tags=item.get('tags', [])
+                )
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to index item {item['id']}: {e}")
+        
+        return count
+
+
+# Singleton
+_qdrant_instance = None
+
+def get_qdrant_service() -> QdrantService:
+    """Get Qdrant service instance."""
+    global _qdrant_instance
+    if _qdrant_instance is None:
+        _qdrant_instance = QdrantService()
+    return _qdrant_instance
