@@ -1,0 +1,215 @@
+// ===============================
+// User & Organization Types
+// ===============================
+
+export type UserRole = 'admin' | 'editor' | 'reviewer' | 'viewer';
+
+export interface User {
+    id: number;
+    email: string;
+    name: string;
+    role: UserRole;
+    organization_id: number | null;
+    is_active: boolean;
+    created_at: string;
+}
+
+export interface Organization {
+    id: number;
+    name: string;
+    slug: string;
+    settings: Record<string, unknown>;
+    created_at: string;
+    user_count: number;
+    project_count: number;
+}
+
+// ===============================
+// Project Types
+// ===============================
+
+export type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'completed';
+
+export interface Project {
+    id: number;
+    name: string;
+    description: string | null;
+    status: ProjectStatus;
+    completion_percent: number;
+    due_date: string | null;
+    organization_id: number;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+    document_count?: number;
+    question_count?: number;
+    reviewer_ids?: number[];
+}
+
+// ===============================
+// Document Types
+// ===============================
+
+export type DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type FileType = 'pdf' | 'docx' | 'xlsx' | 'doc' | 'xls';
+
+export interface Document {
+    id: number;
+    filename: string;
+    original_filename: string;
+    file_type: FileType;
+    file_size: number;
+    status: DocumentStatus;
+    metadata: Record<string, unknown>;
+    error_message: string | null;
+    project_id: number;
+    uploaded_by: number;
+    created_at: string;
+    processed_at: string | null;
+    question_count: number;
+}
+
+// ===============================
+// Question Types
+// ===============================
+
+export type QuestionStatus = 'pending' | 'answered' | 'review' | 'approved' | 'rejected';
+
+export interface Question {
+    id: number;
+    text: string;
+    section: string | null;
+    order: number;
+    status: QuestionStatus;
+    notes: string | null;
+    project_id: number;
+    document_id: number | null;
+    created_at: string;
+    updated_at: string;
+    answer?: Answer;
+}
+
+// ===============================
+// Answer Types
+// ===============================
+
+export type AnswerStatus = 'draft' | 'pending_review' | 'approved' | 'rejected';
+
+export interface AnswerSource {
+    title: string;
+    relevance: number;
+    snippet?: string;
+}
+
+export interface Answer {
+    id: number;
+    content: string;
+    confidence_score: number;
+    sources: AnswerSource[];
+    status: AnswerStatus;
+    version: number;
+    is_ai_generated: boolean;
+    review_notes: string | null;
+    question_id: number;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    created_at: string;
+    comments: AnswerComment[];
+}
+
+export interface AnswerComment {
+    id: number;
+    content: string;
+    position: { start: number; end: number } | null;
+    resolved: boolean;
+    answer_id: number;
+    user_id: number;
+    user_name: string | null;
+    created_at: string;
+}
+
+// ===============================
+// Knowledge Base Types
+// ===============================
+
+export type KnowledgeSourceType = 'document' | 'csv' | 'manual';
+
+export interface KnowledgeItem {
+    id: number;
+    title: string;
+    content: string;
+    tags: string[];
+    source_type: KnowledgeSourceType;
+    source_file: string | null;
+    is_active: boolean;
+    organization_id: number;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface KnowledgeSearchResult {
+    item: KnowledgeItem;
+    score: number;
+}
+
+// ===============================
+// API Response Types
+// ===============================
+
+export interface ApiError {
+    error: string;
+}
+
+export interface AuthResponse {
+    user: User;
+    organization?: Organization | null;
+    access_token: string;
+    refresh_token: string;
+}
+
+export interface ListResponse<T> {
+    items?: T[];
+    projects?: T[];
+    questions?: T[];
+    results?: T[];
+}
+
+// ===============================
+// UI State Types
+// ===============================
+
+export interface Toast {
+    id: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+    message: string;
+}
+
+export type GenerateAction = 'regenerate' | 'shorten' | 'expand' | 'improve_tone';
+
+export interface GenerateOptions {
+    tone?: 'professional' | 'formal' | 'friendly';
+    length?: 'short' | 'medium' | 'long';
+}
+
+// ===============================
+// Export Types
+// ===============================
+
+export type ExportFormat = 'pdf' | 'docx' | 'xlsx';
+
+export interface ExportPreview {
+    project_name: string;
+    total_questions: number;
+    answered: number;
+    approved: number;
+    content: ExportPreviewItem[];
+}
+
+export interface ExportPreviewItem {
+    section: string | null;
+    question: string;
+    answer: string;
+    status: string;
+    confidence: number;
+}

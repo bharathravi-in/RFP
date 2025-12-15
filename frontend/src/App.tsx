@@ -1,0 +1,103 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { useEffect } from 'react';
+import { useAuthStore } from '@/store/authStore';
+
+// Pages
+import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
+import Dashboard from '@/pages/Dashboard';
+import Projects from '@/pages/Projects';
+import ProjectDetail from '@/pages/ProjectDetail';
+import AnswerWorkspace from '@/pages/AnswerWorkspace';
+import KnowledgeBase from '@/pages/KnowledgeBase';
+import Settings from '@/pages/Settings';
+
+// Layout
+import PageLayout from '@/components/layout/PageLayout';
+
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated, isLoading } = useAuthStore();
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+
+    return <>{children}</>;
+}
+
+function App() {
+    const { checkAuth } = useAuthStore();
+
+    useEffect(() => {
+        checkAuth();
+    }, [checkAuth]);
+
+    return (
+        <BrowserRouter>
+            <Toaster
+                position="top-right"
+                toastOptions={{
+                    duration: 4000,
+                    style: {
+                        background: '#FFFFFF',
+                        color: '#1E293B',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                        borderRadius: '8px',
+                        padding: '12px 16px',
+                    },
+                    success: {
+                        iconTheme: {
+                            primary: '#16A34A',
+                            secondary: '#FFFFFF',
+                        },
+                    },
+                    error: {
+                        iconTheme: {
+                            primary: '#DC2626',
+                            secondary: '#FFFFFF',
+                        },
+                    },
+                }}
+            />
+
+            <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+
+                {/* Protected routes */}
+                <Route
+                    path="/"
+                    element={
+                        <ProtectedRoute>
+                            <PageLayout />
+                        </ProtectedRoute>
+                    }
+                >
+                    <Route index element={<Navigate to="/dashboard" replace />} />
+                    <Route path="dashboard" element={<Dashboard />} />
+                    <Route path="projects" element={<Projects />} />
+                    <Route path="projects/:id" element={<ProjectDetail />} />
+                    <Route path="projects/:id/workspace" element={<AnswerWorkspace />} />
+                    <Route path="knowledge" element={<KnowledgeBase />} />
+                    <Route path="settings" element={<Settings />} />
+                </Route>
+
+                {/* Catch-all redirect */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+        </BrowserRouter>
+    );
+}
+
+export default App;

@@ -1,0 +1,164 @@
+import os
+import uuid
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from werkzeug.utils import secure_filename
+from ..extensions import db
+from ..models import Document, Project, User
+
+bp = Blueprint('documents', __name__)
+
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'xlsx', 'doc', 'xls'}
+
+
+def allowed_file(filename):
+    """Check if file extension is allowed."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@bp.route('/upload', methods=['POST'])
+@jwt_required()
+def upload_document():
+    """Upload a document to a project."""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    project_id = request.form.get('project_id')
+    
+    if not project_id:
+        return jsonify({'error': 'Project ID required'}), 400
+    
+    project = Project.query.get(project_id)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({'error': f'File type not allowed. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
+    
+    # Generate unique filename
+    original_filename = secure_filename(file.filename)
+    ext = original_filename.rsplit('.', 1)[1].lower()
+    unique_filename = f"{uuid.uuid4().hex}.{ext}"
+    
+    # Save file
+    upload_folder = current_app.config['UPLOAD_FOLDER']
+    project_folder = os.path.join(upload_folder, str(project_id))
+    os.makedirs(project_folder, exist_ok=True)
+    
+    file_path = os.path.join(project_folder, unique_filename)
+    file.save(file_path)
+    
+    # Get file size
+    file_size = os.path.getsize(file_path)
+    
+    # Create document record
+    document = Document(
+        filename=unique_filename,
+        original_filename=original_filename,
+        file_path=file_path,
+        file_type=ext,
+        file_size=file_size,
+        status='pending',
+        project_id=project_id,
+        uploaded_by=user_id
+    )
+    
+    db.session.add(document)
+    db.session.commit()
+    
+    # TODO: Trigger async processing task
+    # from ..tasks import process_document
+    # process_document.delay(document.id)
+    
+    return jsonify({
+        'message': 'Document uploaded',
+        'document': document.to_dict()
+    }), 201
+
+
+@bp.route('/<int:document_id>', methods=['GET'])
+@jwt_required()
+def get_document(document_id):
+    """Get document details."""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    return jsonify({
+        'document': document.to_dict()
+    }), 200
+
+
+@bp.route('/<int:document_id>/parse', methods=['POST'])
+@jwt_required()
+def parse_document(document_id):
+    """Trigger document parsing and question extraction."""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Update status
+    document.status = 'processing'
+    db.session.commit()
+    
+    # TODO: Trigger async processing
+    # from ..tasks import extract_questions
+    # extract_questions.delay(document.id)
+    
+    return jsonify({
+        'message': 'Parsing started',
+        'document': document.to_dict()
+    }), 202
+
+
+@bp.route('/<int:document_id>', methods=['DELETE'])
+@jwt_required()
+def delete_document(document_id):
+    """Delete a document."""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Delete file
+    if os.path.exists(document.file_path):
+        os.remove(document.file_path)
+    
+    db.session.delete(document)
+    db.session.commit()
+    
+    return jsonify({'message': 'Document deleted'}), 200
