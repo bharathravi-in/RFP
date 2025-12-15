@@ -29,7 +29,7 @@ def create_app(config_name=None):
     os.makedirs(upload_folder, exist_ok=True)
     
     # Register blueprints
-    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics
+    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai
     
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(projects.bp, url_prefix='/api/projects')
@@ -39,6 +39,7 @@ def create_app(config_name=None):
     app.register_blueprint(knowledge.bp, url_prefix='/api/knowledge')
     app.register_blueprint(export.bp, url_prefix='/api/export')
     app.register_blueprint(analytics.bp, url_prefix='/api/analytics')
+    app.register_blueprint(ai.bp, url_prefix='/api/ai')
     
     # Health check endpoint
     @app.route('/api/health')
