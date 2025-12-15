@@ -33,15 +33,41 @@ def generate_answer():
     tone = options.get('tone', 'professional')
     length = options.get('length', 'medium')
     
-    # TODO: Call AI service
-    # from ..services.ai_service import generate_ai_answer
-    # result = generate_ai_answer(question.text, tone=tone, length=length)
+    # Search knowledge base for relevant context
+    knowledge_context = []
+    try:
+        from ..services.qdrant_service import get_qdrant_service
+        qdrant = get_qdrant_service()
+        if qdrant.enabled:
+            from ..models import KnowledgeItem
+            search_results = qdrant.search(
+                query=question.text,
+                org_id=user.organization_id,
+                limit=5
+            )
+            if search_results:
+                item_ids = [r['item_id'] for r in search_results]
+                items = KnowledgeItem.query.filter(
+                    KnowledgeItem.id.in_(item_ids)
+                ).all()
+                items_map = {item.id: item for item in items}
+                knowledge_context = [{
+                    'title': items_map[r['item_id']].title if r['item_id'] in items_map else r['title'],
+                    'content': items_map[r['item_id']].content[:500] if r['item_id'] in items_map else r['content_preview'],
+                    'relevance': r['score']
+                } for r in search_results if r['item_id'] in items_map]
+    except Exception as e:
+        pass  # Continue without context if search fails
     
-    # Placeholder response
+    # TODO: Call AI service with knowledge context
+    # from ..services.ai_service import generate_ai_answer
+    # result = generate_ai_answer(question.text, context=knowledge_context, tone=tone, length=length)
+    
+    # Placeholder response with knowledge context
     result = {
         'content': f'[AI Generated Answer for: {question.text[:100]}...]',
         'confidence_score': 0.85,
-        'sources': [
+        'sources': knowledge_context if knowledge_context else [
             {'title': 'Company Policy Doc', 'relevance': 0.92},
             {'title': 'Previous RFP Response', 'relevance': 0.87}
         ]
@@ -57,7 +83,7 @@ def generate_answer():
         status='draft',
         version=current_version + 1,
         is_ai_generated=True,
-        generation_params={'tone': tone, 'length': length},
+        generation_params={'tone': tone, 'length': length, 'knowledge_used': len(knowledge_context)},
         question_id=question_id
     )
     
@@ -70,7 +96,8 @@ def generate_answer():
     
     return jsonify({
         'message': 'Answer generated',
-        'answer': answer.to_dict()
+        'answer': answer.to_dict(),
+        'knowledge_context_count': len(knowledge_context)
     }), 201
 
 

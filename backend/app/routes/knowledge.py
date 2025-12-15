@@ -1,9 +1,29 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import KnowledgeItem, User
+from ..services.qdrant_service import get_qdrant_service
+import logging
 
+logger = logging.getLogger(__name__)
 bp = Blueprint('knowledge', __name__)
+
+
+def _try_async_embedding(item_id: int, org_id: int, action: str = 'create'):
+    """Try to use async Celery task, fallback to sync if unavailable."""
+    try:
+        if action == 'create':
+            from ..tasks import create_embedding_task
+            create_embedding_task.delay(item_id, org_id)
+            logger.info(f"Queued async embedding task for item {item_id}")
+        elif action == 'delete':
+            from ..tasks import delete_embedding_task
+            delete_embedding_task.delay(item_id, org_id)
+            logger.info(f"Queued async delete task for item {item_id}")
+        return True
+    except Exception as e:
+        logger.warning(f"Async task failed, using sync: {e}")
+        return False
 
 
 @bp.route('', methods=['GET'])
@@ -77,10 +97,26 @@ def create_knowledge():
     db.session.add(item)
     db.session.commit()
     
-    # TODO: Create embedding in Qdrant
-    # from ..services.knowledge_service import create_embedding
-    # item.embedding_id = create_embedding(item.content)
-    # db.session.commit()
+    # Create embedding in Qdrant (async with sync fallback)
+    if not _try_async_embedding(item.id, user.organization_id, 'create'):
+        # Sync fallback
+        try:
+            qdrant = get_qdrant_service()
+            if qdrant.enabled:
+                embedding_id = qdrant.upsert_item(
+                    item_id=item.id,
+                    org_id=user.organization_id,
+                    title=item.title,
+                    content=item.content,
+                    folder_id=item.folder_id,
+                    tags=item.tags or []
+                )
+                if embedding_id:
+                    item.embedding_id = embedding_id
+                    db.session.commit()
+                    logger.info(f"Created embedding for knowledge item {item.id}")
+        except Exception as e:
+            logger.error(f"Failed to create embedding: {e}")
     
     return jsonify({
         'message': 'Knowledge item created',
@@ -128,17 +164,41 @@ def update_knowledge(item_id):
     
     data = request.get_json()
     
+    content_changed = False
     if 'title' in data:
         item.title = data['title']
+        content_changed = True
     if 'content' in data:
         item.content = data['content']
-        # TODO: Re-create embedding
+        content_changed = True
     if 'tags' in data:
         item.tags = data['tags']
     if 'is_active' in data:
         item.is_active = data['is_active']
     
     db.session.commit()
+    
+    # Re-create embedding if content changed (async with sync fallback)
+    if content_changed:
+        if not _try_async_embedding(item.id, user.organization_id, 'create'):
+            # Sync fallback
+            try:
+                qdrant = get_qdrant_service()
+                if qdrant.enabled:
+                    embedding_id = qdrant.upsert_item(
+                        item_id=item.id,
+                        org_id=user.organization_id,
+                        title=item.title,
+                        content=item.content,
+                        folder_id=item.folder_id,
+                        tags=item.tags or []
+                    )
+                    if embedding_id:
+                        item.embedding_id = embedding_id
+                        db.session.commit()
+                        logger.info(f"Updated embedding for knowledge item {item.id}")
+            except Exception as e:
+                logger.error(f"Failed to update embedding: {e}")
     
     return jsonify({
         'message': 'Knowledge item updated',
@@ -168,7 +228,16 @@ def delete_knowledge(item_id):
     item.is_active = False
     db.session.commit()
     
-    # TODO: Remove from Qdrant
+    # Remove from Qdrant (async with sync fallback)
+    if not _try_async_embedding(item.id, user.organization_id, 'delete'):
+        # Sync fallback
+        try:
+            qdrant = get_qdrant_service()
+            if qdrant.enabled:
+                qdrant.delete_item(item_id=item.id, org_id=user.organization_id)
+                logger.info(f"Deleted embedding for knowledge item {item.id}")
+        except Exception as e:
+            logger.error(f"Failed to delete embedding: {e}")
     
     return jsonify({'message': 'Knowledge item deleted'}), 200
 
@@ -206,14 +275,45 @@ def reindex_knowledge():
     if user.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
     
-    # TODO: Trigger async reindex task
-    # from ..tasks import reindex_knowledge_base
-    # reindex_knowledge_base.delay(user.organization_id)
-    
-    return jsonify({
-        'message': 'Reindex started',
-        'status': 'processing'
-    }), 202
+    # Reindex all knowledge items in Qdrant
+    try:
+        qdrant = get_qdrant_service()
+        if not qdrant.enabled:
+            return jsonify({
+                'error': 'Qdrant service not available',
+                'status': 'failed'
+            }), 503
+        
+        # Fetch all active items for the organization
+        items = KnowledgeItem.query.filter_by(
+            organization_id=user.organization_id,
+            is_active=True
+        ).all()
+        
+        # Convert to list of dicts for reindexing
+        items_data = [{
+            'id': item.id,
+            'title': item.title,
+            'content': item.content,
+            'folder_id': item.folder_id,
+            'tags': item.tags or []
+        } for item in items]
+        
+        count = qdrant.reindex_all(items=items_data, org_id=user.organization_id)
+        
+        logger.info(f"Reindexed {count} items for org {user.organization_id}")
+        
+        return jsonify({
+            'message': f'Reindexed {count} items',
+            'count': count,
+            'status': 'completed'
+        }), 200
+    except Exception as e:
+        logger.error(f"Reindex failed: {e}")
+        return jsonify({
+            'error': str(e),
+            'status': 'failed'
+        }), 500
 
 
 @bp.route('/search', methods=['POST'])
@@ -233,11 +333,37 @@ def search_knowledge():
     if not query:
         return jsonify({'error': 'Search query required'}), 400
     
-    # TODO: Semantic search with Qdrant
-    # from ..services.knowledge_service import semantic_search
-    # results = semantic_search(query, user.organization_id, limit)
+    # Semantic search with Qdrant
+    try:
+        qdrant = get_qdrant_service()
+        if qdrant.enabled:
+            qdrant_results = qdrant.search(
+                query=query,
+                org_id=user.organization_id,
+                limit=limit
+            )
+            
+            if qdrant_results:
+                # Fetch full items from database
+                item_ids = [r['item_id'] for r in qdrant_results]
+                items_map = {item.id: item for item in KnowledgeItem.query.filter(
+                    KnowledgeItem.id.in_(item_ids)
+                ).all()}
+                
+                results = []
+                for r in qdrant_results:
+                    item = items_map.get(r['item_id'])
+                    if item:
+                        results.append({
+                            'item': item.to_dict(),
+                            'score': r['score']
+                        })
+                
+                return jsonify({'results': results}), 200
+    except Exception as e:
+        logger.error(f"Qdrant search failed, falling back to SQL: {e}")
     
-    # Placeholder - basic text search
+    # Fallback - basic text search
     items = KnowledgeItem.query.filter(
         KnowledgeItem.organization_id == user.organization_id,
         KnowledgeItem.is_active == True,

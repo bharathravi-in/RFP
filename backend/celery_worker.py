@@ -24,4 +24,5 @@ def make_celery(app_name=__name__):
 celery = make_celery()
 
 # Import tasks to register them
-# from app.tasks import *
+from app import tasks  # noqa: F401, E402
+
