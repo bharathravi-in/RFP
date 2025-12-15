@@ -11,7 +11,7 @@ bp = Blueprint('answers', __name__)
 @jwt_required()
 def generate_answer():
     """Generate AI answer for a question."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     data = request.get_json()
@@ -78,7 +78,7 @@ def generate_answer():
 @jwt_required()
 def regenerate_answer():
     """Regenerate answer with different options."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     data = request.get_json()
@@ -124,7 +124,7 @@ def regenerate_answer():
 @jwt_required()
 def update_answer(answer_id):
     """Edit answer content."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor', 'reviewer']:
@@ -156,7 +156,7 @@ def update_answer(answer_id):
 @jwt_required()
 def review_answer(answer_id):
     """Approve or reject an answer."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'reviewer']:
@@ -200,7 +200,7 @@ def review_answer(answer_id):
 @jwt_required()
 def add_comment(answer_id):
     """Add inline comment to answer."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     answer = Answer.query.get(answer_id)
@@ -236,7 +236,7 @@ def add_comment(answer_id):
 @jwt_required()
 def resolve_comment(comment_id):
     """Resolve or update a comment."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     
     comment = AnswerComment.query.get(comment_id)
     

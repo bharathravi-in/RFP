@@ -10,11 +10,15 @@ bp = Blueprint('projects', __name__)
 @jwt_required()
 def list_projects():
     """List all projects for user's organization."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # JWT stores as string
     user = User.query.get(user_id)
     
-    if not user or not user.organization_id:
-        return jsonify({'error': 'User not in organization'}), 403
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Users without organization get empty list
+    if not user.organization_id:
+        return jsonify({'projects': []}), 200
     
     projects = Project.query.filter_by(
         organization_id=user.organization_id
@@ -29,14 +33,26 @@ def list_projects():
 @jwt_required()
 def create_project():
     """Create a new project."""
-    user_id = get_jwt_identity()
+    from ..models import Organization
+    
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
-    if not user or not user.organization_id:
-        return jsonify({'error': 'User not in organization'}), 403
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
     
-    if user.role not in ['admin', 'editor']:
-        return jsonify({'error': 'Insufficient permissions'}), 403
+    # Auto-create organization for users without one
+    if not user.organization_id:
+        org = Organization(
+            name=f"{user.name}'s Organization",
+            slug=f"org-{user.id}",
+            settings={}
+        )
+        db.session.add(org)
+        db.session.flush()
+        user.organization_id = org.id
+        user.role = 'admin'  # Make them admin of their org
+        db.session.commit()
     
     data = request.get_json()
     
@@ -64,7 +80,7 @@ def create_project():
 @jwt_required()
 def get_project(project_id):
     """Get project details."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     project = Project.query.get(project_id)
@@ -84,7 +100,7 @@ def get_project(project_id):
 @jwt_required()
 def update_project(project_id):
     """Update project details."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:
@@ -121,7 +137,7 @@ def update_project(project_id):
 @jwt_required()
 def delete_project(project_id):
     """Delete a project."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role != 'admin':
@@ -145,7 +161,7 @@ def delete_project(project_id):
 @jwt_required()
 def assign_reviewers(project_id):
     """Assign reviewers to a project."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:

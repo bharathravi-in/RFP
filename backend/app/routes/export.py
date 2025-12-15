@@ -11,7 +11,7 @@ bp = Blueprint('export', __name__)
 @jwt_required()
 def preview_export():
     """Preview export content."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     data = request.get_json()
@@ -57,7 +57,7 @@ def preview_export():
 @jwt_required()
 def export_pdf():
     """Export project as PDF."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     data = request.get_json()
@@ -89,7 +89,7 @@ def export_pdf():
 @jwt_required()
 def export_docx():
     """Export project as DOCX."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     data = request.get_json()
@@ -121,7 +121,7 @@ def export_docx():
 @jwt_required()
 def export_xlsx():
     """Export project as XLSX."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     data = request.get_json()

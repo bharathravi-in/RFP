@@ -10,7 +10,7 @@ bp = Blueprint('questions', __name__)
 @jwt_required()
 def list_questions():
     """List questions for a project."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     project_id = request.args.get('project_id')
@@ -39,7 +39,7 @@ def list_questions():
 @jwt_required()
 def get_question(question_id):
     """Get question details with answer."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     question = Question.query.get(question_id)
@@ -59,7 +59,7 @@ def get_question(question_id):
 @jwt_required()
 def update_question(question_id):
     """Update question text or metadata."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:
@@ -98,7 +98,7 @@ def update_question(question_id):
 @jwt_required()
 def merge_questions():
     """Merge multiple questions into one."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:
@@ -145,7 +145,7 @@ def merge_questions():
 @jwt_required()
 def split_question():
     """Split a question into multiple."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:
@@ -195,7 +195,7 @@ def split_question():
 @jwt_required()
 def delete_question(question_id):
     """Delete a question."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:

@@ -20,7 +20,7 @@ def allowed_file(filename):
 @jwt_required()
 def upload_document():
     """Upload a document to a project."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if 'file' not in request.files:
@@ -91,7 +91,7 @@ def upload_document():
 @jwt_required()
 def get_document(document_id):
     """Get document details."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     document = Document.query.get(document_id)
@@ -111,7 +111,12 @@ def get_document(document_id):
 @jwt_required()
 def parse_document(document_id):
     """Trigger document parsing and question extraction."""
-    user_id = get_jwt_identity()
+    from datetime import datetime
+    from ..services.document_service import DocumentService
+    from ..services.extraction_service import QuestionExtractor
+    from ..models import Question
+    
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     document = Document.query.get(document_id)
@@ -126,21 +131,63 @@ def parse_document(document_id):
     document.status = 'processing'
     db.session.commit()
     
-    # TODO: Trigger async processing
-    # from ..tasks import extract_questions
-    # extract_questions.delay(document.id)
-    
-    return jsonify({
-        'message': 'Parsing started',
-        'document': document.to_dict()
-    }), 202
+    try:
+        # Extract text from document
+        doc_service = DocumentService()
+        extracted_text = doc_service.extract_text(document.file_path, document.file_type)
+        
+        if not extracted_text:
+            document.status = 'failed'
+            document.error_message = 'Could not extract text from document'
+            db.session.commit()
+            return jsonify({'error': 'Text extraction failed'}), 400
+        
+        # Save extracted text
+        document.extracted_text = extracted_text
+        document.file_metadata = {
+            'word_count': len(extracted_text.split()),
+            'char_count': len(extracted_text),
+        }
+        
+        # Extract questions
+        extractor = QuestionExtractor()
+        questions_data = extractor.extract_questions(extracted_text, use_ai=True)
+        
+        # Create Question records
+        for q_data in questions_data:
+            question = Question(
+                text=q_data['text'],
+                section=q_data.get('section', 'General'),
+                order=q_data.get('order', 0),
+                status='pending',
+                project_id=document.project_id,
+                document_id=document.id
+            )
+            db.session.add(question)
+        
+        # Update document status
+        document.status = 'completed'
+        document.processed_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Document parsed successfully',
+            'document': document.to_dict(),
+            'questions_extracted': len(questions_data)
+        }), 200
+        
+    except Exception as e:
+        document.status = 'failed'
+        document.error_message = str(e)
+        db.session.commit()
+        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
 
 
 @bp.route('/<int:document_id>', methods=['DELETE'])
 @jwt_required()
 def delete_document(document_id):
     """Delete a document."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:

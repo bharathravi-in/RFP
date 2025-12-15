@@ -10,7 +10,7 @@ bp = Blueprint('knowledge', __name__)
 @jwt_required()
 def list_knowledge():
     """List knowledge base items."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if not user or not user.organization_id:
@@ -51,7 +51,7 @@ def list_knowledge():
 @jwt_required()
 def create_knowledge():
     """Create a knowledge base item."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if not user or not user.organization_id:
@@ -92,7 +92,7 @@ def create_knowledge():
 @jwt_required()
 def get_knowledge(item_id):
     """Get knowledge item details."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     item = KnowledgeItem.query.get(item_id)
@@ -112,7 +112,7 @@ def get_knowledge(item_id):
 @jwt_required()
 def update_knowledge(item_id):
     """Update a knowledge item."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:
@@ -150,7 +150,7 @@ def update_knowledge(item_id):
 @jwt_required()
 def delete_knowledge(item_id):
     """Delete a knowledge item."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role != 'admin':
@@ -177,7 +177,7 @@ def delete_knowledge(item_id):
 @jwt_required()
 def import_csv():
     """Import Q&A pairs from CSV."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role not in ['admin', 'editor']:
@@ -200,7 +200,7 @@ def import_csv():
 @jwt_required()
 def reindex_knowledge():
     """Trigger re-indexing of all knowledge items."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if user.role != 'admin':
@@ -220,7 +220,7 @@ def reindex_knowledge():
 @jwt_required()
 def search_knowledge():
     """Semantic search in knowledge base."""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if not user or not user.organization_id:
