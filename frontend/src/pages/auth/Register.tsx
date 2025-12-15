@@ -56,7 +56,7 @@ export default function Register() {
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-lg">
                             <SparklesIcon className="h-6 w-6 text-white" />
                         </div>
-                        <span className="font-bold text-2xl text-text-primary">AutoRespond</span>
+                        <span className="font-bold text-2xl text-text-primary">RFP War Room</span>
                     </div>
                     <p className="mt-2 text-text-secondary">AI-Powered RFP Automation</p>
                 </div>

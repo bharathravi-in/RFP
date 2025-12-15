@@ -1,25 +1,14 @@
 """
 File preview endpoint for knowledge items.
+Serves file content from database (file_data column).
 """
 import os
+from io import BytesIO
 from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import KnowledgeItem, User
 
 bp = Blueprint('preview', __name__)
-
-
-def get_absolute_path(file_path):
-    """Convert relative file path to absolute path."""
-    if not file_path:
-        return None
-    
-    # Already absolute
-    if file_path.startswith('/'):
-        return file_path
-    
-    # Relative path - make absolute from /app
-    return os.path.join('/app', file_path)
 
 
 @bp.route('/<int:item_id>', methods=['GET'])
@@ -38,7 +27,7 @@ def preview_file(item_id):
         return jsonify({'error': 'Access denied'}), 403
     
     # For manual entries, return content directly
-    if item.source_type == 'manual' or not item.file_path:
+    if item.source_type == 'manual' or not item.file_data:
         return jsonify({
             'type': 'text',
             'title': item.title,
@@ -46,27 +35,12 @@ def preview_file(item_id):
             'metadata': item.item_metadata
         }), 200
     
-    abs_path = get_absolute_path(item.file_path)
-    
-    # Check if file exists
-    if not abs_path or not os.path.exists(abs_path):
-        return jsonify({
-            'type': 'document',
-            'title': item.title,
-            'content': item.content,
-            'file_type': item.file_type,
-            'file_name': item.source_file,
-            'can_download': False,
-            'error': 'File not found on disk'
-        }), 200
-    
     file_type = item.file_type or ''
     
-    # For text files, return content
-    if file_type.startswith('text/') or abs_path.endswith(('.txt', '.md', '.csv')):
+    # For text files, decode and return content
+    if file_type.startswith('text/') or (item.source_file and item.source_file.endswith(('.txt', '.md', '.csv'))):
         try:
-            with open(abs_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            content = item.file_data.decode('utf-8')
             return jsonify({
                 'type': 'text',
                 'title': item.title,
@@ -75,7 +49,15 @@ def preview_file(item_id):
                 'can_download': True
             }), 200
         except Exception as e:
-            return jsonify({'error': f'Could not read file: {str(e)}'}), 500
+            # Fall back to extracted content
+            return jsonify({
+                'type': 'document',
+                'title': item.title,
+                'content': item.content,
+                'file_type': file_type,
+                'file_name': item.source_file,
+                'can_download': True
+            }), 200
     
     # For PDFs and other documents, return metadata + extracted text
     return jsonify({
@@ -84,6 +66,7 @@ def preview_file(item_id):
         'content': item.content,  # Extracted text
         'file_type': file_type,
         'file_name': item.source_file,
+        'file_size': item.file_size,
         'can_download': True
     }), 200
 
@@ -91,7 +74,7 @@ def preview_file(item_id):
 @bp.route('/<int:item_id>/download', methods=['GET'])
 @jwt_required()
 def download_file(item_id):
-    """Download the original file."""
+    """Download the original file from database."""
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -103,13 +86,15 @@ def download_file(item_id):
     if item.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    abs_path = get_absolute_path(item.file_path)
-    
-    if not abs_path or not os.path.exists(abs_path):
+    if not item.file_data:
         return jsonify({'error': 'File not available'}), 404
     
+    # Create BytesIO from file_data
+    file_buffer = BytesIO(item.file_data)
+    
     return send_file(
-        abs_path,
+        file_buffer,
+        mimetype=item.file_type or 'application/octet-stream',
         as_attachment=True,
         download_name=item.source_file or item.title
     )
@@ -130,18 +115,19 @@ def serve_file(item_id):
     if item.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    abs_path = get_absolute_path(item.file_path)
-    
-    if not abs_path or not os.path.exists(abs_path):
+    if not item.file_data:
         return jsonify({'error': 'File not available'}), 404
     
     # Determine MIME type
     mime_type = item.file_type or 'application/octet-stream'
-    if abs_path.endswith('.pdf'):
+    if item.source_file and item.source_file.endswith('.pdf'):
         mime_type = 'application/pdf'
     
+    # Create BytesIO from file_data
+    file_buffer = BytesIO(item.file_data)
+    
     return send_file(
-        abs_path,
+        file_buffer,
         mimetype=mime_type,
         as_attachment=False  # Inline display
     )

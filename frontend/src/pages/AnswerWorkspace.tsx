@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { questionsApi, answersApi } from '@/api/client';
+import { questionsApi, answersApi, exportApi } from '@/api/client';
 import { Question, Answer } from '@/types';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -107,6 +107,48 @@ export default function AnswerWorkspace() {
         }
     };
 
+    const handleExportDocx = async () => {
+        try {
+            const response = await exportApi.docx(Number(id));
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'RFP_Response.docx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success('DOCX exported successfully!');
+        } catch {
+            toast.error('Failed to export DOCX');
+        }
+    };
+
+    const handleExportXlsx = async () => {
+        try {
+            const response = await exportApi.xlsx(Number(id));
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'RFP_Response.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success('Excel exported successfully!');
+        } catch {
+            toast.error('Failed to export Excel');
+        }
+    };
+
+    const handleCompleteProject = async () => {
+        try {
+            await exportApi.complete(Number(id));
+            toast.success('Project marked as complete! 🎉');
+            navigate('/projects');
+        } catch {
+            toast.error('Failed to complete project');
+        }
+    };
+
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'approved':
@@ -183,7 +225,45 @@ export default function AnswerWorkspace() {
 
                 {/* Center: AI Answer Editor */}
                 <div className="flex-1 flex flex-col overflow-hidden bg-background">
-                    {selectedQuestion ? (
+                    {/* Show completion panel when all questions are approved */}
+                    {questions.length > 0 && questions.every(q => q.status === 'approved') ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-8">
+                            <div className="text-center max-w-md">
+                                <div className="h-20 w-20 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-6">
+                                    <CheckCircleIcon className="h-10 w-10 text-success" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-text-primary mb-2">All Done! 🎉</h2>
+                                <p className="text-text-secondary mb-8">
+                                    All {questions.length} questions have been answered and approved.
+                                    You can now export your responses or mark the project as complete.
+                                </p>
+
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={handleExportDocx}
+                                        className="w-full btn-primary flex items-center justify-center gap-2"
+                                    >
+                                        <DocumentTextIcon className="h-5 w-5" />
+                                        Export as DOCX
+                                    </button>
+                                    <button
+                                        onClick={handleExportXlsx}
+                                        className="w-full btn-secondary flex items-center justify-center gap-2"
+                                    >
+                                        <DocumentTextIcon className="h-5 w-5" />
+                                        Export as Excel
+                                    </button>
+                                    <button
+                                        onClick={handleCompleteProject}
+                                        className="w-full bg-success text-white px-4 py-2 rounded-lg hover:bg-success/90 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <CheckCircleIcon className="h-5 w-5" />
+                                        Mark Project Complete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : selectedQuestion ? (
                         <>
                             {/* Question Display */}
                             <div className="p-6 bg-surface border-b border-border">

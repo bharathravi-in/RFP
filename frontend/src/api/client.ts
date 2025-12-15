@@ -105,6 +105,9 @@ export const projectsApi = {
 // ===============================
 
 export const documentsApi = {
+    list: (projectId: number) =>
+        api.get('/documents', { params: { project_id: projectId } }),
+
     upload: (projectId: number, file: File) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -207,14 +210,14 @@ export const exportApi = {
     preview: (projectId: number) =>
         api.post('/export/preview', { project_id: projectId }),
 
-    pdf: (projectId: number) =>
-        api.post('/export/pdf', { project_id: projectId }, { responseType: 'blob' }),
-
     docx: (projectId: number) =>
         api.post('/export/docx', { project_id: projectId }, { responseType: 'blob' }),
 
     xlsx: (projectId: number) =>
         api.post('/export/xlsx', { project_id: projectId }, { responseType: 'blob' }),
+
+    complete: (projectId: number) =>
+        api.post('/export/complete', { project_id: projectId }),
 };
 
 export default api;

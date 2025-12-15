@@ -9,7 +9,8 @@ class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255), nullable=False)
-    file_path = db.Column(db.String(500), nullable=False)
+    file_path = db.Column(db.String(500), nullable=True)  # Optional - for filesystem storage
+    file_data = db.Column(db.LargeBinary, nullable=True)  # Store file content in DB
     file_type = db.Column(db.String(50), nullable=False)  # pdf, docx, xlsx
     file_size = db.Column(db.Integer, nullable=True)  # bytes
     status = db.Column(db.String(50), default='pending')  # pending, processing, completed, failed
@@ -43,3 +44,4 @@ class Document(db.Model):
             'processed_at': self.processed_at.isoformat() if self.processed_at else None,
             'question_count': len(self.questions) if self.questions else 0
         }
+

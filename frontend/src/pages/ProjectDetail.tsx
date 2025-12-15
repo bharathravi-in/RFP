@@ -32,13 +32,14 @@ export default function ProjectDetail() {
 
     const loadProject = async () => {
         try {
-            const [projectRes, questionsRes] = await Promise.all([
+            const [projectRes, questionsRes, documentsRes] = await Promise.all([
                 projectsApi.get(Number(id)),
                 questionsApi.list(Number(id)),
+                documentsApi.list(Number(id)),
             ]);
             setProject(projectRes.data.project);
             setQuestions(questionsRes.data.questions || []);
-            // Documents would be loaded from project or separate endpoint
+            setDocuments(documentsRes.data.documents || []);
         } catch {
             toast.error('Failed to load project');
             navigate('/projects');
@@ -204,9 +205,9 @@ export default function ProjectDetail() {
                                         </p>
                                     </div>
                                     <span className={`badge ${doc.status === 'completed' ? 'badge-success' :
-                                            doc.status === 'processing' ? 'badge-warning' :
-                                                doc.status === 'failed' ? 'badge-error' :
-                                                    'badge-neutral'
+                                        doc.status === 'processing' ? 'badge-warning' :
+                                            doc.status === 'failed' ? 'badge-error' :
+                                                'badge-neutral'
                                         }`}>
                                         {doc.status}
                                     </span>
@@ -238,9 +239,9 @@ export default function ProjectDetail() {
                                     )}
                                 </div>
                                 <span className={`badge flex-shrink-0 ${question.status === 'approved' ? 'badge-success' :
-                                        question.status === 'answered' ? 'badge-primary' :
-                                            question.status === 'review' ? 'badge-warning' :
-                                                'badge-neutral'
+                                    question.status === 'answered' ? 'badge-primary' :
+                                        question.status === 'review' ? 'badge-warning' :
+                                            'badge-neutral'
                                     }`}>
                                     {question.status}
                                 </span>

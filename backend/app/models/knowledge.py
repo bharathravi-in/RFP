@@ -12,8 +12,10 @@ class KnowledgeItem(db.Model):
     tags = db.Column(db.JSON, default=list)  # Array of tags for filtering
     source_type = db.Column(db.String(50), default='manual')  # document, csv, manual, file
     source_file = db.Column(db.String(255), nullable=True)  # Original file if imported
-    file_path = db.Column(db.String(512), nullable=True)  # Path to uploaded file
+    file_path = db.Column(db.String(512), nullable=True)  # Path to uploaded file (optional)
     file_type = db.Column(db.String(100), nullable=True)  # MIME type
+    file_data = db.Column(db.LargeBinary, nullable=True)  # Binary file content
+    file_size = db.Column(db.Integer, nullable=True)  # File size in bytes
     embedding_id = db.Column(db.String(255), nullable=True)  # Qdrant point ID
     item_metadata = db.Column(db.JSON, default=dict)  # Additional metadata
     is_active = db.Column(db.Boolean, default=True)

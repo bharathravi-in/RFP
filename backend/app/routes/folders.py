@@ -201,42 +201,45 @@ def upload_to_folder(folder_id):
     uploaded = []
     errors = []
     
-    # Use absolute path for uploads
-    base_upload = current_app.config.get('UPLOAD_FOLDER', '/app/uploads')
-    if not base_upload.startswith('/'):
-        base_upload = os.path.join('/app', base_upload)
-    
-    upload_folder = os.path.join(
-        base_upload,
-        'knowledge',
-        str(user.organization_id)
-    )
-    os.makedirs(upload_folder, exist_ok=True)
-    
     for file in files:
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            unique_name = f"{uuid.uuid4().hex}_{filename}"
-            file_path = os.path.join(upload_folder, unique_name)
-            file.save(file_path)
             
-            # Extract text content for indexing
+            # Read file content into memory
+            file_content = file.read()
+            file_size = len(file_content)
+            
+            # Extract text content for indexing using temp file
+            content = f"File: {filename}\n\n[Content pending extraction]"
             try:
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
+                    temp_file.write(file_content)
+                    temp_path = temp_file.name
+                
                 from ..services.extraction_text_service import extract_text_from_file
-                content = extract_text_from_file(file_path, file.content_type)
+                content = extract_text_from_file(temp_path, file.content_type)
                 if not content or len(content.strip()) < 10:
                     content = f"File: {filename}\n\n[Content could not be extracted. Download to view.]"
+                
+                # Clean up temp file
+                os.unlink(temp_path)
             except Exception as e:
                 content = f"File: {filename}\n\n[Extraction error: {str(e)}]"
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
             
-            # Create knowledge item
+            # Create knowledge item with file data in database
             item = KnowledgeItem(
                 title=filename,
                 content=content,
                 source_type='file',
                 source_file=filename,
-                file_path=file_path,
                 file_type=file.content_type,
+                file_data=file_content,  # Store binary in database
+                file_size=file_size,
                 folder_id=folder_id,
                 organization_id=user.organization_id,
                 created_by=user_id

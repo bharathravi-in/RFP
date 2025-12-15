@@ -40,7 +40,7 @@ def preview_export():
             'section': q.section,
             'question': q.text,
             'answer': answer.content if answer else '',
-            'status': answer.status if answer else 'unanswered',
+            'status': q.status,
             'confidence': answer.confidence_score if answer else 0
         })
     
@@ -53,42 +53,12 @@ def preview_export():
     }), 200
 
 
-@bp.route('/pdf', methods=['POST'])
-@jwt_required()
-def export_pdf():
-    """Export project as PDF."""
-    user_id = int(get_jwt_identity())
-    user = User.query.get(user_id)
-    
-    data = request.get_json()
-    project_id = data.get('project_id')
-    
-    if not project_id:
-        return jsonify({'error': 'Project ID required'}), 400
-    
-    project = Project.query.get(project_id)
-    
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
-    
-    if project.organization_id != user.organization_id:
-        return jsonify({'error': 'Access denied'}), 403
-    
-    # TODO: Generate PDF using reportlab or weasyprint
-    # from ..services.export_service import generate_pdf
-    # pdf_buffer = generate_pdf(project)
-    
-    # Placeholder
-    return jsonify({
-        'message': 'PDF export not yet implemented',
-        'status': 'pending'
-    }), 501
-
-
 @bp.route('/docx', methods=['POST'])
 @jwt_required()
 def export_docx():
     """Export project as DOCX."""
+    from ..services.export_service import generate_docx
+    
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -106,21 +76,30 @@ def export_docx():
     if project.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    # TODO: Generate DOCX using python-docx
-    # from ..services.export_service import generate_docx
-    # docx_buffer = generate_docx(project)
+    # Get questions
+    questions = Question.query.filter_by(
+        project_id=project_id
+    ).order_by(Question.order).all()
     
-    # Placeholder
-    return jsonify({
-        'message': 'DOCX export not yet implemented',
-        'status': 'pending'
-    }), 501
+    # Generate DOCX
+    docx_buffer = generate_docx(project, questions)
+    
+    filename = f'{project.name.replace(" ", "_")}_Response.docx'
+    
+    return send_file(
+        docx_buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 @bp.route('/xlsx', methods=['POST'])
 @jwt_required()
 def export_xlsx():
     """Export project as XLSX."""
+    from ..services.export_service import generate_xlsx
+    
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -138,12 +117,50 @@ def export_xlsx():
     if project.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    # TODO: Generate XLSX using openpyxl
-    # from ..services.export_service import generate_xlsx
-    # xlsx_buffer = generate_xlsx(project)
+    # Get questions
+    questions = Question.query.filter_by(
+        project_id=project_id
+    ).order_by(Question.order).all()
     
-    # Placeholder
+    # Generate XLSX
+    xlsx_buffer = generate_xlsx(project, questions)
+    
+    filename = f'{project.name.replace(" ", "_")}_Response.xlsx'
+    
+    return send_file(
+        xlsx_buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+@bp.route('/complete', methods=['POST'])
+@jwt_required()
+def complete_project():
+    """Mark project as complete."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    data = request.get_json()
+    project_id = data.get('project_id')
+    
+    if not project_id:
+        return jsonify({'error': 'Project ID required'}), 400
+    
+    project = Project.query.get(project_id)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    project.status = 'completed'
+    project.completion_percent = 100
+    db.session.commit()
+    
     return jsonify({
-        'message': 'XLSX export not yet implemented',
-        'status': 'pending'
-    }), 501
+        'message': 'Project marked as complete',
+        'project': project.to_dict()
+    }), 200

@@ -11,6 +11,31 @@ bp = Blueprint('documents', __name__)
 ALLOWED_EXTENSIONS = {'pdf', 'docx', 'xlsx', 'doc', 'xls'}
 
 
+@bp.route('', methods=['GET'])
+@jwt_required()
+def list_documents():
+    """List documents for a project."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    project_id = request.args.get('project_id')
+    if not project_id:
+        return jsonify({'error': 'project_id required'}), 400
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    documents = Document.query.filter_by(project_id=project_id).order_by(Document.created_at.desc()).all()
+    
+    return jsonify({
+        'documents': [d.to_dict() for d in documents]
+    }), 200
+
+
 def allowed_file(filename):
     """Check if file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -51,22 +76,15 @@ def upload_document():
     ext = original_filename.rsplit('.', 1)[1].lower()
     unique_filename = f"{uuid.uuid4().hex}.{ext}"
     
-    # Save file
-    upload_folder = current_app.config['UPLOAD_FOLDER']
-    project_folder = os.path.join(upload_folder, str(project_id))
-    os.makedirs(project_folder, exist_ok=True)
+    # Read file content into memory
+    file_data = file.read()
+    file_size = len(file_data)
     
-    file_path = os.path.join(project_folder, unique_filename)
-    file.save(file_path)
-    
-    # Get file size
-    file_size = os.path.getsize(file_path)
-    
-    # Create document record
+    # Create document record with file data in DB
     document = Document(
         filename=unique_filename,
         original_filename=original_filename,
-        file_path=file_path,
+        file_data=file_data,  # Store binary content in DB
         file_type=ext,
         file_size=file_size,
         status='pending',
@@ -77,13 +95,18 @@ def upload_document():
     db.session.add(document)
     db.session.commit()
     
-    # TODO: Trigger async processing task
-    # from ..tasks import process_document
-    # process_document.delay(document.id)
+    # Auto-trigger document parsing
+    parse_result = None
+    try:
+        from .documents import _parse_document_internal
+        parse_result = _parse_document_internal(document)
+    except Exception as e:
+        parse_result = {'error': str(e)}
     
     return jsonify({
-        'message': 'Document uploaded',
-        'document': document.to_dict()
+        'message': 'Document uploaded and processing started',
+        'document': document.to_dict(),
+        'parse_result': parse_result
     }), 201
 
 
@@ -111,11 +134,6 @@ def get_document(document_id):
 @jwt_required()
 def parse_document(document_id):
     """Trigger document parsing and question extraction."""
-    from datetime import datetime
-    from ..services.document_service import DocumentService
-    from ..services.extraction_service import QuestionExtractor
-    from ..models import Question
-    
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -127,20 +145,63 @@ def parse_document(document_id):
     if document.project.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
+    result = _parse_document_internal(document)
+    
+    if 'error' in result:
+        return jsonify(result), 500
+    
+    return jsonify(result), 200
+
+
+def _parse_document_internal(document):
+    """Internal function to parse document and extract questions."""
+    import tempfile
+    from datetime import datetime
+    from ..services.document_service import DocumentService
+    from ..services.extraction_service import QuestionExtractor
+    from ..models import Question
+    
     # Update status
     document.status = 'processing'
     db.session.commit()
     
     try:
+        # Write file data to temp file for processing
+        temp_file_path = None
+        if document.file_data:
+            temp_file = tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=f'.{document.file_type}'
+            )
+            temp_file.write(document.file_data)
+            temp_file.close()
+            temp_file_path = temp_file.name
+        elif document.file_path:
+            temp_file_path = document.file_path
+        
+        if not temp_file_path:
+            document.status = 'failed'
+            document.error_message = 'No file data available'
+            db.session.commit()
+            return {'error': 'No file data available'}
+        
         # Extract text from document
         doc_service = DocumentService()
-        extracted_text = doc_service.extract_text(document.file_path, document.file_type)
+        extracted_text = doc_service.extract_text(temp_file_path, document.file_type)
+        
+        # Clean up temp file
+        if document.file_data and temp_file_path:
+            import os as temp_os
+            try:
+                temp_os.unlink(temp_file_path)
+            except:
+                pass
         
         if not extracted_text:
             document.status = 'failed'
             document.error_message = 'Could not extract text from document'
             db.session.commit()
-            return jsonify({'error': 'Text extraction failed'}), 400
+            return {'error': 'Text extraction failed'}
         
         # Save extracted text
         document.extracted_text = extracted_text
@@ -170,17 +231,17 @@ def parse_document(document_id):
         document.processed_at = datetime.utcnow()
         db.session.commit()
         
-        return jsonify({
+        return {
             'message': 'Document parsed successfully',
             'document': document.to_dict(),
             'questions_extracted': len(questions_data)
-        }), 200
+        }
         
     except Exception as e:
         document.status = 'failed'
         document.error_message = str(e)
         db.session.commit()
-        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+        return {'error': f'Processing failed: {str(e)}'}
 
 
 @bp.route('/<int:document_id>', methods=['DELETE'])

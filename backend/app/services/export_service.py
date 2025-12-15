@@ -1,141 +1,109 @@
-"""Export service for generating PDF, DOCX, XLSX files."""
-from io import BytesIO
-from typing import List
+"""
+Export service for generating RFP response documents.
+"""
+import io
+from docx import Document
+from docx.shared import Pt, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from datetime import datetime
 
 
-class ExportService:
-    """Handle document export in various formats."""
+def generate_docx(project, questions):
+    """
+    Generate a DOCX document with project responses.
     
-    @staticmethod
-    def generate_pdf(
-        project_name: str,
-        questions_answers: List[dict]
-    ) -> BytesIO:
-        """
-        Generate PDF export of project Q&A.
-        
-        Args:
-            project_name: Name of the project
-            questions_answers: List of {question, answer, section} dicts
-        
-        Returns:
-            BytesIO buffer containing PDF
-        """
-        # TODO: Implement with reportlab or weasyprint
-        buffer = BytesIO()
-        buffer.write(b"PDF export placeholder")
-        buffer.seek(0)
-        return buffer
+    Args:
+        project: Project model instance
+        questions: List of Question model instances with answers
     
-    @staticmethod
-    def generate_docx(
-        project_name: str,
-        questions_answers: List[dict]
-    ) -> BytesIO:
-        """
-        Generate DOCX export of project Q&A.
-        
-        Args:
-            project_name: Name of the project
-            questions_answers: List of {question, answer, section} dicts
-        
-        Returns:
-            BytesIO buffer containing DOCX
-        """
-        try:
-            from docx import Document
-            from docx.shared import Pt, Inches
-            from docx.enum.style import WD_STYLE_TYPE
-            
-            doc = Document()
-            
-            # Title
-            title = doc.add_heading(project_name, 0)
-            
-            current_section = None
-            
-            for item in questions_answers:
-                # Section header
-                if item.get('section') and item['section'] != current_section:
-                    current_section = item['section']
-                    doc.add_heading(current_section, level=1)
-                
-                # Question
-                q_para = doc.add_paragraph()
-                q_run = q_para.add_run(f"Q: {item['question']}")
-                q_run.bold = True
-                
-                # Answer
-                a_para = doc.add_paragraph()
-                a_para.add_run(f"A: {item.get('answer', 'No answer provided')}")
-                
-                # Spacing
-                doc.add_paragraph()
-            
-            buffer = BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-            return buffer
-        except Exception:
-            buffer = BytesIO()
-            buffer.write(b"DOCX export error")
-            buffer.seek(0)
-            return buffer
+    Returns:
+        BytesIO buffer containing the DOCX file
+    """
+    doc = Document()
     
-    @staticmethod
-    def generate_xlsx(
-        project_name: str,
-        questions_answers: List[dict]
-    ) -> BytesIO:
-        """
-        Generate XLSX export of project Q&A.
+    # Title
+    title = doc.add_heading(f'RFP Response: {project.name}', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Metadata
+    doc.add_paragraph(f'Generated: {datetime.now().strftime("%B %d, %Y")}')
+    doc.add_paragraph(f'Total Questions: {len(questions)}')
+    approved_count = sum(1 for q in questions if q.status == 'approved')
+    doc.add_paragraph(f'Approved Answers: {approved_count}')
+    
+    doc.add_paragraph()  # Space
+    
+    # Group questions by section
+    sections = {}
+    for q in questions:
+        section = q.section or 'General'
+        if section not in sections:
+            sections[section] = []
+        sections[section].append(q)
+    
+    # Add each section
+    for section_name, section_questions in sections.items():
+        doc.add_heading(section_name, level=1)
         
-        Args:
-            project_name: Name of the project
-            questions_answers: List of {question, answer, section} dicts
-        
-        Returns:
-            BytesIO buffer containing XLSX
-        """
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, Alignment
+        for i, question in enumerate(section_questions, 1):
+            # Question
+            q_para = doc.add_paragraph()
+            q_run = q_para.add_run(f'Q{i}: {question.text}')
+            q_run.bold = True
             
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "RFP Responses"
+            # Answer
+            answer = question.current_answer
+            if answer and answer.content:
+                doc.add_paragraph(answer.content)
+                
+                # Status indicator
+                status_para = doc.add_paragraph()
+                status_run = status_para.add_run(f'Status: {question.status.upper()}')
+                status_run.italic = True
+                status_run.font.size = Pt(10)
+                
+                if answer.confidence_score:
+                    conf_run = status_para.add_run(f' | Confidence: {int(answer.confidence_score * 100)}%')
+                    conf_run.italic = True
+                    conf_run.font.size = Pt(10)
+            else:
+                no_answer = doc.add_paragraph('No answer provided.')
+                no_answer.runs[0].italic = True
             
-            # Headers
-            headers = ['Section', 'Question', 'Answer', 'Status', 'Confidence']
-            for col, header in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col, value=header)
-                cell.font = Font(bold=True)
-            
-            # Data rows
-            for row, item in enumerate(questions_answers, 2):
-                ws.cell(row=row, column=1, value=item.get('section', ''))
-                ws.cell(row=row, column=2, value=item.get('question', ''))
-                ws.cell(row=row, column=3, value=item.get('answer', ''))
-                ws.cell(row=row, column=4, value=item.get('status', ''))
-                ws.cell(row=row, column=5, value=item.get('confidence', 0))
-            
-            # Adjust column widths
-            ws.column_dimensions['A'].width = 20
-            ws.column_dimensions['B'].width = 50
-            ws.column_dimensions['C'].width = 80
-            ws.column_dimensions['D'].width = 15
-            ws.column_dimensions['E'].width = 12
-            
-            buffer = BytesIO()
-            wb.save(buffer)
-            buffer.seek(0)
-            return buffer
-        except Exception:
-            buffer = BytesIO()
-            buffer.write(b"XLSX export error")
-            buffer.seek(0)
-            return buffer
+            doc.add_paragraph()  # Space between questions
+    
+    # Save to buffer
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    
+    return buffer
 
 
-# Singleton instance
-export_service = ExportService()
+def generate_xlsx(project, questions):
+    """
+    Generate an XLSX spreadsheet with project responses.
+    """
+    import pandas as pd
+    
+    data = []
+    for i, q in enumerate(questions, 1):
+        answer = q.current_answer
+        data.append({
+            'No.': i,
+            'Section': q.section or 'General',
+            'Question': q.text,
+            'Answer': answer.content if answer else '',
+            'Status': q.status,
+            'Confidence': f"{int(answer.confidence_score * 100)}%" if answer and answer.confidence_score else '',
+            'AI Generated': 'Yes' if answer and answer.is_ai_generated else 'No'
+        })
+    
+    df = pd.DataFrame(data)
+    
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='RFP Responses', index=False)
+    
+    buffer.seek(0)
+    return buffer

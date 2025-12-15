@@ -33,7 +33,7 @@ export default function AppSidebar() {
                 <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
                     <SparklesIcon className="h-5 w-5 text-white" />
                 </div>
-                <span className="font-semibold text-lg text-text-primary">AutoRespond</span>
+                <span className="font-semibold text-lg text-text-primary">RFP War Room</span>
             </div>
 
             {/* Navigation */}
