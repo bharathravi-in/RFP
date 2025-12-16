@@ -269,6 +269,8 @@ def update_section(project_id, section_id):
         section.order = data['order']
     if 'status' in data:
         section.status = data['status']
+    if 'flags' in data:
+        section.flags = data['flags']
     
     section.updated_at = datetime.utcnow()
     db.session.commit()

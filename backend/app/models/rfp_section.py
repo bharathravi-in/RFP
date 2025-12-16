@@ -334,6 +334,22 @@ Cite sources where applicable.''',
         'is_system': True,
     },
     {
+        'slug': 'clarifications_questions',
+        'name': 'Clarifications & Gaps',
+        'icon': '❔',
+        'description': 'Track clarification questions, gaps, and assumptions to ask the RFP issuer',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Create a structured list of clarification questions and identified gaps based on the RFP analysis.
+
+Format each item with:
+- Category: Clarification / Gap / Assumption
+- Priority: High / Medium / Low
+- Question or statement
+- Reason why this needs clarification''',
+        'is_system': True,
+    },
+    {
         'slug': 'custom',
         'name': 'Custom Section',
         'icon': '✏️',

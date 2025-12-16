@@ -231,10 +231,50 @@ def _parse_document_internal(document):
         document.processed_at = datetime.utcnow()
         db.session.commit()
         
+        # AUTO-ANALYZE RFP AND CREATE SECTIONS
+        analysis_result = None
+        sections_created = []
+        try:
+            from ..services.rfp_analysis_agent import RFPAnalysisAgent
+            from ..models import RFPSectionType
+            
+            agent = RFPAnalysisAgent()
+            
+            # 1. Analyze the RFP document
+            analysis_result = agent.analyze_rfp(document.id)
+            
+            if analysis_result and not analysis_result.get('error'):
+                # 2. Get recommended section types
+                recommended_sections = analysis_result.get('recommended_sections', [])
+                
+                if recommended_sections:
+                    # Map slugs to section type IDs
+                    section_type_ids = []
+                    for slug in recommended_sections:
+                        section_type = RFPSectionType.query.filter_by(slug=slug, is_active=True).first()
+                        if section_type:
+                            section_type_ids.append(section_type.id)
+                    
+                    if section_type_ids:
+                        # 3. Auto-create sections with AI content generation
+                        created_sections = agent.auto_create_sections(
+                            project_id=document.project_id,
+                            section_type_ids=section_type_ids,
+                            with_generation=True,
+                            document_id=document.id
+                        )
+                        sections_created = created_sections
+        except Exception as analysis_error:
+            # Log but don't fail - document is still processed
+            print(f"Auto-analysis error: {analysis_error}")
+            analysis_result = {'error': str(analysis_error)}
+        
         return {
-            'message': 'Document parsed successfully',
+            'message': 'Document parsed and analyzed successfully',
             'document': document.to_dict(),
-            'questions_extracted': len(questions_data)
+            'questions_extracted': len(questions_data),
+            'analysis': analysis_result,
+            'sections_created': len(sections_created) if sections_created else 0
         }
         
     except Exception as e:

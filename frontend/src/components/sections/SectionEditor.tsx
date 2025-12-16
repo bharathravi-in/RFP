@@ -16,6 +16,7 @@ import {
     PlusIcon,
 } from '@heroicons/react/24/outline';
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
+import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
 
 interface SectionEditorProps {
     section: RFPSection;
@@ -43,6 +44,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const isQASection = section.section_type?.slug === 'qa_questionnaire' ||
         section.section_type?.name?.toLowerCase().includes('questionnaire') ||
         section.section_type?.name?.toLowerCase().includes('q&a');
+
+    // Check if this is a Clarifications section
+    const isClarificationsSection = section.section_type?.slug === 'clarifications_questions';
 
     // Sync content when section changes
     useEffect(() => {
@@ -471,14 +475,14 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                 {!isQASection && section.content && (
                     <div className="w-[280px] border-l border-border bg-surface p-4 overflow-y-auto custom-scrollbar">
                         {/* Flags */}
-                        {section.flags && section.flags.length > 0 && (
+                        {section.flags && section.flags.filter((f: any) => typeof f === 'string').length > 0 && (
                             <div className="mb-6">
                                 <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
                                     <ExclamationTriangleIcon className="h-4 w-4 text-warning" />
                                     Review Flags
                                 </h3>
                                 <div className="space-y-2">
-                                    {section.flags.map((flag, idx) => (
+                                    {section.flags.filter((f: any) => typeof f === 'string').map((flag: string, idx: number) => (
                                         <div
                                             key={idx}
                                             className="p-2 rounded-lg bg-warning-light border border-warning-light"
@@ -525,6 +529,26 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                 </p>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {/* Clarification Questions - Full section if clarifications_questions type */}
+                {isClarificationsSection && (
+                    <ClarificationQuestions
+                        section={section}
+                        projectId={projectId}
+                        onUpdate={onUpdate}
+                    />
+                )}
+
+                {/* Clarification Questions panel for other non-Q&A sections */}
+                {!isQASection && !isClarificationsSection && section.content && (
+                    <div className="mt-6">
+                        <ClarificationQuestions
+                            section={section}
+                            projectId={projectId}
+                            onUpdate={onUpdate}
+                        />
                     </div>
                 )}
             </div>

@@ -55,8 +55,24 @@ export default function ProjectDetail() {
         setIsUploading(true);
         try {
             for (const file of acceptedFiles) {
-                await documentsApi.upload(Number(id), file);
+                const result = await documentsApi.upload(Number(id), file);
+                const response = result.data;
+
+                // Show upload success
                 toast.success(`Uploaded ${file.name}`);
+
+                // Check if auto-analysis created sections
+                if (response.sections_created && response.sections_created > 0) {
+                    toast.success(
+                        `✨ Auto-analyzed RFP and created ${response.sections_created} sections!`,
+                        { duration: 4000 }
+                    );
+                    // Redirect to proposal builder
+                    navigate(`/projects/${id}/proposal`);
+                    return;
+                } else if (response.analysis && !response.analysis.error) {
+                    toast.success('RFP analysis complete', { duration: 3000 });
+                }
             }
             loadProject();
         } catch {
@@ -64,7 +80,7 @@ export default function ProjectDetail() {
         } finally {
             setIsUploading(false);
         }
-    }, [id]);
+    }, [id, navigate]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,

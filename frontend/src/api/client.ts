@@ -289,6 +289,7 @@ export const sectionsApi = {
         ai_generation_params: Record<string, string>;
         order: number;
         status: string;
+        flags: any[];
     }>) => api.put(`/projects/${projectId}/sections/${sectionId}`, data),
 
     deleteSection: (projectId: number, sectionId: number) =>
