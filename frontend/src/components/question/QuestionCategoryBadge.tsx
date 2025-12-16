@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-    Shield,
-    FileCheck,
-    Code,
-    DollarSign,
-    Scale,
-    Package,
-    HelpCircle
-} from 'lucide-react';
+    ShieldCheckIcon,
+    DocumentCheckIcon,
+    CodeBracketIcon,
+    CurrencyDollarIcon,
+    ScaleIcon,
+    CubeIcon,
+    QuestionMarkCircleIcon
+} from '@heroicons/react/24/outline';
 
 export type QuestionCategory =
     | 'security'
@@ -35,43 +35,43 @@ interface CategoryConfig {
 
 const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
     security: {
-        icon: Shield,
+        icon: ShieldCheckIcon,
         color: 'text-red-700',
         bgColor: 'bg-red-100',
         label: 'Security'
     },
     compliance: {
-        icon: FileCheck,
+        icon: DocumentCheckIcon,
         color: 'text-purple-700',
         bgColor: 'bg-purple-100',
         label: 'Compliance'
     },
     technical: {
-        icon: Code,
+        icon: CodeBracketIcon,
         color: 'text-blue-700',
         bgColor: 'bg-blue-100',
         label: 'Technical'
     },
     pricing: {
-        icon: DollarSign,
+        icon: CurrencyDollarIcon,
         color: 'text-green-700',
         bgColor: 'bg-green-100',
         label: 'Pricing'
     },
     legal: {
-        icon: Scale,
+        icon: ScaleIcon,
         color: 'text-orange-700',
         bgColor: 'bg-orange-100',
         label: 'Legal'
     },
     product: {
-        icon: Package,
+        icon: CubeIcon,
         color: 'text-cyan-700',
         bgColor: 'bg-cyan-100',
         label: 'Product'
     },
     general: {
-        icon: HelpCircle,
+        icon: QuestionMarkCircleIcon,
         color: 'text-gray-700',
         bgColor: 'bg-gray-100',
         label: 'General'

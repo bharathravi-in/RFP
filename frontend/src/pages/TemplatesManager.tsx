@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sectionsApi } from '@/api/client';
 import { SectionTemplate, RFPSectionType } from '@/types';
 import toast from 'react-hot-toast';
@@ -27,11 +27,7 @@ export default function TemplatesManager() {
     const [formSectionTypeId, setFormSectionTypeId] = useState<number | null>(null);
     const [formVariables, setFormVariables] = useState<string[]>([]);
 
-    useEffect(() => {
-        loadData();
-    }, [filterType]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             setIsLoading(true);
             const [templatesRes, typesRes] = await Promise.all([
@@ -45,7 +41,11 @@ export default function TemplatesManager() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [filterType]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const openEditor = (template?: SectionTemplate) => {
         if (template) {

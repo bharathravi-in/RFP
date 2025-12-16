@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '@/api/client';
 import { Project } from '@/types';
@@ -26,11 +26,7 @@ export default function Projects() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
 
-    useEffect(() => {
-        loadProjects();
-    }, []);
-
-    const loadProjects = async () => {
+    const loadProjects = useCallback(async () => {
         try {
             const response = await projectsApi.list();
             setProjects(response.data.projects || []);
@@ -39,7 +35,11 @@ export default function Projects() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadProjects();
+    }, [loadProjects]);
 
     const filteredProjects = projects.filter((project) => {
         const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -202,7 +202,54 @@ function CreateProjectModal({
 }) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [clientName, setClientName] = useState('');
+    const [clientType, setClientType] = useState('');
+    const [geography, setGeography] = useState('');
+    const [currency, setCurrency] = useState('');
+    const [industry, setIndustry] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
+
+    // Dimension options
+    const clientTypes = [
+        { code: 'government', name: 'Government' },
+        { code: 'private', name: 'Private Sector' },
+        { code: 'enterprise', name: 'Enterprise' },
+        { code: 'public_sector', name: 'Public Sector' },
+        { code: 'ngo', name: 'NGO' },
+        { code: 'smb', name: 'SMB' },
+    ];
+
+    const geographies = [
+        { code: 'GLOBAL', name: 'Global' },
+        { code: 'US', name: 'United States' },
+        { code: 'EU', name: 'European Union' },
+        { code: 'UK', name: 'United Kingdom' },
+        { code: 'APAC', name: 'Asia Pacific' },
+        { code: 'IN', name: 'India' },
+        { code: 'MEA', name: 'Middle East & Africa' },
+        { code: 'LATAM', name: 'Latin America' },
+    ];
+
+    const currencies = [
+        { code: 'USD', name: 'US Dollar ($)' },
+        { code: 'EUR', name: 'Euro (€)' },
+        { code: 'GBP', name: 'British Pound (£)' },
+        { code: 'INR', name: 'Indian Rupee (₹)' },
+        { code: 'JPY', name: 'Japanese Yen (¥)' },
+        { code: 'AUD', name: 'Australian Dollar (A$)' },
+    ];
+
+    const industries = [
+        { code: 'healthcare', name: 'Healthcare & Life Sciences' },
+        { code: 'finance', name: 'Financial Services' },
+        { code: 'technology', name: 'Technology & Software' },
+        { code: 'defense', name: 'Defense & Aerospace' },
+        { code: 'manufacturing', name: 'Manufacturing' },
+        { code: 'energy', name: 'Energy & Utilities' },
+        { code: 'retail', name: 'Retail & Consumer Goods' },
+        { code: 'telecom', name: 'Telecommunications' },
+    ];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -213,7 +260,15 @@ function CreateProjectModal({
 
         setIsLoading(true);
         try {
-            const response = await projectsApi.create({ name, description });
+            const response = await projectsApi.create({
+                name,
+                description,
+                client_name: clientName || undefined,
+                client_type: clientType || undefined,
+                geography: geography || undefined,
+                currency: currency || undefined,
+                industry: industry || undefined,
+            });
             toast.success('Project created!');
             onCreated(response.data.project);
         } catch {
@@ -225,12 +280,13 @@ function CreateProjectModal({
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-            <div className="bg-surface rounded-2xl shadow-modal w-full max-w-md p-6 animate-scale-in">
+            <div className="bg-surface rounded-2xl shadow-modal w-full max-w-lg p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl font-semibold text-text-primary mb-6">Create New Project</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Basic Info */}
                     <div>
                         <label className="block text-sm font-medium text-text-primary mb-2">
-                            Project Name
+                            Project Name *
                         </label>
                         <input
                             type="text"
@@ -243,15 +299,118 @@ function CreateProjectModal({
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-text-primary mb-2">
+                            Client Name <span className="text-text-muted">(optional)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={clientName}
+                            onChange={(e) => setClientName(e.target.value)}
+                            className="input"
+                            placeholder="e.g., Department of Health"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
                             Description <span className="text-text-muted">(optional)</span>
                         </label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="input min-h-[100px] resize-none"
+                            className="input min-h-[80px] resize-none"
                             placeholder="Brief description of this project..."
                         />
                     </div>
+
+                    {/* Dimension Selection */}
+                    <div className="border-t border-border pt-4 mt-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="flex items-center gap-2 text-sm text-primary hover:text-primary-dark"
+                        >
+                            <FunnelIcon className="h-4 w-4" />
+                            {showAdvanced ? 'Hide' : 'Show'} Knowledge Base Filters
+                        </button>
+                    </div>
+
+                    {showAdvanced && (
+                        <div className="space-y-4 bg-background p-4 rounded-lg">
+                            <p className="text-xs text-text-muted mb-2">
+                                Select dimensions to filter the knowledge base for this project
+                            </p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Client Type
+                                    </label>
+                                    <select
+                                        value={clientType}
+                                        onChange={(e) => setClientType(e.target.value)}
+                                        className="input"
+                                    >
+                                        <option value="">All types</option>
+                                        {clientTypes.map((ct) => (
+                                            <option key={ct.code} value={ct.code}>
+                                                {ct.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Geography
+                                    </label>
+                                    <select
+                                        value={geography}
+                                        onChange={(e) => setGeography(e.target.value)}
+                                        className="input"
+                                    >
+                                        <option value="">All regions</option>
+                                        {geographies.map((geo) => (
+                                            <option key={geo.code} value={geo.code}>
+                                                {geo.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Currency
+                                    </label>
+                                    <select
+                                        value={currency}
+                                        onChange={(e) => setCurrency(e.target.value)}
+                                        className="input"
+                                    >
+                                        <option value="">All currencies</option>
+                                        {currencies.map((cur) => (
+                                            <option key={cur.code} value={cur.code}>
+                                                {cur.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        Industry
+                                    </label>
+                                    <select
+                                        value={industry}
+                                        onChange={(e) => setIndustry(e.target.value)}
+                                        className="input"
+                                    >
+                                        <option value="">All industries</option>
+                                        {industries.map((ind) => (
+                                            <option key={ind.code} value={ind.code}>
+                                                {ind.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-4">
                         <button type="button" onClick={onClose} className="btn-secondary flex-1">
                             Cancel
@@ -265,3 +424,4 @@ function CreateProjectModal({
         </div>
     );
 }
+

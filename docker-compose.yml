@@ -49,6 +49,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: autorespond-backend
+    env_file:
+      - ./backend/.env
     environment:
       FLASK_ENV: development
       SECRET_KEY: dev-secret-key-change-in-production
@@ -58,7 +60,6 @@ services:
       QDRANT_PORT: 6333
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
@@ -77,6 +78,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: autorespond-celery
+    env_file:
+      - ./backend/.env
     environment:
       FLASK_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@db:5432/autorespond
@@ -84,7 +87,6 @@ services:
       QDRANT_PORT: 6333
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - ./backend:/app
     depends_on:

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { sectionsApi, questionsApi, answersApi } from '@/api/client';
+import { sectionsApi, questionsApi } from '@/api/client';
 import { RFPSection, Question } from '@/types';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
+import { ConfidenceIndicator } from '@/components/ai';
 
 interface SectionEditorProps {
     section: RFPSection;
@@ -473,7 +474,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
 
                 {/* Right Sidebar - Sources & Flags (only for non-Q&A sections with content) */}
                 {!isQASection && section.content && (
-                    <div className="w-[280px] border-l border-border bg-surface p-4 overflow-y-auto custom-scrollbar">
+                    <div className="w-[280px] border-l border-border bg-surface p-4 overflow-y-auto custom-scrollbar flex-shrink-0">
                         {/* Flags */}
                         {section.flags && section.flags.filter((f: any) => typeof f === 'string').length > 0 && (
                             <div className="mb-6">
@@ -496,8 +497,23 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                             </div>
                         )}
 
+                        {/* AI Confidence Score */}
+                        {section.confidence_score !== null && section.confidence_score !== undefined && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+                                    <SparklesIcon className="h-4 w-4" />
+                                    AI Confidence
+                                </h3>
+                                <ConfidenceIndicator
+                                    score={section.confidence_score}
+                                    showExplanation={true}
+                                    size="md"
+                                />
+                            </div>
+                        )}
+
                         {/* Sources */}
-                        <div>
+                        <div className="mb-6">
                             <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
                                 <BookOpenIcon className="h-4 w-4" />
                                 Sources
@@ -529,6 +545,15 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                 </p>
                             )}
                         </div>
+
+                        {/* Clarification Questions inside sidebar */}
+                        {!isClarificationsSection && (
+                            <ClarificationQuestions
+                                section={section}
+                                projectId={projectId}
+                                onUpdate={onUpdate}
+                            />
+                        )}
                     </div>
                 )}
 
@@ -539,17 +564,6 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                         projectId={projectId}
                         onUpdate={onUpdate}
                     />
-                )}
-
-                {/* Clarification Questions panel for other non-Q&A sections */}
-                {!isQASection && !isClarificationsSection && section.content && (
-                    <div className="mt-6">
-                        <ClarificationQuestions
-                            section={section}
-                            projectId={projectId}
-                            onUpdate={onUpdate}
-                        />
-                    </div>
                 )}
             </div>
 

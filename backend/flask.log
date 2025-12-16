@@ -1,0 +1,234 @@
+nohup: ignoring input
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.17.20.169:5000
+Press CTRL+C to quit
+ * Restarting with watchdog (inotify)
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Debugger is active!
+ * Debugger PIN: 862-799-352
+127.0.0.1 - - [16/Dec/2025 17:10:09] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 17:10:37] "GET /api/agents/health HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 17:12:55] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 17:14:09] "POST /api/auth/register HTTP/1.1" 201 -
+127.0.0.1 - - [16/Dec/2025 17:14:40] "POST /api/auth/register HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "ix_organizations_slug"
+DETAIL:  Key (slug)=(tarento) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/routes/auth.py", line 38, in register
+    db.session.flush()  # Get org ID before creating user
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/scoping.py", line 924, in flush
+    return self._proxied.flush(objects=objects)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ix_organizations_slug"
+DETAIL:  Key (slug)=(tarento) already exists.
+
+[SQL: INSERT INTO organizations (name, slug, settings, created_at, updated_at) VALUES (%(name)s, %(slug)s, %(settings)s::JSON, %(created_at)s, %(updated_at)s) RETURNING organizations.id]
+[parameters: {'name': 'Tarento', 'slug': 'tarento', 'settings': '{}', 'created_at': datetime.datetime(2025, 12, 16, 11, 44, 40, 820110), 'updated_at': datetime.datetime(2025, 12, 16, 11, 44, 40, 820137)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+127.0.0.1 - - [16/Dec/2025 17:14:42] "POST /api/auth/register HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "ix_organizations_slug"
+DETAIL:  Key (slug)=(tarento) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/routes/auth.py", line 38, in register
+    db.session.flush()  # Get org ID before creating user
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/scoping.py", line 924, in flush
+    return self._proxied.flush(objects=objects)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ix_organizations_slug"
+DETAIL:  Key (slug)=(tarento) already exists.
+
+[SQL: INSERT INTO organizations (name, slug, settings, created_at, updated_at) VALUES (%(name)s, %(slug)s, %(settings)s::JSON, %(created_at)s, %(updated_at)s) RETURNING organizations.id]
+[parameters: {'name': 'Tarento', 'slug': 'tarento', 'settings': '{}', 'created_at': datetime.datetime(2025, 12, 16, 11, 44, 42, 463833), 'updated_at': datetime.datetime(2025, 12, 16, 11, 44, 42, 463843)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+127.0.0.1 - - [16/Dec/2025 17:15:14] "POST /api/auth/register HTTP/1.1" 500 -
+Traceback (most recent call last):
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "ix_organizations_slug"
+DETAIL:  Key (slug)=(tarento) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask_cors/extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/routes/auth.py", line 38, in register
+    db.session.flush()  # Get org ID before creating user
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/scoping.py", line 924, in flush
+    return self._proxied.flush(objects=objects)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/bharathkumarr/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "ix_organizations_slug"
+DETAIL:  Key (slug)=(tarento) already exists.
+
+[SQL: INSERT INTO organizations (name, slug, settings, created_at, updated_at) VALUES (%(name)s, %(slug)s, %(settings)s::JSON, %(created_at)s, %(updated_at)s) RETURNING organizations.id]
+[parameters: {'name': 'tarento', 'slug': 'tarento', 'settings': '{}', 'created_at': datetime.datetime(2025, 12, 16, 11, 45, 14, 862824), 'updated_at': datetime.datetime(2025, 12, 16, 11, 45, 14, 862831)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+127.0.0.1 - - [16/Dec/2025 17:44:19] "GET / HTTP/1.1" 404 -
+127.0.0.1 - - [16/Dec/2025 17:44:20] "GET /favicon.ico HTTP/1.1" 404 -

@@ -20,6 +20,19 @@ class Project(db.Model):
     status = db.Column(db.String(50), default='draft')  # draft, in_progress, review, completed
     completion_percent = db.Column(db.Float, default=0.0)
     due_date = db.Column(db.DateTime, nullable=True)
+    
+    # Multi-dimensional filtering fields for knowledge base selection
+    client_type = db.Column(db.String(50), nullable=True)  # government, private, ngo
+    geography = db.Column(db.String(50), nullable=True)  # Region code (US, EU, APAC)
+    currency = db.Column(db.String(10), nullable=True)  # Currency code (USD, EUR)
+    industry = db.Column(db.String(100), nullable=True)  # Industry sector
+    compliance_requirements = db.Column(db.JSON, default=list)  # ["SOC2", "GDPR"]
+    language = db.Column(db.String(10), default='en')  # Primary language
+    
+    # Project metadata
+    client_name = db.Column(db.String(255), nullable=True)  # Name of the client
+    project_value = db.Column(db.Float, nullable=True)  # Project/contract value
+    
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -31,6 +44,14 @@ class Project(db.Model):
     reviewers = db.relationship('User', secondary=project_reviewers, backref='assigned_projects')
     documents = db.relationship('Document', back_populates='project', cascade='all, delete-orphan')
     questions = db.relationship('Question', back_populates='project', cascade='all, delete-orphan')
+    
+    # Many-to-many relationship with knowledge profiles
+    from .knowledge_profile import project_knowledge_profiles
+    knowledge_profiles = db.relationship(
+        'KnowledgeProfile',
+        secondary=project_knowledge_profiles,
+        backref=db.backref('projects', lazy='dynamic')
+    )
     
     def calculate_completion(self):
         """Calculate project completion percentage based on answered questions."""
@@ -48,6 +69,17 @@ class Project(db.Model):
             'status': self.status,
             'completion_percent': self.completion_percent,
             'due_date': self.due_date.isoformat() if self.due_date else None,
+            # Multi-dimensional fields
+            'client_type': self.client_type,
+            'geography': self.geography,
+            'currency': self.currency,
+            'industry': self.industry,
+            'compliance_requirements': self.compliance_requirements or [],
+            'language': self.language,
+            'client_name': self.client_name,
+            'project_value': self.project_value,
+            # Knowledge profiles
+            'knowledge_profile_ids': [p.id for p in self.knowledge_profiles] if self.knowledge_profiles else [],
             'organization_id': self.organization_id,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -58,5 +90,6 @@ class Project(db.Model):
             data['document_count'] = len(self.documents) if self.documents else 0
             data['question_count'] = len(self.questions) if self.questions else 0
             data['reviewer_ids'] = [r.id for r in self.reviewers] if self.reviewers else []
+            data['knowledge_profiles'] = [p.to_dict() for p in self.knowledge_profiles] if self.knowledge_profiles else []
         
         return data

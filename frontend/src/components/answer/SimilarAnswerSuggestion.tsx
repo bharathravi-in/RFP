@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lightbulb, Copy, ExternalLink } from 'lucide-react';
+import { LightBulbIcon, DocumentDuplicateIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 
 interface SimilarAnswer {
     question_id: number;
@@ -45,7 +45,7 @@ export const SimilarAnswerSuggestion: React.FC<SimilarAnswerSuggestionProps> = (
     return (
         <div className={`bg-amber-50 border border-amber-200 rounded-lg p-4 ${className}`}>
             <div className="flex items-start gap-2 mb-3">
-                <Lightbulb className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <LightBulbIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
                     <h4 className="text-sm font-medium text-amber-900">
                         Similar Approved Answers Found
@@ -57,7 +57,7 @@ export const SimilarAnswerSuggestion: React.FC<SimilarAnswerSuggestionProps> = (
             </div>
 
             <div className="space-y-3">
-                {displayAnswers.map((answer, index) => (
+                {displayAnswers.map((answer) => (
                     <div
                         key={answer.answer_id}
                         className="bg-white rounded-lg border border-amber-100 p-3"
@@ -73,7 +73,7 @@ export const SimilarAnswerSuggestion: React.FC<SimilarAnswerSuggestionProps> = (
                                         className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded transition-colors"
                                         title="Use this answer as template"
                                     >
-                                        <Copy className="w-3 h-3" />
+                                        <DocumentDuplicateIcon className="w-3 h-3" />
                                         Use
                                     </button>
                                 )}
@@ -83,7 +83,7 @@ export const SimilarAnswerSuggestion: React.FC<SimilarAnswerSuggestionProps> = (
                                         className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded transition-colors"
                                         title="View full answer"
                                     >
-                                        <ExternalLink className="w-3 h-3" />
+                                        <ArrowTopRightOnSquareIcon className="w-3 h-3" />
                                         View
                                     </button>
                                 )}
@@ -126,7 +126,7 @@ export const SimilarAnswerBadge: React.FC<{
             onClick={onClick}
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors ${className}`}
         >
-            <Lightbulb className="w-3 h-3" />
+            <LightBulbIcon className="w-3 h-3" />
             {count} similar {count === 1 ? 'answer' : 'answers'}
         </button>
     );

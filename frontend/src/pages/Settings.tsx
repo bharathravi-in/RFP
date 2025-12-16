@@ -7,12 +7,15 @@ import {
     KeyIcon,
     BellIcon,
     CogIcon,
+    FolderIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
 
 const tabs = [
     { id: 'profile', name: 'Profile', icon: UserCircleIcon },
     { id: 'organization', name: 'Organization', icon: BuildingOfficeIcon },
+    { id: 'knowledge', name: 'Knowledge Profiles', icon: FolderIcon },
     { id: 'security', name: 'Security', icon: KeyIcon },
     { id: 'notifications', name: 'Notifications', icon: BellIcon },
     { id: 'ai', name: 'AI Settings', icon: CogIcon },
@@ -146,6 +149,12 @@ export default function Settings() {
                             ) : (
                                 <p className="text-text-secondary">No organization associated</p>
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === 'knowledge' && (
+                        <div className="max-w-4xl">
+                            <KnowledgeProfiles />
                         </div>
                     )}
 

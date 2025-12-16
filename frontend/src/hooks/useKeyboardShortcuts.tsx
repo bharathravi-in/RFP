@@ -86,5 +86,5 @@ export function ShortcutHint({ label }: { label: keyof typeof SHORTCUT_LABELS })
         <kbd className= "hidden sm:inline-block px-1.5 py-0.5 text-xs font-mono bg-gray-100 text-gray-500 rounded" >
         { SHORTCUT_LABELS[label]}
         </kbd>
-  );
+    );
 }

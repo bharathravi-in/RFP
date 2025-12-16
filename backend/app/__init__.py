@@ -30,6 +30,8 @@ def create_app(config_name=None):
     
     # Register blueprints
     from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections
+    from .routes.agents import agents_bp
+    from .routes.profiles import profiles_bp
     
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(projects.bp, url_prefix='/api/projects')
@@ -43,6 +45,8 @@ def create_app(config_name=None):
     app.register_blueprint(folders.bp, url_prefix='/api/folders')
     app.register_blueprint(preview.bp, url_prefix='/api/preview')
     app.register_blueprint(sections.bp)  # Uses /api prefix defined in blueprint
+    app.register_blueprint(agents_bp)  # Multi-agent RFP analysis system
+    app.register_blueprint(profiles_bp, url_prefix='/api/knowledge')  # Knowledge profiles
     
     # Health check endpoint
     @app.route('/api/health')

@@ -25,6 +25,17 @@ class KnowledgeItem(db.Model):
     embedding_id = db.Column(db.String(255), nullable=True)  # Qdrant point ID
     item_metadata = db.Column(db.JSON, default=dict)  # Additional metadata
     is_active = db.Column(db.Boolean, default=True)
+    
+    # Multi-dimensional filtering fields
+    geography = db.Column(db.String(50), nullable=True)  # US, EU, APAC, etc.
+    client_type = db.Column(db.String(50), nullable=True)  # government, private
+    currency = db.Column(db.String(10), nullable=True)  # USD, EUR, GBP
+    industry = db.Column(db.String(100), nullable=True)  # healthcare, finance
+    language = db.Column(db.String(10), default='en')  # en, es, de
+    
+    # Knowledge profile association
+    knowledge_profile_id = db.Column(db.Integer, db.ForeignKey('knowledge_profiles.id'), nullable=True)
+    
     folder_id = db.Column(db.Integer, db.ForeignKey('knowledge_folders.id'), nullable=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -36,6 +47,7 @@ class KnowledgeItem(db.Model):
     creator = db.relationship('User', foreign_keys=[created_by])
     folder = db.relationship('KnowledgeFolder', back_populates='items')
     parent = db.relationship('KnowledgeItem', remote_side=[id], backref='chunks')
+    profile = db.relationship('KnowledgeProfile', back_populates='knowledge_items')
     
     def to_dict(self):
         """Serialize knowledge item to dictionary."""
@@ -55,6 +67,13 @@ class KnowledgeItem(db.Model):
             'file_path': self.file_path,
             'file_type': self.file_type,
             'folder_id': self.folder_id,
+            # Multi-dimensional fields
+            'geography': self.geography,
+            'client_type': self.client_type,
+            'currency': self.currency,
+            'industry': self.industry,
+            'language': self.language,
+            'knowledge_profile_id': self.knowledge_profile_id,
             'is_active': self.is_active,
             'organization_id': self.organization_id,
             'created_by': self.created_by,

@@ -1,0 +1,218 @@
+"""
+Knowledge Base Agent
+
+Searches and retrieves relevant context from the knowledge base
+for answering RFP questions.
+"""
+import logging
+from typing import Dict, List, Any, Optional
+
+from .config import get_agent_config, SessionKeys
+
+logger = logging.getLogger(__name__)
+
+
+class KnowledgeBaseAgent:
+    """
+    Agent that retrieves relevant knowledge for answering questions.
+    - Searches Qdrant vector database
+    - Finds similar approved answers
+    - Retrieves company information
+    """
+    
+    def __init__(self):
+        self.config = get_agent_config()
+        self.name = "KnowledgeBaseAgent"
+        self._qdrant = None
+        self._answer_reuse = None
+    
+    @property
+    def qdrant_service(self):
+        """Lazy load Qdrant service."""
+        if self._qdrant is None:
+            try:
+                from app.services.qdrant_service import get_qdrant_service
+                self._qdrant = get_qdrant_service()
+            except Exception as e:
+                logger.warning(f"Could not load Qdrant service: {e}")
+        return self._qdrant
+    
+    @property
+    def answer_reuse_service(self):
+        """Lazy load answer reuse service."""
+        if self._answer_reuse is None:
+            try:
+                from app.services.answer_reuse_service import answer_reuse_service
+                self._answer_reuse = answer_reuse_service
+            except Exception as e:
+                logger.warning(f"Could not load answer reuse service: {e}")
+        return self._answer_reuse
+    
+    def retrieve_context(
+        self,
+        questions: List[Dict] = None,
+        org_id: int = None,
+        session_state: Dict = None,
+        # Project dimension filters
+        geography: str = None,
+        client_type: str = None,
+        industry: str = None,
+        knowledge_profile_ids: List[int] = None
+    ) -> Dict:
+        """
+        Retrieve knowledge context for the given questions.
+        
+        Args:
+            questions: List of questions to find context for
+            org_id: Organization ID for scoping knowledge search
+            session_state: Shared state with extracted questions
+            geography: Filter by geography (US, EU, APAC, etc.)
+            client_type: Filter by client type (government, private, etc.)
+            industry: Filter by industry (healthcare, finance, etc.)
+            knowledge_profile_ids: List of profile IDs to search within
+            
+        Returns:
+            Context mapping for each question
+        """
+        session_state = session_state or {}
+        
+        # Get questions from session if not provided
+        questions = questions or session_state.get(SessionKeys.EXTRACTED_QUESTIONS, [])
+        if not questions:
+            return {"success": False, "error": "No questions to process"}
+        
+        # Build dimension filter for Qdrant
+        dimension_filter = {}
+        if geography:
+            dimension_filter['geography'] = geography
+        if client_type:
+            dimension_filter['client_type'] = client_type
+        if industry:
+            dimension_filter['industry'] = industry
+        if knowledge_profile_ids:
+            dimension_filter['knowledge_profile_ids'] = knowledge_profile_ids
+        
+        knowledge_context = {}
+        
+        for question in questions:
+            q_id = question.get("id", 0)
+            q_text = question.get("text", "")
+            q_category = question.get("category", "general")
+            
+            context = {
+                "knowledge_items": [],
+                "similar_answers": [],
+                "relevance_score": 0.0,
+                "filters_applied": dimension_filter
+            }
+            
+            # Search Qdrant for relevant knowledge with dimension filtering
+            if self.qdrant_service and org_id:
+                try:
+                    search_results = self.qdrant_service.search(
+                        query=q_text,
+                        org_id=org_id,
+                        limit=5,
+                        filters=dimension_filter if dimension_filter else None
+                    )
+                    context["knowledge_items"] = [
+                        {
+                            "title": r.get("title", "Knowledge"),
+                            "content": r.get("content_preview", "")[:500],
+                            "relevance": r.get("score", 0),
+                            "item_id": r.get("item_id"),
+                            "geography": r.get("geography"),
+                            "client_type": r.get("client_type"),
+                            "industry": r.get("industry")
+                        }
+                        for r in search_results
+                    ]
+                    if context["knowledge_items"]:
+                        context["relevance_score"] = max(
+                            item["relevance"] for item in context["knowledge_items"]
+                        )
+                except Exception as e:
+                    logger.error(f"Qdrant search failed for question {q_id}: {e}")
+            
+            # Find similar approved answers
+            if self.answer_reuse_service and org_id:
+                try:
+                    similar = self.answer_reuse_service.find_similar_answers(
+                        question_text=q_text,
+                        org_id=org_id,
+                        category=q_category,
+                        limit=2
+                    )
+                    context["similar_answers"] = [
+                        {
+                            "question_text": s.get("question_text", "")[:200],
+                            "answer_content": s.get("answer_content", "")[:500],
+                            "similarity_score": s.get("similarity_score", 0),
+                            "answer_id": s.get("answer_id")
+                        }
+                        for s in similar
+                    ]
+                except Exception as e:
+                    logger.error(f"Similar answer search failed: {e}")
+            
+            knowledge_context[q_id] = context
+        
+        # Store in session state
+        session_state[SessionKeys.KNOWLEDGE_CONTEXT] = knowledge_context
+        
+        # Add agent message
+        messages = session_state.get(SessionKeys.AGENT_MESSAGES, [])
+        total_items = sum(
+            len(ctx.get("knowledge_items", [])) 
+            for ctx in knowledge_context.values()
+        )
+        filter_summary = ", ".join(f"{k}={v}" for k, v in dimension_filter.items()) if dimension_filter else "no filters"
+        messages.append({
+            "agent": self.name,
+            "action": "context_retrieved",
+            "summary": f"Retrieved {total_items} knowledge items for {len(questions)} questions ({filter_summary})"
+        })
+        session_state[SessionKeys.AGENT_MESSAGES] = messages
+        
+        return {
+            "success": True,
+            "knowledge_context": knowledge_context,
+            "questions_processed": len(questions),
+            "dimension_filters": dimension_filter,
+            "session_state": session_state
+        }
+    
+    def search_knowledge(
+        self,
+        query: str,
+        org_id: int,
+        limit: int = 5
+    ) -> List[Dict]:
+        """
+        Direct knowledge search for a single query.
+        
+        Args:
+            query: Search query text
+            org_id: Organization ID
+            limit: Maximum results to return
+            
+        Returns:
+            List of matching knowledge items
+        """
+        if not self.qdrant_service:
+            return []
+        
+        try:
+            return self.qdrant_service.search(
+                query=query,
+                org_id=org_id,
+                limit=limit
+            )
+        except Exception as e:
+            logger.error(f"Knowledge search failed: {e}")
+            return []
+
+
+def get_knowledge_base_agent() -> KnowledgeBaseAgent:
+    """Factory function to get Knowledge Base Agent."""
+    return KnowledgeBaseAgent()

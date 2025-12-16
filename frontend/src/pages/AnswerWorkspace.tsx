@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { questionsApi, answersApi, exportApi } from '@/api/client';
 import { Question, Answer, SimilarAnswer, QuestionCategory } from '@/types';
@@ -51,11 +51,22 @@ export default function AnswerWorkspace() {
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [showSimilarPanel, setShowSimilarPanel] = useState(false);
 
-    useEffect(() => {
-        if (id) {
-            loadQuestions();
+    const loadQuestions = useCallback(async () => {
+        if (!id) return;
+        
+        try {
+            const response = await questionsApi.list(Number(id));
+            setQuestions(response.data.questions || []);
+        } catch {
+            toast.error('Failed to load questions');
+        } finally {
+            setIsLoading(false);
         }
     }, [id]);
+
+    useEffect(() => {
+        loadQuestions();
+    }, [loadQuestions]);
 
     useEffect(() => {
         const questionId = searchParams.get('q');
@@ -69,18 +80,7 @@ export default function AnswerWorkspace() {
             setSelectedQuestion(questions[0]);
             setEditorContent(questions[0].answer?.content || '');
         }
-    }, [searchParams, questions]);
-
-    const loadQuestions = async () => {
-        try {
-            const response = await questionsApi.list(Number(id));
-            setQuestions(response.data.questions || []);
-        } catch {
-            toast.error('Failed to load questions');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [searchParams, questions, selectedQuestion]);
 
     const handleSelectQuestion = (question: Question) => {
         setSelectedQuestion(question);

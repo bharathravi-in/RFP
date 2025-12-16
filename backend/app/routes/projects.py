@@ -33,7 +33,7 @@ def list_projects():
 @jwt_required()
 def create_project():
     """Create a new project."""
-    from ..models import Organization
+    from ..models import Organization, KnowledgeProfile
     
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
@@ -63,11 +63,32 @@ def create_project():
         name=data['name'],
         description=data.get('description', ''),
         due_date=data.get('due_date'),
+        # Multi-dimensional fields
+        client_type=data.get('client_type'),
+        geography=data.get('geography'),
+        currency=data.get('currency'),
+        industry=data.get('industry'),
+        compliance_requirements=data.get('compliance_requirements', []),
+        language=data.get('language', 'en'),
+        client_name=data.get('client_name'),
+        project_value=data.get('project_value'),
         organization_id=user.organization_id,
         created_by=user.id
     )
     
     db.session.add(project)
+    db.session.flush()  # Get project ID
+    
+    # Assign knowledge profiles if provided
+    profile_ids = data.get('knowledge_profile_ids', [])
+    if profile_ids:
+        profiles = KnowledgeProfile.query.filter(
+            KnowledgeProfile.id.in_(profile_ids),
+            KnowledgeProfile.organization_id == user.organization_id,
+            KnowledgeProfile.is_active == True
+        ).all()
+        project.knowledge_profiles = profiles
+    
     db.session.commit()
     
     return jsonify({
@@ -100,6 +121,8 @@ def get_project(project_id):
 @jwt_required()
 def update_project(project_id):
     """Update project details."""
+    from ..models import KnowledgeProfile
+    
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -116,6 +139,7 @@ def update_project(project_id):
     
     data = request.get_json()
     
+    # Basic fields
     if 'name' in data:
         project.name = data['name']
     if 'description' in data:
@@ -124,6 +148,34 @@ def update_project(project_id):
         project.status = data['status']
     if 'due_date' in data:
         project.due_date = data['due_date']
+    
+    # Multi-dimensional fields
+    if 'client_type' in data:
+        project.client_type = data['client_type']
+    if 'geography' in data:
+        project.geography = data['geography']
+    if 'currency' in data:
+        project.currency = data['currency']
+    if 'industry' in data:
+        project.industry = data['industry']
+    if 'compliance_requirements' in data:
+        project.compliance_requirements = data['compliance_requirements']
+    if 'language' in data:
+        project.language = data['language']
+    if 'client_name' in data:
+        project.client_name = data['client_name']
+    if 'project_value' in data:
+        project.project_value = data['project_value']
+    
+    # Update knowledge profiles if provided
+    if 'knowledge_profile_ids' in data:
+        profile_ids = data['knowledge_profile_ids']
+        profiles = KnowledgeProfile.query.filter(
+            KnowledgeProfile.id.in_(profile_ids),
+            KnowledgeProfile.organization_id == user.organization_id,
+            KnowledgeProfile.is_active == True
+        ).all()
+        project.knowledge_profiles = profiles
     
     db.session.commit()
     

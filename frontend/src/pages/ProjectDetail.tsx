@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { projectsApi, documentsApi, questionsApi } from '@/api/client';
 import { Project, Document, Question } from '@/types';
@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import RFPAnalysisModal from '@/components/RFPAnalysisModal';
+import WorkflowStepper from '@/components/ui/WorkflowStepper';
 
 export default function ProjectDetail() {
     const { id } = useParams<{ id: string }>();
@@ -25,13 +26,9 @@ export default function ProjectDetail() {
     const [isUploading, setIsUploading] = useState(false);
     const [analysisDoc, setAnalysisDoc] = useState<Document | null>(null);
 
-    useEffect(() => {
-        if (id) {
-            loadProject();
-        }
-    }, [id]);
-
-    const loadProject = async () => {
+    const loadProject = useCallback(async () => {
+        if (!id) return;
+        
         try {
             const [projectRes, questionsRes, documentsRes] = await Promise.all([
                 projectsApi.get(Number(id)),
@@ -47,7 +44,11 @@ export default function ProjectDetail() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [id, navigate]);
+
+    useEffect(() => {
+        loadProject();
+    }, [loadProject]);
 
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (!id) return;
@@ -80,7 +81,7 @@ export default function ProjectDetail() {
         } finally {
             setIsUploading(false);
         }
-    }, [id, navigate]);
+    }, [id, navigate, loadProject]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -91,6 +92,32 @@ export default function ProjectDetail() {
         },
         maxSize: 50 * 1024 * 1024,
     });
+
+    // Calculate these values before early returns to comply with Rules of Hooks
+    const answeredQueries = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
+
+    // Calculate current workflow step
+    const getCurrentStep = useMemo(() => {
+        if (documents.length === 0) return 'upload';
+        if (questions.length === 0) return 'analyze';
+        if (answeredQueries < questions.length) return 'answer';
+        if (project?.status === 'review') return 'review';
+        if (project?.status === 'completed') return 'export';
+        return 'answer';
+    }, [documents.length, questions.length, answeredQueries, project?.status]);
+
+    const getCompletedSteps = useMemo(() => {
+        const steps: string[] = [];
+        if (documents.length > 0) steps.push('upload');
+        if (questions.length > 0) steps.push('analyze');
+        if (answeredQueries === questions.length && questions.length > 0) steps.push('answer');
+        if (project?.status === 'completed') {
+            steps.push('review', 'export');
+        } else if (project?.status === 'review') {
+            steps.push('review');
+        }
+        return steps;
+    }, [documents.length, questions.length, answeredQueries, project?.status]);
 
     if (isLoading) {
         return (
@@ -104,10 +131,21 @@ export default function ProjectDetail() {
         return null;
     }
 
-    const answeredQueries = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
-
     return (
         <div className="space-y-6 animate-fade-in">
+            {/* Workflow Progress */}
+            <div className="card">
+                <h3 className="text-sm font-medium text-text-secondary mb-4">Workflow Progress</h3>
+                <WorkflowStepper
+                    currentStep={getCurrentStep as 'upload' | 'analyze' | 'answer' | 'review' | 'export'}
+                    completedSteps={getCompletedSteps}
+                    onStepClick={(stepId) => {
+                        if (stepId === 'answer') navigate(`/projects/${id}/workspace`);
+                        else if (stepId === 'review' || stepId === 'export') navigate(`/projects/${id}/proposal`);
+                    }}
+                />
+            </div>
+
             {/* Header */}
             <div className="flex items-center gap-4">
                 <button

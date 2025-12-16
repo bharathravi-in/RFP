@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { sectionsApi, projectsApi } from '@/api/client';
 import { RFPSection, RFPSectionType, Project } from '@/types';
@@ -17,9 +17,126 @@ import {
     ChevronDownIcon,
     DocumentIcon,
     TableCellsIcon,
+    ShieldCheckIcon,
+    CurrencyDollarIcon,
+    CodeBracketIcon,
+    UserGroupIcon,
+    BuildingOfficeIcon,
+    ChatBubbleLeftRightIcon,
+    BookOpenIcon,
+    ClipboardDocumentListIcon,
+    LightBulbIcon,
+    QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 import SectionTypeSelector from '@/components/sections/SectionTypeSelector';
 import SectionEditor from '@/components/sections/SectionEditor';
+
+// Section type styling configuration
+const SECTION_STYLES: Record<string, {
+    color: string;
+    bgColor: string;
+    borderColor: string;
+    icon: typeof DocumentIcon;
+    description: string;
+}> = {
+    executive_summary: {
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        icon: DocumentTextIcon,
+        description: 'High-level overview and key selling points'
+    },
+    company_overview: {
+        color: 'text-indigo-600',
+        bgColor: 'bg-indigo-50',
+        borderColor: 'border-indigo-200',
+        icon: BuildingOfficeIcon,
+        description: 'Company background and qualifications'
+    },
+    technical_approach: {
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50',
+        borderColor: 'border-purple-200',
+        icon: CodeBracketIcon,
+        description: 'Technical solution and implementation details'
+    },
+    pricing: {
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+        borderColor: 'border-green-200',
+        icon: CurrencyDollarIcon,
+        description: 'Cost breakdown and pricing structure'
+    },
+    compliance: {
+        color: 'text-orange-600',
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-orange-200',
+        icon: ShieldCheckIcon,
+        description: 'Regulatory and security compliance'
+    },
+    team: {
+        color: 'text-pink-600',
+        bgColor: 'bg-pink-50',
+        borderColor: 'border-pink-200',
+        icon: UserGroupIcon,
+        description: 'Team qualifications and experience'
+    },
+    case_studies: {
+        color: 'text-cyan-600',
+        bgColor: 'bg-cyan-50',
+        borderColor: 'border-cyan-200',
+        icon: BookOpenIcon,
+        description: 'Past project examples and success stories'
+    },
+    implementation: {
+        color: 'text-teal-600',
+        bgColor: 'bg-teal-50',
+        borderColor: 'border-teal-200',
+        icon: ClipboardDocumentListIcon,
+        description: 'Implementation plan and timeline'
+    },
+    qa_responses: {
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50',
+        borderColor: 'border-amber-200',
+        icon: ChatBubbleLeftRightIcon,
+        description: 'Question and answer responses'
+    },
+    clarification_questions: {
+        color: 'text-rose-600',
+        bgColor: 'bg-rose-50',
+        borderColor: 'border-rose-200',
+        icon: QuestionMarkCircleIcon,
+        description: 'Questions needing clarification'
+    },
+    appendix: {
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-50',
+        borderColor: 'border-gray-200',
+        icon: DocumentIcon,
+        description: 'Supporting documents and attachments'
+    },
+    custom: {
+        color: 'text-violet-600',
+        bgColor: 'bg-violet-50',
+        borderColor: 'border-violet-200',
+        icon: LightBulbIcon,
+        description: 'Custom section content'
+    },
+};
+
+const getDefaultStyle = () => ({
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-50',
+    borderColor: 'border-gray-200',
+    icon: DocumentTextIcon,
+    description: 'Section content'
+});
+
+const getSectionStyle = (slug: string | undefined) => {
+    if (!slug) return getDefaultStyle();
+    return SECTION_STYLES[slug] || getDefaultStyle();
+};
 
 export default function ProposalBuilder() {
     const { id } = useParams<{ id: string }>();
@@ -34,23 +151,20 @@ export default function ProposalBuilder() {
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
-    useEffect(() => {
-        if (projectId) {
-            loadProject();
-            loadSections();
-        }
-    }, [projectId]);
-
-    const loadProject = async () => {
+    const loadProject = useCallback(async () => {
+        if (!projectId) return;
+        
         try {
             const response = await projectsApi.get(projectId);
             setProject(response.data.project);
         } catch {
             toast.error('Failed to load project');
         }
-    };
+    }, [projectId]);
 
-    const loadSections = async () => {
+    const loadSections = useCallback(async () => {
+        if (!projectId) return;
+        
         try {
             setIsLoading(true);
             const response = await sectionsApi.listSections(projectId);
@@ -63,7 +177,12 @@ export default function ProposalBuilder() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [projectId, selectedSection]);
+
+    useEffect(() => {
+        loadProject();
+        loadSections();
+    }, [loadProject, loadSections]);
 
     const handleMoveSection = async (sectionId: number, direction: 'up' | 'down') => {
         const currentIndex = sections.findIndex(s => s.id === sectionId);
@@ -256,59 +375,70 @@ export default function ProposalBuilder() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="space-y-1">
-                                {sections.map((section, index) => (
-                                    <div
-                                        key={section.id}
-                                        className={clsx(
-                                            'group rounded-lg transition-all',
-                                            selectedSection?.id === section.id
-                                                ? 'bg-primary-light border border-primary'
-                                                : 'hover:bg-background border border-transparent'
-                                        )}
-                                    >
-                                        <div className="flex items-center">
-                                            <div className="flex flex-col p-1">
+                            <div className="space-y-2">
+                                {sections.map((section, index) => {
+                                    const style = getSectionStyle(section.section_type?.slug);
+                                    const IconComponent = style.icon;
+
+                                    return (
+                                        <div
+                                            key={section.id}
+                                            className={clsx(
+                                                'group rounded-lg transition-all border',
+                                                selectedSection?.id === section.id
+                                                    ? `${style.bgColor} ${style.borderColor}`
+                                                    : 'border-transparent hover:bg-background'
+                                            )}
+                                        >
+                                            <div className="flex items-center">
+                                                <div className="flex flex-col p-1">
+                                                    <button
+                                                        onClick={() => handleMoveSection(section.id, 'up')}
+                                                        disabled={index === 0}
+                                                        className="p-0.5 hover:bg-white/50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    >
+                                                        <ChevronUpIcon className="h-3 w-3 text-text-muted" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleMoveSection(section.id, 'down')}
+                                                        disabled={index === sections.length - 1}
+                                                        className="p-0.5 hover:bg-white/50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    >
+                                                        <ChevronDownIcon className="h-3 w-3 text-text-muted" />
+                                                    </button>
+                                                </div>
+
                                                 <button
-                                                    onClick={() => handleMoveSection(section.id, 'up')}
-                                                    disabled={index === 0}
-                                                    className="p-0.5 hover:bg-background rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    onClick={() => setSelectedSection(section)}
+                                                    className="flex-1 text-left p-3 pl-0"
                                                 >
-                                                    <ChevronUpIcon className="h-3 w-3 text-text-muted" />
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <div className={clsx(
+                                                            'p-1.5 rounded-md',
+                                                            style.bgColor
+                                                        )}>
+                                                            <IconComponent className={clsx('h-4 w-4', style.color)} />
+                                                        </div>
+                                                        {getStatusIcon(section.status)}
+                                                    </div>
+                                                    <p className="text-sm font-medium text-text-primary line-clamp-1">
+                                                        {section.title}
+                                                    </p>
+                                                    <p className="text-xs text-text-muted line-clamp-1 mt-0.5">
+                                                        {style.description}
+                                                    </p>
                                                 </button>
+
                                                 <button
-                                                    onClick={() => handleMoveSection(section.id, 'down')}
-                                                    disabled={index === sections.length - 1}
-                                                    className="p-0.5 hover:bg-background rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    onClick={() => handleDeleteSection(section.id)}
+                                                    className="p-2 opacity-0 group-hover:opacity-100 hover:text-error transition-opacity"
                                                 >
-                                                    <ChevronDownIcon className="h-3 w-3 text-text-muted" />
+                                                    <TrashIcon className="h-4 w-4" />
                                                 </button>
                                             </div>
-
-                                            <button
-                                                onClick={() => setSelectedSection(section)}
-                                                className="flex-1 text-left p-3 pl-0"
-                                            >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-lg">
-                                                        {section.section_type?.icon || '📄'}
-                                                    </span>
-                                                    {getStatusIcon(section.status)}
-                                                </div>
-                                                <p className="text-sm font-medium text-text-primary line-clamp-1">
-                                                    {section.title}
-                                                </p>
-                                            </button>
-
-                                            <button
-                                                onClick={() => handleDeleteSection(section.id)}
-                                                className="p-2 opacity-0 group-hover:opacity-100 hover:text-error transition-opacity"
-                                            >
-                                                <TrashIcon className="h-4 w-4" />
-                                            </button>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

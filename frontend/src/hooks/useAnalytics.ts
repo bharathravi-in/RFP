@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '@/api/client';
+import api from '@/api/client';
 
 interface DashboardStats {
     total_projects: number;

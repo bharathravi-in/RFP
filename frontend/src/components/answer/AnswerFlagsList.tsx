@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-    AlertTriangle,
-    AlertCircle,
-    Info,
-    Shield,
-    FileWarning,
-    Eye
-} from 'lucide-react';
+    ExclamationTriangleIcon,
+    ExclamationCircleIcon,
+    InformationCircleIcon,
+    ShieldCheckIcon,
+    DocumentTextIcon,
+    EyeIcon
+} from '@heroicons/react/24/outline';
 
 interface AnswerFlagsListProps {
     flags: string[];
@@ -26,7 +26,7 @@ interface FlagConfig {
 
 const FLAG_CONFIG: Record<string, FlagConfig> = {
     low_confidence: {
-        icon: AlertTriangle,
+        icon: ExclamationTriangleIcon,
         color: 'text-yellow-700',
         bgColor: 'bg-yellow-50',
         borderColor: 'border-yellow-200',
@@ -34,7 +34,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Low Confidence'
     },
     missing_context: {
-        icon: AlertCircle,
+        icon: ExclamationCircleIcon,
         color: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
@@ -42,7 +42,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Missing Context'
     },
     sensitive: {
-        icon: Shield,
+        icon: ShieldCheckIcon,
         color: 'text-orange-700',
         bgColor: 'bg-orange-50',
         borderColor: 'border-orange-200',
@@ -50,7 +50,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Sensitive'
     },
     legal_review: {
-        icon: FileWarning,
+        icon: DocumentTextIcon,
         color: 'text-purple-700',
         bgColor: 'bg-purple-50',
         borderColor: 'border-purple-200',
@@ -58,7 +58,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Legal Review'
     },
     needs_review: {
-        icon: Eye,
+        icon: EyeIcon,
         color: 'text-blue-700',
         bgColor: 'bg-blue-50',
         borderColor: 'border-blue-200',
@@ -66,7 +66,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Needs Review'
     },
     review_recommended: {
-        icon: Info,
+        icon: InformationCircleIcon,
         color: 'text-gray-700',
         bgColor: 'bg-gray-50',
         borderColor: 'border-gray-200',
@@ -74,7 +74,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Review Recommended'
     },
     conflicting_sources: {
-        icon: AlertCircle,
+        icon: ExclamationCircleIcon,
         color: 'text-amber-700',
         bgColor: 'bg-amber-50',
         borderColor: 'border-amber-200',
@@ -82,7 +82,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'Conflicting Sources'
     },
     ai_service_unavailable: {
-        icon: AlertTriangle,
+        icon: ExclamationTriangleIcon,
         color: 'text-gray-700',
         bgColor: 'bg-gray-50',
         borderColor: 'border-gray-200',
@@ -90,7 +90,7 @@ const FLAG_CONFIG: Record<string, FlagConfig> = {
         shortMessage: 'AI Unavailable'
     },
     generation_error: {
-        icon: AlertCircle,
+        icon: ExclamationCircleIcon,
         color: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
@@ -118,7 +118,7 @@ export const AnswerFlagsList: React.FC<AnswerFlagsListProps> = ({
             <div className={`flex flex-wrap gap-1.5 ${className}`}>
                 {uniqueFlags.map((flag) => {
                     const config = FLAG_CONFIG[flag] || {
-                        icon: Info,
+                        icon: InformationCircleIcon,
                         color: 'text-gray-600',
                         bgColor: 'bg-gray-50',
                         borderColor: 'border-gray-200',
@@ -146,7 +146,7 @@ export const AnswerFlagsList: React.FC<AnswerFlagsListProps> = ({
         <div className={`space-y-2 ${className}`}>
             {uniqueFlags.map((flag) => {
                 const config = FLAG_CONFIG[flag] || {
-                    icon: Info,
+                    icon: InformationCircleIcon,
                     color: 'text-gray-600',
                     bgColor: 'bg-gray-50',
                     borderColor: 'border-gray-200',
