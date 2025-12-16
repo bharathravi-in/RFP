@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { questionsApi, answersApi, exportApi } from '@/api/client';
-import { Question, Answer } from '@/types';
+import { Question, Answer, SimilarAnswer, QuestionCategory } from '@/types';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -13,7 +13,26 @@ import {
     ChevronDownIcon,
     DocumentTextIcon,
     BookOpenIcon,
+    FunnelIcon,
+    ExclamationTriangleIcon,
+    LightBulbIcon,
+    ShieldCheckIcon,
+    ScaleIcon,
+    CodeBracketIcon,
+    CurrencyDollarIcon,
+    CubeIcon,
 } from '@heroicons/react/24/outline';
+
+// Category configuration for badges
+const CATEGORY_CONFIG: Record<string, { icon: typeof ShieldCheckIcon; color: string; bg: string }> = {
+    security: { icon: ShieldCheckIcon, color: 'text-red-700', bg: 'bg-red-100' },
+    compliance: { icon: ScaleIcon, color: 'text-purple-700', bg: 'bg-purple-100' },
+    technical: { icon: CodeBracketIcon, color: 'text-blue-700', bg: 'bg-blue-100' },
+    pricing: { icon: CurrencyDollarIcon, color: 'text-green-700', bg: 'bg-green-100' },
+    legal: { icon: ScaleIcon, color: 'text-orange-700', bg: 'bg-orange-100' },
+    product: { icon: CubeIcon, color: 'text-cyan-700', bg: 'bg-cyan-100' },
+    general: { icon: DocumentTextIcon, color: 'text-gray-700', bg: 'bg-gray-100' },
+};
 
 export default function AnswerWorkspace() {
     const { id } = useParams<{ id: string }>();
@@ -25,6 +44,12 @@ export default function AnswerWorkspace() {
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [editorContent, setEditorContent] = useState('');
+
+    // New state for AI workflow features
+    const [similarAnswers, setSimilarAnswers] = useState<SimilarAnswer[]>([]);
+    const [answerFlags, setAnswerFlags] = useState<string[]>([]);
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
+    const [showSimilarPanel, setShowSimilarPanel] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -60,6 +85,9 @@ export default function AnswerWorkspace() {
     const handleSelectQuestion = (question: Question) => {
         setSelectedQuestion(question);
         setEditorContent(question.answer?.content || '');
+        // Clear previous similar answers when switching questions
+        setSimilarAnswers([]);
+        setAnswerFlags(question.flags || []);
     };
 
     const handleGenerateAnswer = async () => {
@@ -68,18 +96,50 @@ export default function AnswerWorkspace() {
         setIsGenerating(true);
         try {
             const response = await answersApi.generate(selectedQuestion.id);
-            const newAnswer = response.data.answer;
+            const { answer: newAnswer, classification, flags, similar_answers } = response.data;
+
             setEditorContent(newAnswer.content);
+
+            // Store similar answers and flags for display
+            if (similar_answers) {
+                setSimilarAnswers(similar_answers);
+                setShowSimilarPanel(similar_answers.length > 0);
+            }
+            if (flags) {
+                setAnswerFlags(flags);
+            }
+
+            // Update question with classification data
+            const updatedQuestion = {
+                ...selectedQuestion,
+                answer: newAnswer,
+                status: 'answered' as const,
+                category: classification?.category || selectedQuestion.category,
+                sub_category: classification?.sub_category || selectedQuestion.sub_category,
+                priority: classification?.priority || selectedQuestion.priority,
+                flags: flags || selectedQuestion.flags,
+            };
 
             // Update question in list
             setQuestions(questions.map(q =>
-                q.id === selectedQuestion.id
-                    ? { ...q, answer: newAnswer, status: 'answered' }
-                    : q
+                q.id === selectedQuestion.id ? updatedQuestion : q
             ));
-            setSelectedQuestion({ ...selectedQuestion, answer: newAnswer, status: 'answered' });
+            setSelectedQuestion(updatedQuestion);
 
-            toast.success('Answer generated!');
+            // Show toast with classification info
+            if (classification?.category) {
+                toast.success(`Answer generated! Classified as: ${classification.category}`);
+            } else {
+                toast.success('Answer generated!');
+            }
+
+            // Show warning if low confidence or has flags
+            if (newAnswer.confidence_score && newAnswer.confidence_score < 0.6) {
+                toast('⚠️ Low confidence answer - please review carefully', { icon: '⚠️' });
+            }
+            if (flags && flags.length > 0) {
+                toast(`${flags.length} flag(s) detected - review recommended`, { icon: '🚩' });
+            }
         } catch {
             toast.error('Failed to generate answer');
         } finally {
@@ -199,26 +259,72 @@ export default function AnswerWorkspace() {
                 {/* Left: Question Navigator */}
                 <div className="w-[280px] border-r border-border bg-surface overflow-y-auto custom-scrollbar">
                     <div className="p-4">
-                        <h2 className="text-sm font-medium text-text-secondary mb-3">Questions</h2>
+                        {/* Category Filter */}
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-sm font-medium text-text-secondary">Questions</h2>
+                            <select
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                className="text-xs border border-border rounded px-2 py-1 bg-background text-text-primary"
+                            >
+                                <option value="all">All Categories</option>
+                                <option value="security">🛡️ Security</option>
+                                <option value="compliance">⚖️ Compliance</option>
+                                <option value="technical">💻 Technical</option>
+                                <option value="pricing">💰 Pricing</option>
+                                <option value="legal">📜 Legal</option>
+                                <option value="product">📦 Product</option>
+                                <option value="general">📄 General</option>
+                            </select>
+                        </div>
+
+                        {/* Question List */}
                         <div className="space-y-1">
-                            {questions.map((question, index) => (
-                                <button
-                                    key={question.id}
-                                    onClick={() => handleSelectQuestion(question)}
-                                    className={clsx(
-                                        'w-full text-left p-3 rounded-lg transition-all',
-                                        selectedQuestion?.id === question.id
-                                            ? 'bg-primary-light border border-primary'
-                                            : 'hover:bg-background'
-                                    )}
-                                >
-                                    <div className="flex items-center gap-2 mb-1">
-                                        {getStatusIcon(question.status)}
-                                        <span className="text-xs text-text-muted">#{index + 1}</span>
-                                    </div>
-                                    <p className="text-sm text-text-primary line-clamp-2">{question.text}</p>
-                                </button>
-                            ))}
+                            {questions
+                                .filter(q => categoryFilter === 'all' || q.category === categoryFilter)
+                                .map((question, index) => {
+                                    const categoryConfig = question.category ? CATEGORY_CONFIG[question.category] : null;
+                                    const CategoryIcon = categoryConfig?.icon || DocumentTextIcon;
+
+                                    return (
+                                        <button
+                                            key={question.id}
+                                            onClick={() => handleSelectQuestion(question)}
+                                            className={clsx(
+                                                'w-full text-left p-3 rounded-lg transition-all',
+                                                selectedQuestion?.id === question.id
+                                                    ? 'bg-primary-light border border-primary'
+                                                    : 'hover:bg-background'
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2 mb-1">
+                                                {getStatusIcon(question.status)}
+                                                <span className="text-xs text-text-muted">#{index + 1}</span>
+                                                {question.category && (
+                                                    <span className={clsx(
+                                                        'text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1',
+                                                        categoryConfig?.bg, categoryConfig?.color
+                                                    )}>
+                                                        <CategoryIcon className="h-3 w-3" />
+                                                        {question.category}
+                                                    </span>
+                                                )}
+                                                {question.priority === 'high' && (
+                                                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                                                        High
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-text-primary line-clamp-2">{question.text}</p>
+                                            {question.flags && question.flags.length > 0 && (
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    <ExclamationTriangleIcon className="h-3 w-3 text-warning" />
+                                                    <span className="text-xs text-warning">{question.flags.length} flag(s)</span>
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
                         </div>
                     </div>
                 </div>
@@ -369,38 +475,91 @@ export default function AnswerWorkspace() {
                     )}
                 </div>
 
-                {/* Right: Sources Panel */}
+                {/* Right: Sources & Similar Answers Panel */}
                 <div className="w-[320px] border-l border-border bg-surface overflow-y-auto custom-scrollbar">
-                    <div className="p-4">
-                        <h2 className="text-sm font-medium text-text-secondary mb-3">Sources & References</h2>
-
-                        {selectedQuestion?.answer?.sources && selectedQuestion.answer.sources.length > 0 ? (
-                            <div className="space-y-3">
-                                {selectedQuestion.answer.sources.map((source, index) => (
-                                    <div key={index} className="p-3 rounded-lg bg-background">
-                                        <div className="flex items-start gap-2">
-                                            <BookOpenIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="text-sm font-medium text-text-primary">{source.title}</p>
-                                                <p className="text-xs text-text-muted mt-1">
-                                                    Relevance: {Math.round(source.relevance * 100)}%
-                                                </p>
-                                                {source.snippet && (
-                                                    <p className="text-xs text-text-secondary mt-2 line-clamp-3">
-                                                        "{source.snippet}"
-                                                    </p>
-                                                )}
-                                            </div>
+                    <div className="p-4 space-y-6">
+                        {/* Similar Answers Section */}
+                        {showSimilarPanel && similarAnswers.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <LightBulbIcon className="h-4 w-4 text-warning" />
+                                    <h2 className="text-sm font-medium text-text-secondary">Similar Approved Answers</h2>
+                                </div>
+                                <div className="space-y-2">
+                                    {similarAnswers.slice(0, 3).map((similar, index) => (
+                                        <div key={index} className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+                                            <p className="text-xs text-text-muted mb-1">
+                                                {Math.round(similar.similarity_score * 100)}% match
+                                            </p>
+                                            <p className="text-sm text-text-primary line-clamp-2 mb-2">
+                                                {similar.question_text}
+                                            </p>
+                                            <button
+                                                onClick={() => {
+                                                    setEditorContent(similar.answer_content);
+                                                    toast.success('Template applied! Edit as needed.');
+                                                }}
+                                                className="text-xs text-primary hover:underline"
+                                            >
+                                                Use as template →
+                                            </button>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-text-muted text-sm">
-                                <DocumentTextIcon className="h-8 w-8 mx-auto mb-2" />
-                                Sources will appear here after generating an answer
+                                    ))}
+                                </div>
                             </div>
                         )}
+
+                        {/* Flags Section */}
+                        {answerFlags.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <ExclamationTriangleIcon className="h-4 w-4 text-error" />
+                                    <h2 className="text-sm font-medium text-text-secondary">Review Flags</h2>
+                                </div>
+                                <div className="space-y-2">
+                                    {answerFlags.map((flag, index) => (
+                                        <div key={index} className="p-2 rounded-lg bg-error/10 border border-error/20">
+                                            <p className="text-sm text-error capitalize">
+                                                {flag.replace(/_/g, ' ')}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sources Section */}
+                        <div>
+                            <h2 className="text-sm font-medium text-text-secondary mb-3">Sources & References</h2>
+
+                            {selectedQuestion?.answer?.sources && selectedQuestion.answer.sources.length > 0 ? (
+                                <div className="space-y-3">
+                                    {selectedQuestion.answer.sources.map((source, index) => (
+                                        <div key={index} className="p-3 rounded-lg bg-background">
+                                            <div className="flex items-start gap-2">
+                                                <BookOpenIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-text-primary">{source.title}</p>
+                                                    <p className="text-xs text-text-muted mt-1">
+                                                        Relevance: {Math.round(source.relevance * 100)}%
+                                                    </p>
+                                                    {source.snippet && (
+                                                        <p className="text-xs text-text-secondary mt-2 line-clamp-3">
+                                                            "{source.snippet}"
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-text-muted text-sm">
+                                    <DocumentTextIcon className="h-8 w-8 mx-auto mb-2" />
+                                    Sources will appear here after generating an answer
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

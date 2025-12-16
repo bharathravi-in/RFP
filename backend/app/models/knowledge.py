@@ -10,7 +10,13 @@ class KnowledgeItem(db.Model):
     title = db.Column(db.String(255), nullable=False)
     content = db.Column(db.Text, nullable=False)
     tags = db.Column(db.JSON, default=list)  # Array of tags for filtering
-    source_type = db.Column(db.String(50), default='manual')  # document, csv, manual, file
+    category = db.Column(db.String(100), nullable=True)  # security, compliance, product, legal
+    compliance_frameworks = db.Column(db.JSON, default=list)  # SOC2, ISO27001, GDPR, etc.
+    chunk_index = db.Column(db.Integer, nullable=True)  # For chunked documents
+    parent_id = db.Column(db.Integer, db.ForeignKey('knowledge_items.id'), nullable=True)  # Parent item for chunks
+    usage_count = db.Column(db.Integer, default=0)  # Track how often used in answers
+    last_used_at = db.Column(db.DateTime, nullable=True)  # Last time used for answer generation
+    source_type = db.Column(db.String(50), default='manual')  # document, csv, manual, file, approved_answer
     source_file = db.Column(db.String(255), nullable=True)  # Original file if imported
     file_path = db.Column(db.String(512), nullable=True)  # Path to uploaded file (optional)
     file_type = db.Column(db.String(100), nullable=True)  # MIME type
@@ -29,6 +35,7 @@ class KnowledgeItem(db.Model):
     organization = db.relationship('Organization', back_populates='knowledge_items')
     creator = db.relationship('User', foreign_keys=[created_by])
     folder = db.relationship('KnowledgeFolder', back_populates='items')
+    parent = db.relationship('KnowledgeItem', remote_side=[id], backref='chunks')
     
     def to_dict(self):
         """Serialize knowledge item to dictionary."""
@@ -37,6 +44,12 @@ class KnowledgeItem(db.Model):
             'title': self.title,
             'content': self.content,
             'tags': self.tags,
+            'category': self.category,
+            'compliance_frameworks': self.compliance_frameworks or [],
+            'chunk_index': self.chunk_index,
+            'parent_id': self.parent_id,
+            'usage_count': self.usage_count,
+            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None,
             'source_type': self.source_type,
             'source_file': self.source_file,
             'file_path': self.file_path,

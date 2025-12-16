@@ -1,0 +1,544 @@
+import { useState, useEffect } from 'react';
+import { sectionsApi, questionsApi, answersApi } from '@/api/client';
+import { RFPSection, Question } from '@/types';
+import toast from 'react-hot-toast';
+import clsx from 'clsx';
+import {
+    SparklesIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+    ArrowPathIcon,
+    DocumentTextIcon,
+    BookOpenIcon,
+    ExclamationTriangleIcon,
+    PencilIcon,
+    ChatBubbleLeftRightIcon,
+    PlusIcon,
+} from '@heroicons/react/24/outline';
+import QuestionAnswerModal from '@/components/QuestionAnswerModal';
+
+interface SectionEditorProps {
+    section: RFPSection;
+    projectId: number;
+    onUpdate: (section: RFPSection) => void;
+}
+
+export default function SectionEditor({ section, projectId, onUpdate }: SectionEditorProps) {
+    const [content, setContent] = useState(section.content || '');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [feedback, setFeedback] = useState('');
+    const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+
+    // Q&A Section state
+    const [questions, setQuestions] = useState<Question[]>([]);
+    const [loadingQuestions, setLoadingQuestions] = useState(false);
+    const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+    const [showCreateQuestion, setShowCreateQuestion] = useState(false);
+    const [newQuestionText, setNewQuestionText] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
+
+    // Check if this is a Q&A section
+    const isQASection = section.section_type?.slug === 'qa_questionnaire' ||
+        section.section_type?.name?.toLowerCase().includes('questionnaire') ||
+        section.section_type?.name?.toLowerCase().includes('q&a');
+
+    // Sync content when section changes
+    useEffect(() => {
+        setContent(section.content || '');
+        setIsEditing(false);
+
+        // Load questions for Q&A sections
+        if (isQASection) {
+            loadQuestions();
+        }
+    }, [section.id, isQASection]);
+
+    const loadQuestions = async () => {
+        setLoadingQuestions(true);
+        try {
+            const response = await questionsApi.list(projectId);
+            setQuestions(response.data.questions || []);
+        } catch (error) {
+            console.error('Failed to load questions:', error);
+        } finally {
+            setLoadingQuestions(false);
+        }
+    };
+
+    const handleCreateQuestion = async () => {
+        if (!newQuestionText.trim()) {
+            toast.error('Please enter a question');
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            const response = await questionsApi.create(projectId, {
+                text: newQuestionText,
+                section: '',
+            });
+            setQuestions([...questions, response.data.question]);
+            setNewQuestionText('');
+            setShowCreateQuestion(false);
+            toast.success('Question created!');
+        } catch {
+            toast.error('Failed to create question');
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleQuestionUpdate = (updatedQuestion: Question) => {
+        setQuestions(questions.map(q =>
+            q.id === updatedQuestion.id ? updatedQuestion : q
+        ));
+        setSelectedQuestion(updatedQuestion);
+    };
+
+    const handleQuestionDelete = (questionId: number) => {
+        setQuestions(questions.filter(q => q.id !== questionId));
+        setSelectedQuestion(null);
+    };
+
+    const handleGenerate = async () => {
+        setIsGenerating(true);
+        try {
+            const response = await sectionsApi.generateSection(section.id);
+            const updatedSection = response.data.section;
+            setContent(updatedSection.content || '');
+            onUpdate(updatedSection);
+            toast.success('Section content generated!');
+
+            if (updatedSection.confidence_score && updatedSection.confidence_score < 0.6) {
+                toast('⚠️ Low confidence - please review carefully', { icon: '⚠️' });
+            }
+        } catch {
+            toast.error('Failed to generate content');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleRegenerate = async () => {
+        if (!feedback.trim()) {
+            toast.error('Please provide feedback for regeneration');
+            return;
+        }
+
+        setIsGenerating(true);
+        try {
+            const response = await sectionsApi.regenerateSection(section.id, feedback);
+            const updatedSection = response.data.section;
+            setContent(updatedSection.content || '');
+            onUpdate(updatedSection);
+            setFeedback('');
+            setShowFeedbackInput(false);
+            toast.success('Section regenerated!');
+        } catch {
+            toast.error('Failed to regenerate content');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const response = await sectionsApi.updateSection(projectId, section.id, {
+                content,
+            });
+            onUpdate(response.data.section);
+            setIsEditing(false);
+            toast.success('Changes saved');
+        } catch {
+            toast.error('Failed to save changes');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleReview = async (action: 'approve' | 'reject') => {
+        try {
+            const response = await sectionsApi.reviewSection(section.id, action);
+            onUpdate(response.data.section);
+            toast.success(`Section ${action}d`);
+        } catch {
+            toast.error(`Failed to ${action} section`);
+        }
+    };
+
+    // Stats for Q&A section
+    const answeredCount = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
+    const approvedCount = questions.filter(q => q.status === 'approved').length;
+
+    return (
+        <div className="h-full flex flex-col">
+            {/* Section Header */}
+            <div className="px-6 py-4 border-b border-border bg-surface">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">{section.section_type?.icon || '📄'}</span>
+                        <div>
+                            <h2 className="text-lg font-semibold text-text-primary">
+                                {section.title}
+                            </h2>
+                            <p className="text-sm text-text-secondary">
+                                {section.section_type?.name}
+                                {isQASection && ` • ${answeredCount}/${questions.length} answered • ${approvedCount} approved`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* Add Question button for Q&A sections */}
+                        {isQASection && (
+                            <button
+                                onClick={() => setShowCreateQuestion(true)}
+                                className="btn-primary flex items-center gap-2"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                Add Question
+                            </button>
+                        )}
+
+                        {/* Status Badge */}
+                        <span className={clsx(
+                            'px-2 py-1 rounded-full text-xs font-medium',
+                            section.status === 'approved' && 'bg-success-light text-success',
+                            section.status === 'generated' && 'bg-primary-light text-primary',
+                            section.status === 'rejected' && 'bg-error-light text-error',
+                            section.status === 'draft' && 'bg-gray-100 text-gray-600',
+                        )}>
+                            {section.status.charAt(0).toUpperCase() + section.status.slice(1)}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Action Buttons - Only for non-Q&A sections */}
+                {!isQASection && (
+                    <div className="flex items-center gap-2 mt-3">
+                        {!section.content ? (
+                            <button
+                                onClick={handleGenerate}
+                                disabled={isGenerating}
+                                className="btn-primary flex items-center gap-2"
+                            >
+                                {isGenerating ? (
+                                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <SparklesIcon className="h-4 w-4" />
+                                )}
+                                Generate Content
+                            </button>
+                        ) : (
+                            <>
+                                {!isEditing ? (
+                                    <button
+                                        onClick={() => setIsEditing(true)}
+                                        className="btn-secondary flex items-center gap-2"
+                                    >
+                                        <PencilIcon className="h-4 w-4" />
+                                        Edit
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={handleSave}
+                                            disabled={isSaving}
+                                            className="btn-primary flex items-center gap-2"
+                                        >
+                                            {isSaving && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
+                                            Save Changes
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setContent(section.content || '');
+                                                setIsEditing(false);
+                                            }}
+                                            className="btn-secondary"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </>
+                                )}
+
+                                <button
+                                    onClick={() => setShowFeedbackInput(!showFeedbackInput)}
+                                    disabled={isGenerating}
+                                    className="btn-secondary flex items-center gap-2"
+                                >
+                                    <ArrowPathIcon className="h-4 w-4" />
+                                    Regenerate
+                                </button>
+
+                                {section.status !== 'approved' && (
+                                    <button
+                                        onClick={() => handleReview('approve')}
+                                        className="btn-success flex items-center gap-2 ml-auto"
+                                    >
+                                        <CheckCircleIcon className="h-4 w-4" />
+                                        Approve
+                                    </button>
+                                )}
+                                {section.status !== 'rejected' && (
+                                    <button
+                                        onClick={() => handleReview('reject')}
+                                        className="btn-error flex items-center gap-2"
+                                    >
+                                        <XCircleIcon className="h-4 w-4" />
+                                        Reject
+                                    </button>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Regenerate Feedback Input */}
+                {showFeedbackInput && (
+                    <div className="mt-3 p-3 rounded-lg bg-background border border-border">
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                            Feedback for Regeneration
+                        </label>
+                        <textarea
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            placeholder="Describe what you'd like to change..."
+                            rows={2}
+                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                        />
+                        <div className="flex justify-end gap-2 mt-2">
+                            <button
+                                onClick={() => setShowFeedbackInput(false)}
+                                className="btn-secondary text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRegenerate}
+                                disabled={isGenerating || !feedback.trim()}
+                                className="btn-primary text-sm flex items-center gap-2"
+                            >
+                                {isGenerating && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
+                                Regenerate
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* Main Content */}
+                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                    {isQASection ? (
+                        // Q&A Section - Show Questions List
+                        <div className="space-y-4">
+                            {/* Create Question Form */}
+                            {showCreateQuestion && (
+                                <div className="p-4 rounded-lg border-2 border-dashed border-primary bg-primary-light/20 mb-4">
+                                    <label className="block text-sm font-medium text-text-primary mb-2">
+                                        New Question
+                                    </label>
+                                    <textarea
+                                        value={newQuestionText}
+                                        onChange={(e) => setNewQuestionText(e.target.value)}
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                                        placeholder="Enter your question..."
+                                        autoFocus
+                                    />
+                                    <div className="flex justify-end gap-2 mt-3">
+                                        <button
+                                            onClick={() => {
+                                                setShowCreateQuestion(false);
+                                                setNewQuestionText('');
+                                            }}
+                                            className="btn-secondary text-sm"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleCreateQuestion}
+                                            disabled={isCreating || !newQuestionText.trim()}
+                                            className="btn-primary text-sm flex items-center gap-2"
+                                        >
+                                            {isCreating && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
+                                            <PlusIcon className="h-4 w-4" />
+                                            Create Question
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {loadingQuestions ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <ArrowPathIcon className="h-8 w-8 animate-spin text-primary" />
+                                </div>
+                            ) : questions.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <ChatBubbleLeftRightIcon className="h-16 w-16 mx-auto text-text-muted mb-4" />
+                                    <h3 className="text-lg font-medium text-text-primary mb-2">
+                                        No Questions Yet
+                                    </h3>
+                                    <p className="text-text-secondary max-w-md mx-auto mb-4">
+                                        Upload and analyze an RFP document to extract customer questions, or create them manually.
+                                    </p>
+                                    <button
+                                        onClick={() => setShowCreateQuestion(true)}
+                                        className="btn-primary inline-flex items-center gap-2"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Create First Question
+                                    </button>
+                                </div>
+                            ) : (
+                                questions.map((question, index) => (
+                                    <div
+                                        key={question.id}
+                                        onClick={() => setSelectedQuestion(question)}
+                                        className="p-4 rounded-lg border border-border bg-background hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                                    >
+                                        {/* Question Header */}
+                                        <div className="flex items-start gap-3">
+                                            <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-light text-primary text-sm flex items-center justify-center font-medium">
+                                                {index + 1}
+                                            </span>
+                                            <div className="flex-1">
+                                                <p className="text-text-primary font-medium leading-relaxed line-clamp-2">
+                                                    {question.text}
+                                                </p>
+                                                {question.section && (
+                                                    <p className="text-xs text-text-muted mt-1">
+                                                        From section: {question.section}
+                                                    </p>
+                                                )}
+                                                {question.answer && (
+                                                    <p className="text-sm text-text-secondary mt-2 line-clamp-2 bg-surface p-2 rounded">
+                                                        {question.answer.content}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <span className={clsx(
+                                                'px-2 py-1 rounded-full text-xs font-medium',
+                                                question.status === 'approved' && 'bg-success-light text-success',
+                                                question.status === 'answered' && 'bg-primary-light text-primary',
+                                                question.status === 'pending' && 'bg-gray-100 text-gray-600',
+                                            )}>
+                                                {question.status}
+                                            </span>
+                                        </div>
+
+                                        {/* Quick action hint */}
+                                        <div className="mt-3 flex items-center justify-end">
+                                            <span className="text-xs text-text-muted">
+                                                Click to {question.answer ? 'edit or regenerate' : 'generate answer'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    ) : !section.content ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center">
+                            <DocumentTextIcon className="h-16 w-16 text-text-muted mb-4" />
+                            <h3 className="text-lg font-medium text-text-primary mb-2">
+                                No Content Yet
+                            </h3>
+                            <p className="text-text-secondary mb-6 max-w-md">
+                                Click "Generate Content" to create AI-powered content for this section
+                                based on your knowledge base.
+                            </p>
+                        </div>
+                    ) : isEditing ? (
+                        <textarea
+                            value={content}
+                            onChange={(e) => setContent(e.target.value)}
+                            className="w-full h-full px-4 py-3 border border-border rounded-lg bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
+                        />
+                    ) : (
+                        <div className="prose prose-sm max-w-none">
+                            <div className="whitespace-pre-wrap text-text-primary">
+                                {content}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Sidebar - Sources & Flags (only for non-Q&A sections with content) */}
+                {!isQASection && section.content && (
+                    <div className="w-[280px] border-l border-border bg-surface p-4 overflow-y-auto custom-scrollbar">
+                        {/* Flags */}
+                        {section.flags && section.flags.length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
+                                    <ExclamationTriangleIcon className="h-4 w-4 text-warning" />
+                                    Review Flags
+                                </h3>
+                                <div className="space-y-2">
+                                    {section.flags.map((flag, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="p-2 rounded-lg bg-warning-light border border-warning-light"
+                                        >
+                                            <p className="text-sm text-warning-dark capitalize">
+                                                {flag.replace(/_/g, ' ')}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sources */}
+                        <div>
+                            <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
+                                <BookOpenIcon className="h-4 w-4" />
+                                Sources
+                            </h3>
+                            {section.sources && section.sources.length > 0 ? (
+                                <div className="space-y-2">
+                                    {section.sources.map((source, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="p-2 rounded-lg bg-background"
+                                        >
+                                            <p className="text-sm font-medium text-text-primary">
+                                                {source.title}
+                                            </p>
+                                            <p className="text-xs text-text-muted mt-1">
+                                                Relevance: {Math.round(source.relevance * 100)}%
+                                            </p>
+                                            {source.snippet && (
+                                                <p className="text-xs text-text-secondary mt-1 line-clamp-2">
+                                                    "{source.snippet}"
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-text-muted">
+                                    No sources cited
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Question Answer Modal */}
+            {selectedQuestion && (
+                <QuestionAnswerModal
+                    question={selectedQuestion}
+                    projectId={projectId}
+                    onClose={() => setSelectedQuestion(null)}
+                    onUpdate={handleQuestionUpdate}
+                    onDelete={handleQuestionDelete}
+                />
+            )}
+        </div>
+    );
+}

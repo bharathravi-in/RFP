@@ -74,11 +74,17 @@ export interface Document {
 // ===============================
 
 export type QuestionStatus = 'pending' | 'answered' | 'review' | 'approved' | 'rejected';
+export type QuestionCategory = 'security' | 'compliance' | 'technical' | 'pricing' | 'legal' | 'product' | 'general';
+export type QuestionPriority = 'high' | 'normal' | 'low';
 
 export interface Question {
     id: number;
     text: string;
     section: string | null;
+    category: QuestionCategory | null;
+    sub_category: string | null;
+    priority: QuestionPriority;
+    flags: string[];
     order: number;
     status: QuestionStatus;
     notes: string | null;
@@ -132,15 +138,24 @@ export interface AnswerComment {
 // Knowledge Base Types
 // ===============================
 
-export type KnowledgeSourceType = 'document' | 'csv' | 'manual';
+export type KnowledgeSourceType = 'document' | 'csv' | 'manual' | 'file' | 'approved_answer';
 
 export interface KnowledgeItem {
     id: number;
     title: string;
     content: string;
     tags: string[];
+    category: string | null;
+    compliance_frameworks: string[];
+    chunk_index: number | null;
+    parent_id: number | null;
+    usage_count: number;
+    last_used_at: string | null;
     source_type: KnowledgeSourceType;
     source_file: string | null;
+    file_path: string | null;
+    file_type: string | null;
+    folder_id: number | null;
     is_active: boolean;
     organization_id: number;
     created_by: number;
@@ -151,6 +166,32 @@ export interface KnowledgeItem {
 export interface KnowledgeSearchResult {
     item: KnowledgeItem;
     score: number;
+}
+
+// ===============================
+// Similar Answer Types
+// ===============================
+
+export interface SimilarAnswer {
+    question_id: number;
+    question_text: string;
+    answer_content: string;
+    similarity_score: number;
+    answer_id: number;
+    category: string | null;
+    approved_at: string | null;
+}
+
+export interface AnswerSuggestion {
+    has_suggestion: boolean;
+    suggestion?: {
+        suggested_answer: string;
+        source_question: string;
+        source_answer_id: number;
+        similarity: number;
+        category: string | null;
+        note: string;
+    };
 }
 
 // ===============================
@@ -212,4 +253,68 @@ export interface ExportPreviewItem {
     answer: string;
     status: string;
     confidence: number;
+}
+
+// ===============================
+// RFP Section Types
+// ===============================
+
+export type SectionStatus = 'draft' | 'generated' | 'reviewed' | 'approved' | 'rejected';
+
+export interface RFPSectionType {
+    id: number;
+    name: string;
+    slug: string;
+    description: string | null;
+    icon: string;
+    default_prompt: string | null;
+    required_inputs: string[];
+    knowledge_scopes: string[];
+    is_system: boolean;
+    is_active: boolean;
+    organization_id: number | null;
+    created_at: string;
+}
+
+export interface RFPSection {
+    id: number;
+    project_id: number;
+    section_type_id: number;
+    section_type: RFPSectionType | null;
+    title: string;
+    order: number;
+    status: SectionStatus;
+    content: string | null;
+    inputs: Record<string, string>;
+    ai_generation_params: GenerateOptions;
+    confidence_score: number | null;
+    sources: AnswerSource[];
+    flags: string[];
+    version: number;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SectionTemplate {
+    id: number;
+    name: string;
+    section_type_id: number | null;
+    section_type: RFPSectionType | null;
+    content: string;
+    variables: string[];
+    description: string | null;
+    is_default: boolean;
+    is_active: boolean;
+    organization_id: number | null;
+    created_by: number | null;
+    created_at: string;
+}
+
+export interface SectionGenerationResult {
+    content: string;
+    confidence_score: number;
+    sources: AnswerSource[];
+    flags: string[];
 }

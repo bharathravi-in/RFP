@@ -9,6 +9,10 @@ class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     text = db.Column(db.Text, nullable=False)
     section = db.Column(db.String(255), nullable=True)  # Section/category in document
+    category = db.Column(db.String(100), nullable=True)  # security, compliance, technical, pricing, legal, product
+    sub_category = db.Column(db.String(100), nullable=True)  # More specific: encryption, gdpr, api, etc.
+    priority = db.Column(db.String(20), default='normal')  # high, normal, low
+    flags = db.Column(db.JSON, default=list)  # List of flags: sensitive, legal_review, low_confidence, etc.
     order = db.Column(db.Integer, default=0)  # Display order
     status = db.Column(db.String(50), default='pending')  # pending, answered, review, approved, rejected
     original_text = db.Column(db.Text, nullable=True)  # Before any edits
@@ -34,6 +38,10 @@ class Question(db.Model):
             'id': self.id,
             'text': self.text,
             'section': self.section,
+            'category': self.category,
+            'sub_category': self.sub_category,
+            'priority': self.priority,
+            'flags': self.flags or [],
             'order': self.order,
             'status': self.status,
             'notes': self.notes,

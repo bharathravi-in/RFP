@@ -7,6 +7,8 @@ from .question import Question
 from .answer import Answer, AnswerComment
 from .knowledge import KnowledgeItem
 from .knowledge_folder import KnowledgeFolder
+from .audit_log import AuditLog, ComplianceMapping, ExportHistory
+from .rfp_section import RFPSectionType, RFPSection, SectionTemplate, seed_section_types
 
 __all__ = [
     'User',
@@ -18,5 +20,12 @@ __all__ = [
     'Answer',
     'AnswerComment',
     'KnowledgeItem',
-    'KnowledgeFolder'
+    'KnowledgeFolder',
+    'AuditLog',
+    'ComplianceMapping',
+    'ExportHistory',
+    'RFPSectionType',
+    'RFPSection',
+    'SectionTemplate',
+    'seed_section_types',
 ]

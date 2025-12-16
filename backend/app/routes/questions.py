@@ -35,6 +35,55 @@ def list_questions():
     }), 200
 
 
+@bp.route('', methods=['POST'])
+@jwt_required()
+def create_question():
+    """Create a new question manually."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    data = request.get_json()
+    project_id = data.get('project_id')
+    text = data.get('text')
+    section = data.get('section', '')
+    
+    if not project_id or not text:
+        return jsonify({'error': 'Project ID and question text required'}), 400
+    
+    project = Project.query.get(project_id)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get the next order number
+    max_order = db.session.query(db.func.max(Question.order)).filter_by(
+        project_id=project_id
+    ).scalar() or 0
+    
+    question = Question(
+        text=text,
+        original_text=text,
+        section=section,
+        order=max_order + 1,
+        status='pending',
+        project_id=project_id
+    )
+    
+    db.session.add(question)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Question created',
+        'question': question.to_dict(include_answer=True)
+    }), 201
+
+
 @bp.route('/<int:question_id>', methods=['GET'])
 @jwt_required()
 def get_question(question_id):

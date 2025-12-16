@@ -10,7 +10,9 @@ import Dashboard from '@/pages/Dashboard';
 import Projects from '@/pages/Projects';
 import ProjectDetail from '@/pages/ProjectDetail';
 import AnswerWorkspace from '@/pages/AnswerWorkspace';
+import ProposalBuilder from '@/pages/ProposalBuilder';
 import KnowledgeBase from '@/pages/KnowledgeBase';
+import TemplatesManager from '@/pages/TemplatesManager';
 import Settings from '@/pages/Settings';
 
 // Layout
@@ -89,7 +91,9 @@ function App() {
                     <Route path="projects" element={<Projects />} />
                     <Route path="projects/:id" element={<ProjectDetail />} />
                     <Route path="projects/:id/workspace" element={<AnswerWorkspace />} />
+                    <Route path="projects/:id/proposal" element={<ProposalBuilder />} />
                     <Route path="knowledge" element={<KnowledgeBase />} />
+                    <Route path="templates" element={<TemplatesManager />} />
                     <Route path="settings" element={<Settings />} />
                 </Route>
 

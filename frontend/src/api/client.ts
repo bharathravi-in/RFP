@@ -125,6 +125,16 @@ export const documentsApi = {
 
     delete: (id: number) =>
         api.delete(`/documents/${id}`),
+
+    // RFP Analysis
+    analyze: (id: number) =>
+        api.post(`/documents/${id}/analyze`),
+
+    autoBuildProposal: (id: number, sectionTypeIds: number[], generateContent = false) =>
+        api.post(`/documents/${id}/auto-build`, {
+            section_type_ids: sectionTypeIds,
+            generate_content: generateContent
+        }),
 };
 
 // ===============================
@@ -137,6 +147,9 @@ export const questionsApi = {
 
     get: (id: number) =>
         api.get(`/questions/${id}`),
+
+    create: (projectId: number, data: { text: string; section?: string }) =>
+        api.post('/questions', { project_id: projectId, ...data }),
 
     update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string }>) =>
         api.put(`/questions/${id}`, data),
@@ -159,8 +172,8 @@ export const answersApi = {
     generate: (questionId: number, options?: { tone?: string; length?: string }) =>
         api.post('/answers/generate', { question_id: questionId, options }),
 
-    regenerate: (answerId: number, action: string) =>
-        api.post('/answers/regenerate', { answer_id: answerId, action }),
+    regenerate: (questionId: number, feedback?: string, action: string = 'regenerate') =>
+        api.post('/answers/regenerate', { question_id: questionId, feedback, action }),
 
     update: (id: number, content: string) =>
         api.put(`/answers/${id}`, { content }),
@@ -218,6 +231,118 @@ export const exportApi = {
 
     complete: (projectId: number) =>
         api.post('/export/complete', { project_id: projectId }),
+};
+
+// ===============================
+// Sections API
+// ===============================
+
+export const sectionsApi = {
+    // Section Types
+    listTypes: () =>
+        api.get('/section-types'),
+
+    createType: (data: {
+        name: string;
+        slug: string;
+        description?: string;
+        icon?: string;
+        default_prompt?: string;
+        required_inputs?: string[];
+        knowledge_scopes?: string[];
+    }) => api.post('/section-types', data),
+
+    updateType: (id: number, data: Partial<{
+        name: string;
+        description: string;
+        icon: string;
+        default_prompt: string;
+        required_inputs: string[];
+        knowledge_scopes: string[];
+        is_active: boolean;
+    }>) => api.put(`/section-types/${id}`, data),
+
+    deleteType: (id: number) =>
+        api.delete(`/section-types/${id}`),
+
+    seedTypes: () =>
+        api.post('/section-types/seed'),
+
+    // Project Sections
+    listSections: (projectId: number) =>
+        api.get(`/projects/${projectId}/sections`),
+
+    getSection: (projectId: number, sectionId: number) =>
+        api.get(`/projects/${projectId}/sections/${sectionId}`),
+
+    addSection: (projectId: number, data: {
+        section_type_id: number;
+        title?: string;
+        inputs?: Record<string, string>;
+        ai_generation_params?: Record<string, string>;
+    }) => api.post(`/projects/${projectId}/sections`, data),
+
+    updateSection: (projectId: number, sectionId: number, data: Partial<{
+        title: string;
+        content: string;
+        inputs: Record<string, string>;
+        ai_generation_params: Record<string, string>;
+        order: number;
+        status: string;
+    }>) => api.put(`/projects/${projectId}/sections/${sectionId}`, data),
+
+    deleteSection: (projectId: number, sectionId: number) =>
+        api.delete(`/projects/${projectId}/sections/${sectionId}`),
+
+    reorderSections: (projectId: number, sectionOrder: number[]) =>
+        api.post(`/projects/${projectId}/sections/reorder`, { section_order: sectionOrder }),
+
+    // Section Generation
+    generateSection: (sectionId: number, data?: {
+        inputs?: Record<string, string>;
+        generation_params?: { tone?: string; length?: string };
+    }) => api.post(`/sections/${sectionId}/generate`, data || {}),
+
+    regenerateSection: (sectionId: number, feedback: string) =>
+        api.post(`/sections/${sectionId}/regenerate`, { feedback }),
+
+    reviewSection: (sectionId: number, action: 'approve' | 'reject') =>
+        api.post(`/sections/${sectionId}/review`, { action }),
+
+    // Templates
+    listTemplates: (sectionTypeId?: number) =>
+        api.get('/section-templates', { params: sectionTypeId ? { section_type_id: sectionTypeId } : {} }),
+
+    createTemplate: (data: {
+        name: string;
+        content: string;
+        section_type_id?: number;
+        variables?: string[];
+        description?: string;
+        is_default?: boolean;
+    }) => api.post('/section-templates', data),
+
+    updateTemplate: (templateId: number, data: Partial<{
+        name: string;
+        content: string;
+        variables: string[];
+        description: string;
+        is_default: boolean;
+        section_type_id: number;
+    }>) => api.put(`/section-templates/${templateId}`, data),
+
+    deleteTemplate: (templateId: number) =>
+        api.delete(`/section-templates/${templateId}`),
+
+    applyTemplate: (templateId: number, sectionId: number, variables: Record<string, string>) =>
+        api.post(`/section-templates/${templateId}/apply`, { section_id: sectionId, variables }),
+
+    // Export
+    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', includeQA: boolean = true) =>
+        api.post(`/projects/${projectId}/export/proposal`, { format, include_qa: includeQA }, { responseType: 'blob' }),
+
+    getExportPreview: (projectId: number) =>
+        api.get(`/projects/${projectId}/export/preview`),
 };
 
 export default api;

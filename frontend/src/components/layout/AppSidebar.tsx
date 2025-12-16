@@ -4,6 +4,7 @@ import {
     HomeIcon,
     FolderIcon,
     BookOpenIcon,
+    DocumentDuplicateIcon,
     Cog6ToothIcon,
     ArrowRightOnRectangleIcon,
     SparklesIcon,
@@ -14,6 +15,7 @@ const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { name: 'Projects', href: '/projects', icon: FolderIcon },
     { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
+    { name: 'Templates', href: '/templates', icon: DocumentDuplicateIcon },
     { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ];
 

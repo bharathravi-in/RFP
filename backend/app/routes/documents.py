@@ -263,10 +263,86 @@ def delete_document(document_id):
         return jsonify({'error': 'Access denied'}), 403
     
     # Delete file
-    if os.path.exists(document.file_path):
+    if document.file_path and os.path.exists(document.file_path):
         os.remove(document.file_path)
     
     db.session.delete(document)
     db.session.commit()
     
     return jsonify({'message': 'Document deleted'}), 200
+
+
+@bp.route('/<int:document_id>/analyze', methods=['POST'])
+@jwt_required()
+def analyze_document(document_id):
+    """Analyze an RFP document to extract structure and suggest proposal sections."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Check if document has been parsed
+    if document.status != 'completed' or not document.extracted_text:
+        # Auto-parse if needed
+        result = _parse_document_internal(document)
+        if 'error' in result:
+            return jsonify(result), 500
+    
+    # Run analysis
+    from ..services.rfp_analysis_agent import get_rfp_analysis_agent
+    agent = get_rfp_analysis_agent()
+    analysis = agent.analyze_rfp(document_id)
+    
+    if 'error' in analysis:
+        return jsonify(analysis), 500
+    
+    return jsonify({
+        'message': 'RFP analysis complete',
+        **analysis
+    }), 200
+
+
+@bp.route('/<int:document_id>/auto-build', methods=['POST'])
+@jwt_required()
+def auto_build_proposal(document_id):
+    """Automatically create proposal sections based on RFP analysis."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json() or {}
+    section_type_ids = data.get('section_type_ids', [])
+    
+    if not section_type_ids:
+        return jsonify({'error': 'No section types provided'}), 400
+    
+    # Create sections with content generation
+    from ..services.rfp_analysis_agent import get_rfp_analysis_agent
+    agent = get_rfp_analysis_agent()
+    result = agent.auto_create_sections(
+        project_id=document.project_id,
+        section_type_ids=section_type_ids,
+        with_generation=data.get('generate_content', True),  # Default to True
+        document_id=document_id  # Pass document for context
+    )
+    
+    if 'error' in result:
+        return jsonify(result), 500
+    
+    return jsonify({
+        'message': 'Proposal sections created with content',
+        **result
+    }), 201

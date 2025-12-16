@@ -9,10 +9,11 @@ import {
     DocumentArrowUpIcon,
     DocumentTextIcon,
     SparklesIcon,
-    TrashIcon,
-    PlayIcon,
+    MagnifyingGlassCircleIcon,
+    ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import RFPAnalysisModal from '@/components/RFPAnalysisModal';
 
 export default function ProjectDetail() {
     const { id } = useParams<{ id: string }>();
@@ -22,7 +23,7 @@ export default function ProjectDetail() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'documents' | 'questions'>('documents');
+    const [analysisDoc, setAnalysisDoc] = useState<Document | null>(null);
 
     useEffect(() => {
         if (id) {
@@ -72,7 +73,7 @@ export default function ProjectDetail() {
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
         },
-        maxSize: 50 * 1024 * 1024, // 50MB
+        maxSize: 50 * 1024 * 1024,
     });
 
     if (isLoading) {
@@ -86,6 +87,8 @@ export default function ProjectDetail() {
     if (!project) {
         return null;
     }
+
+    const answeredQueries = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -104,157 +107,157 @@ export default function ProjectDetail() {
                     )}
                 </div>
                 <Link
-                    to={`/projects/${id}/workspace`}
-                    className="btn-primary"
+                    to={`/projects/${id}/proposal`}
+                    className="btn-primary flex items-center gap-2"
                 >
                     <SparklesIcon className="h-5 w-5" />
-                    Open Workspace
+                    Build Proposal
                 </Link>
             </div>
 
-            {/* Progress Bar */}
-            <div className="card">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-text-primary">Completion Progress</span>
-                    <span className="text-sm font-semibold text-primary">
-                        {Math.round(project.completion_percent)}%
-                    </span>
-                </div>
-                <div className="h-2 bg-background rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-gradient-to-r from-primary to-purple-500 rounded-full transition-all duration-500"
-                        style={{ width: `${project.completion_percent}%` }}
-                    />
-                </div>
-                <div className="flex items-center gap-6 mt-4 text-sm text-text-secondary">
-                    <span>{questions.length} total questions</span>
-                    <span>{questions.filter(q => q.status === 'answered').length} answered</span>
-                    <span>{questions.filter(q => q.status === 'approved').length} approved</span>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="border-b border-border">
-                <div className="flex gap-6">
-                    <button
-                        onClick={() => setActiveTab('documents')}
-                        className={clsx(
-                            'pb-3 text-sm font-medium border-b-2 transition-colors',
-                            activeTab === 'documents'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-text-secondary hover:text-text-primary'
-                        )}
-                    >
-                        Documents
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('questions')}
-                        className={clsx(
-                            'pb-3 text-sm font-medium border-b-2 transition-colors',
-                            activeTab === 'questions'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-text-secondary hover:text-text-primary'
-                        )}
-                    >
-                        Questions ({questions.length})
-                    </button>
-                </div>
-            </div>
-
-            {/* Tab Content */}
-            {activeTab === 'documents' ? (
-                <div className="space-y-4">
-                    {/* Upload Zone */}
-                    <div
-                        {...getRootProps()}
-                        className={clsx(
-                            'card border-2 border-dashed cursor-pointer transition-all text-center py-12',
-                            isDragActive
-                                ? 'border-primary bg-primary-light'
-                                : 'border-border hover:border-primary hover:bg-primary-50',
-                            isUploading && 'opacity-50 pointer-events-none'
-                        )}
-                    >
-                        <input {...getInputProps()} />
-                        <DocumentArrowUpIcon className="h-12 w-12 text-primary mx-auto mb-4" />
-                        <p className="text-text-primary font-medium">
-                            {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
-                        </p>
-                        <p className="text-sm text-text-secondary mt-1">
-                            or click to browse (PDF, DOCX, XLSX up to 50MB)
-                        </p>
-                        {isUploading && (
-                            <p className="text-sm text-primary mt-4">Uploading...</p>
-                        )}
+            {/* Stats Cards */}
+            <div className="grid grid-cols-3 gap-4">
+                <div className="card">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center">
+                            <DocumentTextIcon className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-semibold text-text-primary">{documents.length}</p>
+                            <p className="text-sm text-text-muted">RFP Documents</p>
+                        </div>
                     </div>
+                </div>
+                <div className="card">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                            <ChatBubbleLeftRightIcon className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-semibold text-text-primary">{questions.length}</p>
+                            <p className="text-sm text-text-muted">Customer Queries</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="card">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-success-light flex items-center justify-center">
+                            <SparklesIcon className="h-5 w-5 text-success" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-semibold text-text-primary">{answeredQueries}/{questions.length}</p>
+                            <p className="text-sm text-text-muted">Queries Answered</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                    {/* Document List */}
-                    {documents.length > 0 ? (
-                        <div className="space-y-3">
-                            {documents.map((doc) => (
-                                <div key={doc.id} className="card flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-lg bg-background flex items-center justify-center">
-                                        <DocumentTextIcon className="h-5 w-5 text-text-secondary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-text-primary truncate">
-                                            {doc.original_filename}
-                                        </p>
-                                        <p className="text-sm text-text-secondary">
-                                            {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {doc.question_count} questions extracted
-                                        </p>
-                                    </div>
-                                    <span className={`badge ${doc.status === 'completed' ? 'badge-success' :
-                                        doc.status === 'processing' ? 'badge-warning' :
-                                            doc.status === 'failed' ? 'badge-error' :
-                                                'badge-neutral'
-                                        }`}>
-                                        {doc.status}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-text-secondary">
-                            No documents uploaded yet
-                        </div>
+            {/* Documents Section */}
+            <div>
+                <h2 className="text-lg font-semibold text-text-primary mb-4">RFP Documents</h2>
+
+                {/* Upload Zone */}
+                <div
+                    {...getRootProps()}
+                    className={clsx(
+                        'card border-2 border-dashed cursor-pointer transition-all text-center py-8 mb-4',
+                        isDragActive
+                            ? 'border-primary bg-primary-light'
+                            : 'border-border hover:border-primary',
+                        isUploading && 'opacity-50 pointer-events-none'
+                    )}
+                >
+                    <input {...getInputProps()} />
+                    <DocumentArrowUpIcon className="h-10 w-10 text-primary mx-auto mb-3" />
+                    <p className="text-text-primary font-medium">
+                        {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
+                    </p>
+                    <p className="text-sm text-text-secondary mt-1">
+                        PDF, DOCX, XLSX up to 50MB
+                    </p>
+                    {isUploading && (
+                        <p className="text-sm text-primary mt-3">Uploading...</p>
                     )}
                 </div>
-            ) : (
-                <div className="space-y-3">
-                    {questions.length > 0 ? (
-                        questions.map((question, index) => (
-                            <div
-                                key={question.id}
-                                className="card flex items-start gap-4 hover:border-primary transition-colors cursor-pointer"
-                                onClick={() => navigate(`/projects/${id}/workspace?q=${question.id}`)}
-                            >
-                                <div className="h-8 w-8 rounded-full bg-background flex items-center justify-center text-sm font-medium text-text-secondary flex-shrink-0">
-                                    {index + 1}
+
+                {/* Document List */}
+                {documents.length > 0 ? (
+                    <div className="space-y-3">
+                        {documents.map((doc) => (
+                            <div key={doc.id} className="card flex items-center gap-4">
+                                <div className="h-10 w-10 rounded-lg bg-background flex items-center justify-center">
+                                    <DocumentTextIcon className="h-5 w-5 text-text-secondary" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-text-primary line-clamp-2">{question.text}</p>
-                                    {question.section && (
-                                        <p className="text-sm text-text-muted mt-1">Section: {question.section}</p>
-                                    )}
+                                    <p className="font-medium text-text-primary truncate">
+                                        {doc.original_filename}
+                                    </p>
+                                    <p className="text-sm text-text-secondary">
+                                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {doc.question_count || 0} queries extracted
+                                    </p>
                                 </div>
-                                <span className={`badge flex-shrink-0 ${question.status === 'approved' ? 'badge-success' :
-                                    question.status === 'answered' ? 'badge-primary' :
-                                        question.status === 'review' ? 'badge-warning' :
+                                <span className={`badge ${doc.status === 'completed' ? 'badge-success' :
+                                    doc.status === 'processing' ? 'badge-warning' :
+                                        doc.status === 'failed' ? 'badge-error' :
                                             'badge-neutral'
                                     }`}>
-                                    {question.status}
+                                    {doc.status}
                                 </span>
+                                {doc.status === 'completed' && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAnalysisDoc(doc);
+                                        }}
+                                        className="btn-primary text-sm px-3 py-1.5"
+                                    >
+                                        <MagnifyingGlassCircleIcon className="h-4 w-4" />
+                                        Analyze & Build
+                                    </button>
+                                )}
                             </div>
-                        ))
-                    ) : (
-                        <div className="text-center py-12 text-text-secondary">
-                            <DocumentTextIcon className="h-12 w-12 text-text-muted mx-auto mb-4" />
-                            <p>No questions extracted yet</p>
-                            <p className="text-sm mt-1">Upload a document to get started</p>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-8 text-text-secondary">
+                        No documents uploaded yet. Upload an RFP to get started.
+                    </div>
+                )}
+            </div>
+
+            {/* Quick Action Card */}
+            {documents.length > 0 && questions.length > 0 && (
+                <div className="card bg-gradient-to-r from-primary to-purple-600 text-white">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-semibold">Ready to Build Your Proposal?</h3>
+                            <p className="text-white/80 mt-1">
+                                {questions.length} customer queries extracted. Answer them and generate your proposal in the builder.
+                            </p>
                         </div>
-                    )}
+                        <Link
+                            to={`/projects/${id}/proposal`}
+                            className="bg-white text-primary px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center gap-2"
+                        >
+                            <SparklesIcon className="h-5 w-5" />
+                            Open Builder
+                        </Link>
+                    </div>
                 </div>
+            )}
+
+            {/* RFP Analysis Modal */}
+            {analysisDoc && (
+                <RFPAnalysisModal
+                    documentId={analysisDoc.id}
+                    documentName={analysisDoc.original_filename}
+                    projectId={Number(id)}
+                    onClose={() => setAnalysisDoc(null)}
+                    onComplete={() => {
+                        setAnalysisDoc(null);
+                        loadProject();
+                    }}
+                />
             )}
         </div>
     );
