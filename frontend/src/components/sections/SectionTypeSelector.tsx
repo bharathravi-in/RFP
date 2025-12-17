@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sectionsApi } from '@/api/client';
 import { RFPSectionType } from '@/types';
 import toast from 'react-hot-toast';
@@ -18,11 +18,7 @@ export default function SectionTypeSelector({ onSelect, onClose, existingSection
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        loadSectionTypes();
-    }, []);
-
-    const loadSectionTypes = async () => {
+    const loadSectionTypes = useCallback(async () => {
         try {
             const response = await sectionsApi.listTypes();
             setSectionTypes(response.data.section_types || []);
@@ -31,7 +27,11 @@ export default function SectionTypeSelector({ onSelect, onClose, existingSection
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadSectionTypes();
+    }, [loadSectionTypes]);
 
     const handleSelectType = (type: RFPSectionType) => {
         // Check if this section type already exists (for single-instance types like Q&A)

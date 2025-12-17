@@ -9,11 +9,9 @@ import {
     DocumentArrowUpIcon,
     DocumentTextIcon,
     SparklesIcon,
-    MagnifyingGlassCircleIcon,
     ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import RFPAnalysisModal from '@/components/RFPAnalysisModal';
 import WorkflowStepper from '@/components/ui/WorkflowStepper';
 
 export default function ProjectDetail() {
@@ -24,7 +22,6 @@ export default function ProjectDetail() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
-    const [analysisDoc, setAnalysisDoc] = useState<Document | null>(null);
 
     const loadProject = useCallback(async () => {
         if (!id) return;
@@ -56,25 +53,41 @@ export default function ProjectDetail() {
         setIsUploading(true);
         try {
             for (const file of acceptedFiles) {
-                const result = await documentsApi.upload(Number(id), file);
-                const response = result.data;
+                const uploadResult = await documentsApi.upload(Number(id), file);
+                const uploadedDoc = uploadResult.data.document;
 
-                // Show upload success
                 toast.success(`Uploaded ${file.name}`);
 
-                // Check if auto-analysis created sections
-                if (response.sections_created && response.sections_created > 0) {
-                    toast.success(
-                        `✨ Auto-analyzed RFP and created ${response.sections_created} sections!`,
-                        { duration: 4000 }
-                    );
-                    // Redirect to proposal builder
-                    navigate(`/projects/${id}/proposal`);
-                    return;
-                } else if (response.analysis && !response.analysis.error) {
+                // Auto-analyze the document after upload
+                try {
+                    const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+                    
+                    if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
+                        // Auto-build the proposal with suggested sections
+                        const sectionIds = analysisResult.data.suggested_sections
+                            .filter((s: any) => s.selected !== false)
+                            .map((s: any) => s.section_type_id);
+                        
+                        if (sectionIds.length > 0) {
+                            await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
+                            
+                            toast.success(
+                                `✨ Auto-analyzed RFP and created ${sectionIds.length} proposal sections with AI content!`,
+                                { duration: 4000 }
+                            );
+                            
+                            // Navigate to proposal builder to see the created sections
+                            navigate(`/projects/${id}/proposal`);
+                            return;
+                        }
+                    }
+                    
                     toast.success('RFP analysis complete', { duration: 3000 });
+                } catch (analysisError) {
+                    toast.error('Analysis failed, but document uploaded successfully');
                 }
             }
+            
             loadProject();
         } catch {
             toast.error('Failed to upload document');
@@ -257,18 +270,6 @@ export default function ProjectDetail() {
                                     }`}>
                                     {doc.status}
                                 </span>
-                                {doc.status === 'completed' && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setAnalysisDoc(doc);
-                                        }}
-                                        className="btn-primary text-sm px-3 py-1.5"
-                                    >
-                                        <MagnifyingGlassCircleIcon className="h-4 w-4" />
-                                        Analyze & Build
-                                    </button>
-                                )}
                             </div>
                         ))}
                     </div>
@@ -298,20 +299,6 @@ export default function ProjectDetail() {
                         </Link>
                     </div>
                 </div>
-            )}
-
-            {/* RFP Analysis Modal */}
-            {analysisDoc && (
-                <RFPAnalysisModal
-                    documentId={analysisDoc.id}
-                    documentName={analysisDoc.original_filename}
-                    projectId={Number(id)}
-                    onClose={() => setAnalysisDoc(null)}
-                    onComplete={() => {
-                        setAnalysisDoc(null);
-                        loadProject();
-                    }}
-                />
             )}
         </div>
     );
