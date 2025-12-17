@@ -236,3 +236,10 @@
 10:26:55 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
 10:30:30 AM [vite] page reload src/types/index.ts
 11:04:30 AM [vite] changed tsconfig file detected: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+11:11:08 AM [vite] hmr update /src/components/editors/NarrativeEditor.tsx, /src/index.css
+11:11:08 AM [vite] hmr update /src/components/editors/TableEditor.tsx, /src/index.css
+11:11:08 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+11:11:08 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+11:11:08 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+11:11:08 AM [vite] page reload src/types/index.ts
+11:11:08 AM [vite] changed tsconfig file detected: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.

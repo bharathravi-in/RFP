@@ -7,6 +7,18 @@
 *~
 tmp/
 .history/
+*.log
+.env
+.env.local
+Thumbs.db
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.settings/**
+*.sublime-workspace
+*.sublime-project
 
 # Node / Frontend
 node_modules/
@@ -25,6 +37,10 @@ coverage/
 .next/
 out/
 .vercel/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.turbo/
 
 # Python / Backend
 __pycache__/
@@ -49,6 +65,15 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.pyc
+*.pyo
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
 # Virtual Environments
 venv/
