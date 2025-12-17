@@ -1,0 +1,127 @@
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.100.176.196:5000
+Press CTRL+C to quit
+ * Restarting with watchdog (inotify)
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Debugger is active!
+ * Debugger PIN: 128-188-299
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:46] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:46] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:46] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:46] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:02:46] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+AI classification failed: 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.
+ERROR:app.services.qdrant_service:Failed to connect to Qdrant: [Errno 111] Connection refused
+127.0.0.1 - - [16/Dec/2025 23:03:04] "POST /api/answers/generate HTTP/1.1" 201 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:03:04] "[35m[1mPOST /api/answers/generate HTTP/1.1[0m" 201 -
+ERROR:app.services.answer_reuse_service:Failed to store approved answer: Neither 'BinaryExpression' object nor 'Comparator' object has an attribute 'astext'
+127.0.0.1 - - [16/Dec/2025 23:03:18] "PUT /api/answers/2/review HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:03:18] "PUT /api/answers/2/review HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:03:28] "POST /api/projects/1/export/proposal HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:03:28] "POST /api/projects/1/export/proposal HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/auth/me HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/auth/me HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [16/Dec/2025 23:11:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/auth/me HTTP/1.1" 401 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "[31m[1mGET /api/auth/me HTTP/1.1[0m" 401 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/auth/me HTTP/1.1" 401 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "[31m[1mGET /api/auth/me HTTP/1.1[0m" 401 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "POST /api/auth/refresh HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "POST /api/auth/refresh HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "POST /api/auth/refresh HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "POST /api/auth/refresh HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/auth/me HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/auth/me HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 09:35:31] "GET /api/projects/1 HTTP/1.1" 200 -
+ * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/models/rfp_section.py', reloading
+INFO:werkzeug: * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/models/rfp_section.py', reloading
+ * Restarting with watchdog (inotify)
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Debugger is active!
+ * Debugger PIN: 128-188-299
+ * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/models/rfp_section.py', reloading
+ * Restarting with watchdog (inotify)
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Debugger is active!
+ * Debugger PIN: 128-188-299
+127.0.0.1 - - [17/Dec/2025 10:09:31] "GET / HTTP/1.1" 404 -
+127.0.0.1 - - [17/Dec/2025 10:09:31] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:36] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:39] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:09:39] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:10:28] "GET /api/folders HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:10:28] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:10:28] "GET /api/folders HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:10:28] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:10:38] "GET /api/knowledge/profiles HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:10:38] "GET /api/knowledge/profiles HTTP/1.1" 200 -

@@ -8,8 +8,10 @@ import {
     FolderIcon,
     MagnifyingGlassIcon,
     FunnelIcon,
+    EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import EditProjectModal from '@/components/modals/EditProjectModal';
 
 const statusFilters = [
     { value: 'all', label: 'All' },
@@ -25,6 +27,7 @@ export default function Projects() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [editingProject, setEditingProject] = useState<Project | null>(null);
 
     const loadProjects = useCallback(async () => {
         try {
@@ -136,44 +139,61 @@ export default function Projects() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredProjects.map((project) => (
-                        <Link
+                        <div
                             key={project.id}
-                            to={`/projects/${project.id}`}
-                            className="card group hover:border-primary transition-all"
+                            className="card group relative hover:border-primary transition-all"
                         >
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center">
-                                    <FolderIcon className="h-5 w-5 text-primary" />
-                                </div>
-                                <span className={`badge ${getStatusBadge(project.status)}`}>
-                                    {project.status.replace('_', ' ')}
-                                </span>
-                            </div>
-                            <h3 className="font-semibold text-text-primary group-hover:text-primary transition-colors mb-2">
-                                {project.name}
-                            </h3>
-                            {project.description && (
-                                <p className="text-sm text-text-secondary line-clamp-2 mb-4">
-                                    {project.description}
-                                </p>
-                            )}
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-text-muted">
-                                    {project.question_count || 0} questions
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium text-text-primary">
-                                        {Math.round(project.completion_percent)}%
+                            {/* Project Link */}
+                            <Link
+                                to={`/projects/${project.id}`}
+                                className="block hover:text-primary transition-colors"
+                            >
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center">
+                                        <FolderIcon className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <span className={`badge ${getStatusBadge(project.status)}`}>
+                                        {project.status.replace('_', ' ')}
                                     </span>
-                                    <div className="w-16 h-1.5 bg-background rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-primary rounded-full transition-all"
-                                            style={{ width: `${project.completion_percent}%` }}
-                                        />
+                                </div>
+                                <h3 className="font-semibold text-text-primary group-hover:text-primary transition-colors mb-2">
+                                    {project.name}
+                                </h3>
+                                {project.description && (
+                                    <p className="text-sm text-text-secondary line-clamp-2 mb-4">
+                                        {project.description}
+                                    </p>
+                                )}
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-text-muted">
+                                        {project.question_count || 0} questions
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-text-primary">
+                                            {Math.round(project.completion_percent)}%
+                                        </span>
+                                        <div className="w-16 h-1.5 bg-background rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-primary rounded-full transition-all"
+                                                style={{ width: `${project.completion_percent}%` }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </Link>
+                            </Link>
+
+                            {/* Edit Menu Button */}
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    setEditingProject(project);
+                                }}
+                                className="absolute top-4 right-4 p-2 opacity-0 group-hover:opacity-100 hover:bg-background rounded-lg transition-all"
+                                title="Edit project"
+                            >
+                                <EllipsisHorizontalIcon className="h-5 w-5 text-text-secondary" />
+                            </button>
+                        </div>
                     ))}
                 </div>
             )}
@@ -185,6 +205,22 @@ export default function Projects() {
                     onCreated={(project) => {
                         setProjects([project, ...projects]);
                         setShowCreateModal(false);
+                    }}
+                />
+            )}
+
+            {/* Edit Project Modal */}
+            {editingProject && (
+                <EditProjectModal
+                    project={editingProject}
+                    onClose={() => setEditingProject(null)}
+                    onUpdated={(updatedProject) => {
+                        setProjects(
+                            projects.map((p) =>
+                                p.id === updatedProject.id ? updatedProject : p
+                            )
+                        );
+                        setEditingProject(null);
                     }}
                 />
             )}

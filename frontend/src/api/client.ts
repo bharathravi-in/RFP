@@ -90,7 +90,18 @@ export const projectsApi = {
     create: (data: { name: string; description?: string; due_date?: string }) =>
         api.post('/projects', data),
 
-    update: (id: number, data: Partial<{ name: string; description: string; status: string; due_date: string }>) =>
+    update: (id: number, data: Partial<{
+        name: string;
+        description: string;
+        status: string;
+        due_date: string;
+        client_name: string;
+        client_type: string;
+        geography: string;
+        currency: string;
+        industry: string;
+        compliance_requirements: string[];
+    }>) =>
         api.put(`/projects/${id}`, data),
 
     delete: (id: number) =>

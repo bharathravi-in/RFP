@@ -1,0 +1,17 @@
+
+> autorespond-frontend@1.0.0 dev
+> vite
+
+
+  VITE v5.4.21  ready in 196 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://10.100.176.196:5173/
+9:35:58 AM [vite] hmr update /src/pages/ProjectDetail.tsx, /src/index.css
+9:35:58 AM [vite] hmr update /src/components/sections/SectionTypeSelector.tsx, /src/index.css
+9:49:56 AM [vite] hmr update /src/pages/Projects.tsx, /src/index.css
+9:50:00 AM [vite] hmr update /src/pages/Projects.tsx, /src/index.css
+9:50:09 AM [vite] hmr update /src/pages/Projects.tsx, /src/index.css
+9:50:14 AM [vite] hmr update /src/pages/Projects.tsx, /src/index.css
+9:59:27 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/pages/auth/Register.tsx, /src/pages/auth/Login.tsx, /src/pages/Dashboard.tsx, /src/pages/Settings.tsx, /src/components/layout/AppSidebar.tsx, /src/pages/KnowledgeBase.tsx, /src/pages/ProjectDetail.tsx, /src/pages/ProposalBuilder.tsx, /src/pages/TemplatesManager.tsx, /src/pages/AnswerWorkspace.tsx, /src/pages/Projects.tsx, /src/components/layout/Breadcrumbs.tsx, /src/components/knowledge/KnowledgeProfiles.tsx, /src/components/sections/SectionTypeSelector.tsx, /src/components/sections/SectionEditor.tsx, /src/components/QuestionAnswerModal.tsx, /src/components/sections/ClarificationQuestions.tsx
+10:09:36 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css

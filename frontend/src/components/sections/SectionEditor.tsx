@@ -18,6 +18,12 @@ import {
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
 import { ConfidenceIndicator } from '@/components/ai';
+import {
+    NarrativeEditor,
+    TableEditor,
+    CardEditor,
+    TechnicalEditor,
+} from '@/components/editors';
 
 interface SectionEditorProps {
     section: RFPSection;
