@@ -274,6 +274,9 @@ export interface RFPSectionType {
     is_active: boolean;
     organization_id: number | null;
     created_at: string;
+    color?: string;
+    template_type?: string;
+    recommended_word_count?: number;
 }
 
 export interface RFPSection {
