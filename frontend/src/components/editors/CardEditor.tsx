@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface Card {
   id: string;
@@ -11,19 +11,13 @@ interface Card {
 }
 
 interface CardEditorProps {
-  section: {
-    id: number;
-    title: string;
-    content?: string;
-    section_type?: {
-      name: string;
-      icon: string;
-      color?: string;
-      template_type: string;
-      recommended_word_count?: number;
-    };
-  };
-  onSave: (cards: Card[]) => Promise<void>;
+  cards: Card[];
+  templateType: 'case_study' | 'team_member' | 'generic';
+  columnLayout: 1 | 2 | 3;
+  onSave: (data: { cards: Card[]; templateType: string; columnLayout: number }) => Promise<void>;
+  onCancel: () => void;
+  isSaving?: boolean;
+  color?: string;
   readOnly?: boolean;
 }
 
@@ -48,11 +42,16 @@ const CARD_TEMPLATES: Record<string, CardTemplate> = {
 };
 
 export const CardEditor: React.FC<CardEditorProps> = ({
-  section,
+  cards: initialCards,
+  templateType: initialTemplateType,
+  columnLayout: initialColumnLayout,
   onSave,
+  onCancel,
+  isSaving = false,
+  color = '#8B5CF6',
   readOnly = false,
 }) => {
-  const [cards, setCards] = useState<Card[]>([
+  const [cards, setCards] = useState<Card[]>(initialCards.length > 0 ? initialCards : [
     {
       id: '1',
       title: 'Example Card',
@@ -60,9 +59,8 @@ export const CardEditor: React.FC<CardEditorProps> = ({
       metadata: {},
     },
   ]);
-  const [templateType, setTemplateType] = useState<string>('generic');
-  const [columnLayout, setColumnLayout] = useState<1 | 2 | 3>(2);
-  const [saving, setSaving] = useState(false);
+  const [templateType, setTemplateType] = useState<string>(initialTemplateType || 'generic');
+  const [columnLayout, setColumnLayout] = useState<1 | 2 | 3>(initialColumnLayout || 2);
   const [error, setError] = useState<string | null>(null);
 
   const template = CARD_TEMPLATES[templateType] || CARD_TEMPLATES.generic;
@@ -97,19 +95,14 @@ export const CardEditor: React.FC<CardEditorProps> = ({
     setCards(newCards);
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = async () => {
     try {
-      setSaving(true);
       setError(null);
-      await onSave(cards);
+      await onSave({ cards, templateType, columnLayout });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(false);
     }
   };
-
-  const sectionColor = section.section_type?.color || '#8B5CF6';
 
   const gridColsClass = {
     1: 'grid-cols-1',
@@ -118,40 +111,39 @@ export const CardEditor: React.FC<CardEditorProps> = ({
   }[columnLayout];
 
   return (
-    <div className="w-full bg-white rounded-lg shadow">
+    <div className="w-full bg-background rounded-lg shadow border border-border h-full flex flex-col">
       {/* Header */}
-      <div className="border-b px-6 py-4" style={{ borderColor: sectionColor }}>
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{section.section_type?.icon || '📇'}</span>
+      <div className="border-b border-border px-6 py-4" style={{ borderLeftWidth: '4px', borderLeftColor: color }}>
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              {section.section_type?.name || section.title}
+            <h2 className="text-lg font-bold text-text-primary">
+              Card Editor
             </h2>
-            <p className="text-sm text-gray-500 mt-1">Card-based section editor</p>
+            <p className="text-sm text-text-muted mt-1">Create and manage card-based content</p>
           </div>
         </div>
       </div>
 
       {/* Toolbar */}
-      <div className="border-b px-6 py-3 bg-gray-50 flex items-center gap-3 flex-wrap">
+      <div className="border-b border-border px-6 py-3 bg-surface flex items-center gap-3 flex-wrap">
         <button
           onClick={handleAddCard}
-          disabled={readOnly || saving}
-          className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+          disabled={readOnly || isSaving}
+          className="btn-secondary text-sm flex items-center gap-2"
         >
           <PlusIcon className="w-4 h-4" />
           Add Card
         </button>
 
-        <div className="border-l border-gray-300 h-6"></div>
+        <div className="border-l border-border h-6 mx-2"></div>
 
-        <label className="text-sm text-gray-700">
+        <label className="text-sm text-text-primary flex items-center gap-2">
           Template:
           <select
             value={templateType}
             onChange={(e) => setTemplateType(e.target.value)}
             disabled={readOnly}
-            className="ml-2 px-2 py-1 border border-gray-300 rounded text-sm"
+            className="px-2 py-1 border border-border rounded text-sm bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {Object.entries(CARD_TEMPLATES).map(([key, val]) => (
               <option key={key} value={key}>
@@ -161,13 +153,13 @@ export const CardEditor: React.FC<CardEditorProps> = ({
           </select>
         </label>
 
-        <label className="text-sm text-gray-700">
+        <label className="text-sm text-text-primary flex items-center gap-2">
           Columns:
           <select
             value={columnLayout}
             onChange={(e) => setColumnLayout(parseInt(e.target.value) as 1 | 2 | 3)}
             disabled={readOnly}
-            className="ml-2 px-2 py-1 border border-gray-300 rounded text-sm"
+            className="px-2 py-1 border border-border rounded text-sm bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="1">1</option>
             <option value="2">2</option>
@@ -177,10 +169,10 @@ export const CardEditor: React.FC<CardEditorProps> = ({
       </div>
 
       {/* Cards Grid */}
-      <div className="p-6">
-        <div className={`grid ${gridColsClass} gap-6 mb-6`}>
+      <div className="flex-1 p-6 overflow-auto">
+        <div className={`grid ${gridColsClass} gap-4 mb-6`}>
           {cards.map((card, index) => (
-            <div key={card.id} className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 transition">
+            <div key={card.id} className="border border-border rounded-lg p-4 hover:border-primary transition bg-surface">
               {/* Card Header */}
               <div className="flex justify-between items-start mb-4">
                 <input
@@ -340,13 +332,26 @@ export const CardEditor: React.FC<CardEditorProps> = ({
         )}
 
         {!readOnly && (
-          <div className="flex gap-3">
+          <div className="flex gap-2 mt-4 justify-end">
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => {
+                setError(null);
+                onCancel();
+              }}
+              disabled={isSaving}
+              className="btn-secondary text-sm flex items-center gap-2"
             >
-              Save Cards
+              <XMarkIcon className="w-4 h-4" />
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveClick}
+              disabled={isSaving}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {isSaving && <span className="w-4 h-4 animate-spin">⟳</span>}
+              <CheckIcon className="w-4 h-4" />
+              Save
             </button>
           </div>
         )}

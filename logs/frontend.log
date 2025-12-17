@@ -15,3 +15,222 @@
 9:50:14 AM [vite] hmr update /src/pages/Projects.tsx, /src/index.css
 9:59:27 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/pages/auth/Register.tsx, /src/pages/auth/Login.tsx, /src/pages/Dashboard.tsx, /src/pages/Settings.tsx, /src/components/layout/AppSidebar.tsx, /src/pages/KnowledgeBase.tsx, /src/pages/ProjectDetail.tsx, /src/pages/ProposalBuilder.tsx, /src/pages/TemplatesManager.tsx, /src/pages/AnswerWorkspace.tsx, /src/pages/Projects.tsx, /src/components/layout/Breadcrumbs.tsx, /src/components/knowledge/KnowledgeProfiles.tsx, /src/components/sections/SectionTypeSelector.tsx, /src/components/sections/SectionEditor.tsx, /src/components/QuestionAnswerModal.tsx, /src/components/sections/ClarificationQuestions.tsx
 10:09:36 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+10:14:10 AM [vite] hmr update /src/pages/Projects.tsx, /src/index.css
+10:14:10 AM [vite] hmr update /src/components/modals/EditProjectModal.tsx, /src/index.css
+10:14:10 AM [vite] hmr update /src/App.tsx, /src/index.css, /src/pages/auth/Register.tsx, /src/pages/auth/Login.tsx, /src/pages/Dashboard.tsx, /src/pages/Settings.tsx, /src/components/layout/AppSidebar.tsx, /src/pages/KnowledgeBase.tsx, /src/pages/ProjectDetail.tsx, /src/pages/ProposalBuilder.tsx, /src/pages/TemplatesManager.tsx, /src/pages/AnswerWorkspace.tsx, /src/pages/Projects.tsx, /src/components/layout/Breadcrumbs.tsx, /src/components/knowledge/KnowledgeProfiles.tsx, /src/components/sections/SectionTypeSelector.tsx, /src/components/sections/SectionEditor.tsx, /src/components/QuestionAnswerModal.tsx, /src/components/sections/ClarificationQuestions.tsx, /src/components/modals/EditProjectModal.tsx
+10:14:10 AM [vite] page reload src/components/editors/NarrativeEditor.tsx
+10:14:10 AM [vite] page reload src/components/editors/TableEditor.tsx
+10:14:10 AM [vite] page reload src/components/editors/CardEditor.tsx
+10:14:10 AM [vite] page reload src/components/editors/TechnicalEditor.tsx
+10:14:10 AM [vite] page reload src/components/editors/index.ts
+10:14:10 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+10:20:33 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+10:20:49 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+10:21:00 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+10:21:11 AM [vite] hmr update /src/components/sections/SectionEditor.tsx, /src/index.css
+10:21:29 AM [vite] hmr update /src/components/editors/NarrativeEditor.tsx, /src/index.css
+10:21:41 AM [vite] hmr update /src/components/editors/NarrativeEditor.tsx, /src/index.css
+10:21:57 AM [vite] hmr update /src/components/editors/NarrativeEditor.tsx, /src/index.css
+10:22:07 AM [vite] hmr update /src/components/editors/TableEditor.tsx, /src/index.css
+10:22:19 AM [vite] hmr update /src/components/editors/TableEditor.tsx, /src/index.css
+10:22:19 AM [vite] Internal server error: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/src/components/editors/TableEditor.tsx: Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>? (134:6)
+
+  132 |           </div>
+  133 |         </div>
+> 134 |       </div>
+      |       ^
+  135 |
+  136 |       {/* Toolbar */}
+  137 |       <div className="border-b px-6 py-3 bg-gray-50 flex items-center gap-3 flex-wrap">
+  Plugin: vite:react-babel
+  File: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/src/components/editors/TableEditor.tsx:134:6
+  132|            </div>
+  133|          </div>
+  134|        </div>
+     |        ^
+  135|  
+  136|        {/* Toolbar */}
+      at constructor (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:6624:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4771:18)
+      at TypeScriptParserMixin.jsxParseElement (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4778:17)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4788:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10895:21)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9828:39
+      at TypeScriptParserMixin.tryParse (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:6932:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9828:18)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10864:39
+      at TypeScriptParserMixin.allowInAnd (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12500:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10864:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12567:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11747:28)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9839:20)
+      at TypeScriptParserMixin.parseExpressionBase (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10848:23)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10844:39
+      at TypeScriptParserMixin.allowInAnd (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12495:16)
+      at TypeScriptParserMixin.parseExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10844:17)
+      at TypeScriptParserMixin.parseReturnStatement (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13218:28)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12874:21)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12843:17)
+      at TypeScriptParserMixin.parseStatementListItem (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12823:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13392:61)
+      at TypeScriptParserMixin.parseBlockBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13385:10)
+      at TypeScriptParserMixin.parseBlock (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13373:10)
+      at TypeScriptParserMixin.parseFunctionBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12174:24)
+      at TypeScriptParserMixin.parseArrowExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12149:10)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11759:12)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11145:23)
+10:22:31 AM [vite] hmr update /src/components/editors/TableEditor.tsx, /src/index.css
+10:23:20 AM [vite] hmr update /src/components/editors/TableEditor.tsx, /src/index.css
+10:23:34 AM [vite] hmr update /src/components/editors/NarrativeEditor.tsx, /src/index.css
+10:23:38 AM [vite] hmr update /src/components/editors/NarrativeEditor.tsx, /src/index.css
+10:23:41 AM [vite] hmr update /src/components/editors/TableEditor.tsx, /src/index.css
+10:23:55 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+10:23:55 AM [vite] Internal server error: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/src/components/editors/CardEditor.tsx: Unexpected token (57:0)
+
+  55 |   onSave,
+  56 |   readOnly = false,
+> 57 | }) => {
+     | ^
+  58 |   const [cards, setCards] = useState<Card[]>([
+  59 |     {
+  60 |       id: '1',
+  Plugin: vite:react-babel
+  File: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/src/components/editors/CardEditor.tsx:57:0
+  55 |    onSave,
+  56 |    readOnly = false,
+  57 |  }) => {
+     |  ^
+  58 |    const [cards, setCards] = useState<Card[]>([
+  59 |      {
+      at constructor (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:6624:19)
+      at TypeScriptParserMixin.unexpected (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:6644:16)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11508:22)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9839:20)
+      at TypeScriptParserMixin.parseExpressionBase (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10853:36)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10844:39
+      at TypeScriptParserMixin.allowInAnd (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12495:16)
+      at TypeScriptParserMixin.parseExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10844:17)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12971:23)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12843:17)
+      at TypeScriptParserMixin.parseStatementListItem (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12823:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13392:61)
+      at TypeScriptParserMixin.parseBlockBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13385:10)
+      at TypeScriptParserMixin.parseBlock (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13373:10)
+      at TypeScriptParserMixin.parseFunctionBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12174:24)
+      at TypeScriptParserMixin.parseArrowExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12149:10)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11759:12)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9839:20)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10864:39
+      at TypeScriptParserMixin.allowInAnd (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12495:16)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10864:17)
+      at TypeScriptParserMixin.parseVar (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13460:91)
+      at TypeScriptParserMixin.parseVarStatement (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13306:10)
+      at TypeScriptParserMixin.parseVarStatement (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9469:31)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12927:23)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12843:17)
+      at TypeScriptParserMixin.parseStatementListItem (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12823:17)
+      at TypeScriptParserMixin.parseExportDeclaration (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:14010:17)
+10:24:05 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+10:24:21 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+10:24:32 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+10:24:44 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+10:24:56 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css
+10:25:48 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:25:58 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:25:58 AM [vite] Internal server error: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/src/components/editors/TechnicalEditor.tsx: 'return' outside of function. (94:2)
+
+  92 |   const sectionColor = section.section_type?.color || '#FB923C';
+  93 |
+> 94 |   return (
+     |   ^
+  95 |     <div className={`w-full rounded-lg shadow ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
+  96 |       {/* Header */}
+  97 |       <div
+  Plugin: vite:react-babel
+  File: /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/src/components/editors/TechnicalEditor.tsx:94:2
+  92 |    const sectionColor = section.section_type?.color || '#FB923C';
+  93 |  
+  94 |    return (
+     |    ^
+  95 |      <div className={`w-full rounded-lg shadow ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
+  96 |        {/* Header */}
+      at constructor (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:367:19)
+      at TypeScriptParserMixin.raise (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:6624:19)
+      at TypeScriptParserMixin.parseReturnStatement (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13212:12)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12874:21)
+      at TypeScriptParserMixin.parseStatementContent (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12843:17)
+      at TypeScriptParserMixin.parseModuleItem (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12820:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13392:36)
+      at TypeScriptParserMixin.parseBlockBody (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:13385:10)
+      at TypeScriptParserMixin.parseProgram (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12698:10)
+      at TypeScriptParserMixin.parseTopLevel (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:12688:25)
+      at TypeScriptParserMixin.parse (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:14568:25)
+      at TypeScriptParserMixin.parse (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:10183:18)
+      at parse (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/parser/lib/index.js:14602:38)
+      at parser (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/core/lib/parser/index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/core/lib/transformation/index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/core/lib/transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:261:32)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:223:11)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:189:28
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:113:33
+      at step (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:287:14)
+      at /home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/home/bharathkumarr/AI-hackathon/RFP-project/V1/frontend/node_modules/gensync/index.js:223:11)
+10:26:06 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:26:22 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:26:34 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:26:41 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:26:51 AM [vite] hmr update /src/components/editors/TechnicalEditor.tsx, /src/index.css
+10:26:55 AM [vite] hmr update /src/components/editors/CardEditor.tsx, /src/index.css

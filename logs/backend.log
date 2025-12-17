@@ -125,3 +125,77 @@ INFO:werkzeug: * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-projec
 127.0.0.1 - - [17/Dec/2025 10:10:28] "GET /api/knowledge HTTP/1.1" 200 -
 127.0.0.1 - - [17/Dec/2025 10:10:38] "GET /api/knowledge/profiles HTTP/1.1" 200 -
 127.0.0.1 - - [17/Dec/2025 10:10:38] "GET /api/knowledge/profiles HTTP/1.1" 200 -
+ * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/app/models/rfp_section.py', reloading
+ * Restarting with watchdog (inotify)
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Debugger is active!
+ * Debugger PIN: 128-188-299
+127.0.0.1 - - [17/Dec/2025 10:14:14] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:14:14] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:14:14] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:52] "POST /api/auth/logout HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "POST /api/auth/login HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:17:59] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:18:06] "GET /api/knowledge/profiles HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:18:06] "GET /api/knowledge/profiles HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:19:29] "GET /api/folders HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:19:29] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:19:29] "GET /api/folders HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:19:29] "GET /api/knowledge HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:19:30] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:19:30] "GET /api/projects HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:10] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:11] "GET /api/documents?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:11] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:11] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:11] "GET /api/documents?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:11] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:11] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:19] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:21] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:21] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:21] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:21] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:21] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:33] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:38] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:38] "GET /api/documents?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:38] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:38] "GET /api/documents?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:38] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:20:39] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:23] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:25] "GET /api/section-types HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:21:25] "GET /api/section-types HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:22:01] "POST /api/projects/1/sections HTTP/1.1" 201 -
+127.0.0.1 - - [17/Dec/2025 10:22:01] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:22:01] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:22:03] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:22:03] "GET /api/projects/1 HTTP/1.1" 200 -
+ERROR:app.services.qdrant_service:Failed to connect to Qdrant: [Errno 111] Connection refused
+127.0.0.1 - - [17/Dec/2025 10:22:26] "POST /api/sections/3/generate HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:22:26] "POST /api/sections/3/generate HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1 HTTP/1.1" 200 -

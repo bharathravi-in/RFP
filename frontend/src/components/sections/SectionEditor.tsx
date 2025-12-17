@@ -55,6 +55,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     // Check if this is a Clarifications section
     const isClarificationsSection = section.section_type?.slug === 'clarifications_questions';
 
+    // Determine which editor to use based on template_type
+    const templateType = section.section_type?.template_type || 'narrative';
+
     // Sync content when section changes
     useEffect(() => {
         setContent(section.content || '');
@@ -180,6 +183,147 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
         }
     };
 
+    // Handler for saving from specialized editors
+    const handleEditorSave = async (editorData: any) => {
+        setIsSaving(true);
+        try {
+            // Transform editor data to content string based on editor type
+            let contentToSave = '';
+            
+            if (templateType === 'narrative') {
+                contentToSave = editorData.content || '';
+            } else if (templateType === 'table') {
+                // For table editor, store as JSON string
+                contentToSave = JSON.stringify({
+                    type: 'table',
+                    columns: editorData.columns,
+                    rows: editorData.rows,
+                    style: editorData.style,
+                });
+            } else if (templateType === 'card') {
+                // For card editor, store as JSON string
+                contentToSave = JSON.stringify({
+                    type: 'card',
+                    cards: editorData.cards,
+                    templateType: editorData.templateType,
+                    columnLayout: editorData.columnLayout,
+                });
+            } else if (templateType === 'technical') {
+                // For technical editor, store as JSON string
+                contentToSave = JSON.stringify({
+                    type: 'technical',
+                    description: editorData.description,
+                    codeBlocks: editorData.codeBlocks,
+                });
+            }
+
+            const response = await sectionsApi.updateSection(projectId, section.id, {
+                content: contentToSave,
+            });
+            
+            setContent(contentToSave);
+            setIsEditing(false);
+            onUpdate(response.data.section);
+            toast.success('Changes saved');
+        } catch (error) {
+            console.error('Failed to save changes:', error);
+            toast.error('Failed to save changes');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Render the appropriate editor based on template type and whether we're editing
+    const renderEditor = () => {
+        // Return null if not editing
+        if (!isEditing) {
+            return null;
+        }
+
+        // Parse content if it's JSON (for table, card, technical)
+        let parsedContent: any = null;
+        if (['table', 'card', 'technical'].includes(templateType)) {
+            try {
+                parsedContent = JSON.parse(content || '{}');
+            } catch {
+                parsedContent = { type: templateType };
+            }
+        }
+
+        switch (templateType) {
+            case 'narrative':
+                return (
+                    <NarrativeEditor
+                        content={content}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            case 'table':
+                return (
+                    <TableEditor
+                        columns={parsedContent?.columns || []}
+                        rows={parsedContent?.rows || []}
+                        style={parsedContent?.style || 'default'}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            case 'card':
+                return (
+                    <CardEditor
+                        cards={parsedContent?.cards || []}
+                        templateType={parsedContent?.templateType || 'generic'}
+                        columnLayout={parsedContent?.columnLayout || 2}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            case 'technical':
+                return (
+                    <TechnicalEditor
+                        description={parsedContent?.description || ''}
+                        codeBlocks={parsedContent?.codeBlocks || []}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            default:
+                // Fallback to plain textarea
+                return (
+                    <textarea
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        className="w-full h-full px-4 py-3 border border-border rounded-lg bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
+                    />
+                );
+        }
+    };
+
     // Stats for Q&A section
     const answeredCount = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
     const approvedCount = questions.filter(q => q.status === 'approved').length;
@@ -255,23 +399,31 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                     </button>
                                 ) : (
                                     <>
-                                        <button
-                                            onClick={handleSave}
-                                            disabled={isSaving}
-                                            className="btn-primary flex items-center gap-2"
-                                        >
-                                            {isSaving && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
-                                            Save Changes
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setContent(section.content || '');
-                                                setIsEditing(false);
-                                            }}
-                                            className="btn-secondary"
-                                        >
-                                            Cancel
-                                        </button>
+                                        {templateType !== 'narrative' && templateType !== 'table' && templateType !== 'card' && templateType !== 'technical' ? (
+                                            <>
+                                                <button
+                                                    onClick={handleSave}
+                                                    disabled={isSaving}
+                                                    className="btn-primary flex items-center gap-2"
+                                                >
+                                                    {isSaving && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
+                                                    Save Changes
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setContent(section.content || '');
+                                                        setIsEditing(false);
+                                                    }}
+                                                    className="btn-secondary"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm text-text-muted">
+                                                Use the save/cancel buttons in the editor below
+                                            </p>
+                                        )}
                                     </>
                                 )}
 
@@ -464,15 +616,81 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                             </p>
                         </div>
                     ) : isEditing ? (
-                        <textarea
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            className="w-full h-full px-4 py-3 border border-border rounded-lg bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono text-sm"
-                        />
+                        renderEditor()
                     ) : (
                         <div className="prose prose-sm max-w-none">
                             <div className="whitespace-pre-wrap text-text-primary">
-                                {content}
+                                {(() => {
+                                    // Handle display of content based on template type
+                                    if (['table', 'card', 'technical'].includes(templateType)) {
+                                        try {
+                                            const parsed = JSON.parse(content);
+                                            if (templateType === 'table') {
+                                                return (
+                                                    <div className="w-full overflow-x-auto">
+                                                        <table className="w-full border-collapse">
+                                                            <thead>
+                                                                <tr>
+                                                                    {parsed.columns?.map((col: any, idx: number) => (
+                                                                        <th key={idx} className="border border-border p-2 bg-surface text-left">
+                                                                            {col.name}
+                                                                        </th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {parsed.rows?.map((row: any, rIdx: number) => (
+                                                                    <tr key={rIdx}>
+                                                                        {row.map((cell: any, cIdx: number) => (
+                                                                            <td key={cIdx} className="border border-border p-2">
+                                                                                {cell}
+                                                                            </td>
+                                                                        ))}
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                );
+                                            } else if (templateType === 'card') {
+                                                return (
+                                                    <div className={`grid gap-4 grid-cols-${parsed.columnLayout || 2}`}>
+                                                        {parsed.cards?.map((card: any, idx: number) => (
+                                                            <div key={idx} className="p-4 rounded-lg border border-border bg-surface">
+                                                                {card.image && (
+                                                                    <img src={card.image} alt={card.title} className="w-full h-40 object-cover rounded-lg mb-3" />
+                                                                )}
+                                                                <h3 className="font-bold text-text-primary mb-2">{card.title}</h3>
+                                                                <p className="text-text-secondary">{card.description}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            } else if (templateType === 'technical') {
+                                                return (
+                                                    <div className="space-y-4">
+                                                        {parsed.description && (
+                                                            <div className="p-4 rounded-lg bg-surface border border-border">
+                                                                <p className="text-text-primary whitespace-pre-wrap">{parsed.description}</p>
+                                                            </div>
+                                                        )}
+                                                        {parsed.codeBlocks?.map((block: any, idx: number) => (
+                                                            <div key={idx} className="p-4 rounded-lg bg-gray-900 text-white font-mono text-sm overflow-x-auto">
+                                                                <div className="text-gray-400 mb-2">{block.language || 'code'}</div>
+                                                                <pre>{block.code}</pre>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            }
+                                        } catch {
+                                            // If JSON parsing fails, show raw content
+                                            return content;
+                                        }
+                                    }
+                                    // Default narrative display
+                                    return content;
+                                })()}
                             </div>
                         </div>
                     )}

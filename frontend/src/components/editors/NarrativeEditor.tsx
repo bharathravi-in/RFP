@@ -1,252 +1,175 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-
-interface Section {
-  id: number;
-  title: string;
-  content: string;
-  section_type?: {
-    name: string;
-    icon: string;
-    color?: string;
-    template_type: string;
-    recommended_word_count?: number;
-  };
-}
+import { CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface NarrativeEditorProps {
-  section: Section;
-  onSave: (content: string) => Promise<void>;
+  content: string;
+  onSave: (data: { content: string }) => Promise<void>;
+  onCancel: () => void;
+  isSaving?: boolean;
+  color?: string;
   readOnly?: boolean;
 }
 
 export const NarrativeEditor: React.FC<NarrativeEditorProps> = ({
-  section,
+  content: initialContent,
   onSave,
+  onCancel,
+  isSaving = false,
+  color = '#3B82F6',
   readOnly = false,
 }) => {
-  const [content, setContent] = useState(section.content || '');
-  const [saving, setSaving] = useState(false);
+  const [content, setContent] = useState(initialContent || '');
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(true);
-  const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
+  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-  const recommendedWordCount = section.section_type?.recommended_word_count || 300;
+  const recommendedWordCount = 300;
   const wordCountPercentage = Math.min((wordCount / recommendedWordCount) * 100, 100);
 
   // Auto-save after 2 seconds of inactivity
   useEffect(() => {
-    if (readOnly || !isSaved) {
+    if (readOnly || isSaved) {
       if (autoSaveTimer) clearTimeout(autoSaveTimer);
-
-      const timer = setTimeout(() => {
-        handleAutoSave();
-      }, 2000);
-
-      setAutoSaveTimer(timer);
-
-      return () => clearTimeout(timer);
+      return;
     }
-  }, [content]);
+
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+    const timer = setTimeout(() => {
+      handleAutoSave();
+    }, 2000);
+
+    setAutoSaveTimer(timer);
+
+    return () => clearTimeout(timer);
+  }, [content, isSaved, readOnly]);
 
   const handleAutoSave = useCallback(async () => {
-    if (content === section.content) {
+    if (content === initialContent) {
       setIsSaved(true);
       return;
     }
 
     try {
-      setSaving(true);
-      setError(null);
-      await onSave(content);
+      await onSave({ content });
       setIsSaved(true);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to auto-save');
-    } finally {
-      setSaving(false);
     }
-  }, [content, section.content, onSave]);
+  }, [content, initialContent, onSave]);
 
-  const handleSave = async () => {
+  const handleSaveClick = async () => {
     try {
-      setSaving(true);
       setError(null);
-      await onSave(content);
+      await onSave({ content });
       setIsSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(false);
     }
-  };
-
-  const handleCancel = () => {
-    setContent(section.content || '');
-    setIsSaved(true);
-    setError(null);
-  };
-
-  const handleRedo = () => {
-    // Placeholder for redo functionality
-    console.log('Redo not implemented yet');
-  };
-
-  const handleUndo = () => {
-    // Placeholder for undo functionality
-    console.log('Undo not implemented yet');
   };
 
   const estimatedReadingTime = Math.ceil(wordCount / 200); // Average 200 words per minute
 
-  const sectionColor = section.section_type?.color || '#3B82F6';
-
   return (
-    <div className="w-full bg-white rounded-lg shadow">
+    <div className="w-full bg-background rounded-lg shadow border border-border h-full flex flex-col">
       {/* Header */}
-      <div className="border-b px-6 py-4" style={{ borderColor: sectionColor }}>
+      <div className="border-b border-border px-6 py-4" style={{ borderLeftWidth: '4px', borderLeftColor: color }}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{section.section_type?.icon || '📝'}</span>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {section.section_type?.name || section.title}
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Narrative section • Recommended: ~{recommendedWordCount} words
-              </p>
-            </div>
+          <div>
+            <h2 className="text-lg font-bold text-text-primary">
+              Narrative Editor
+            </h2>
+            <p className="text-sm text-text-muted mt-1">
+              Recommended: ~{recommendedWordCount} words
+            </p>
           </div>
           {!isSaved && (
-            <span className="text-sm text-orange-600 font-medium flex items-center gap-2">
-              <span className="w-2 h-2 bg-orange-600 rounded-full animate-pulse"></span>
+            <span className="text-sm text-warning font-medium flex items-center gap-2">
+              <span className="w-2 h-2 bg-warning rounded-full animate-pulse"></span>
               Unsaved changes
             </span>
           )}
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="border-b px-6 py-3 bg-gray-50 flex items-center gap-2">
-        <button
-          onClick={handleUndo}
-          className="p-2 text-gray-600 hover:bg-gray-200 rounded transition"
-          title="Undo"
-          disabled={readOnly}
-        >
-          <span className="text-xl">↶</span>
-        </button>
-        <button
-          onClick={handleRedo}
-          className="p-2 text-gray-600 hover:bg-gray-200 rounded transition"
-          title="Redo"
-          disabled={readOnly}
-        >
-          <span className="text-xl">↷</span>
-        </button>
-        <div className="border-l border-gray-300 h-6 mx-2"></div>
-        <span className="text-sm text-gray-600">Basic formatting available</span>
-      </div>
-
       {/* Editor Area */}
-      <div className="p-6">
+      <div className="flex-1 p-6 overflow-hidden flex flex-col">
         <textarea
           value={content}
           onChange={(e) => {
             setContent(e.target.value);
             setIsSaved(false);
           }}
-          placeholder={`Write your ${section.section_type?.name || 'section'} content here...`}
+          placeholder="Write your section content here..."
           readOnly={readOnly}
-          className={`w-full h-96 p-4 border-2 border-gray-300 rounded-lg font-mono text-sm resize-none focus:outline-none focus:border-blue-500 ${
-            readOnly ? 'bg-gray-50 text-gray-600' : 'bg-white'
-          }`}
+          className="w-full flex-1 p-4 border border-border rounded-lg font-sans text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-background text-text-primary placeholder-text-muted"
         />
 
         {/* Footer with Stats */}
-        <div className="mt-6 space-y-4">
+        <div className="mt-4 space-y-3">
           {/* Word Count Progress */}
           <div className="space-y-2">
             <div className="flex justify-between items-baseline">
-              <label className="text-sm font-medium text-gray-700">Word Count</label>
-              <span className="text-sm text-gray-600">
+              <label className="text-sm font-medium text-text-primary">Word Count</label>
+              <span className="text-sm text-text-secondary">
                 {wordCount} / ~{recommendedWordCount}
-                <span className="text-xs text-gray-500 ml-2">
+                <span className="text-xs text-text-muted ml-2">
                   ({Math.round(wordCountPercentage)}%)
                 </span>
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-border rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all ${
                   wordCount < recommendedWordCount * 0.8
-                    ? 'bg-red-500'
+                    ? 'bg-error'
                     : wordCount < recommendedWordCount
-                    ? 'bg-yellow-500'
-                    : 'bg-green-500'
+                    ? 'bg-warning'
+                    : 'bg-success'
                 }`}
                 style={{ width: `${wordCountPercentage}%` }}
-              ></div>
+              />
             </div>
           </div>
 
           {/* Reading Time */}
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>Estimated reading time: {estimatedReadingTime} min</span>
+          <div className="flex justify-between text-xs text-text-muted">
+            <span>Reading time: {estimatedReadingTime} min</span>
             <span>Characters: {content.length}</span>
           </div>
 
           {/* Error Display */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+            <div className="p-3 bg-error-light border border-error rounded text-sm text-error">
               {error}
-            </div>
-          )}
-
-          {/* Auto-save Indicator */}
-          {!readOnly && (
-            <div className="text-xs text-gray-500 flex items-center gap-2">
-              {saving && (
-                <>
-                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                  Auto-saving...
-                </>
-              )}
-              {isSaved && !saving && (
-                <>
-                  <CheckIcon className="w-4 h-4 text-green-600" />
-                  All changes saved
-                </>
-              )}
             </div>
           )}
 
           {/* Action Buttons */}
           {!readOnly && (
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-2 pt-2 justify-end">
               <button
-                onClick={handleSave}
-                disabled={saving || isSaved}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition ${
-                  isSaved
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                onClick={() => {
+                  setContent(initialContent);
+                  setIsSaved(true);
+                  onCancel();
+                }}
+                disabled={isSaving}
+                className="btn-secondary text-sm"
               >
-                <CheckIcon className="w-5 h-5" />
-                Save Changes
+                <XMarkIcon className="w-4 h-4" />
+                Cancel
               </button>
               <button
-                onClick={handleCancel}
-                disabled={saving || isSaved}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition ${
-                  isSaved
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'border-2 border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
+                onClick={handleSaveClick}
+                disabled={isSaving || isSaved}
+                className="btn-primary text-sm flex items-center gap-2"
               >
-                <XMarkIcon className="w-5 h-5" />
-                Cancel
+                {isSaving && <span className="w-4 h-4 animate-spin">⟳</span>}
+                <CheckIcon className="w-4 h-4" />
+                Save
               </button>
             </div>
           )}

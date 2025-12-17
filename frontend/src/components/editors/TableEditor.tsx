@@ -1,26 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { PlusIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
-
-interface TableRow {
-  [key: string]: string | number;
-}
-
-interface TableEditorProps {
-  section: {
-    id: number;
-    title: string;
-    content?: string;
-    section_type?: {
-      name: string;
-      icon: string;
-      color?: string;
-      template_type: string;
-      recommended_word_count?: number;
-    };
-  };
-  onSave: (tableData: { headers: string[]; rows: TableRow[]; style: string }) => Promise<void>;
-  readOnly?: boolean;
-}
+import React, { useState } from 'react';
+import { PlusIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 type ColumnType = 'text' | 'number' | 'currency' | 'date';
 
@@ -29,21 +8,40 @@ interface Column {
   type: ColumnType;
 }
 
+interface TableRow {
+  [key: string]: string | number;
+}
+
+interface TableEditorProps {
+  columns: Column[];
+  rows: TableRow[];
+  style: 'default' | 'striped' | 'bordered' | 'compact';
+  onSave: (data: { columns: Column[]; rows: TableRow[]; style: string }) => Promise<void>;
+  onCancel: () => void;
+  isSaving?: boolean;
+  color?: string;
+  readOnly?: boolean;
+}
+
 export const TableEditor: React.FC<TableEditorProps> = ({
-  section,
+  columns: initialColumns,
+  rows: initialRows,
+  style: initialStyle,
   onSave,
+  onCancel,
+  isSaving = false,
+  color = '#3B82F6',
   readOnly = false,
 }) => {
-  const [columns, setColumns] = useState<Column[]>([
-    { name: 'Item', type: 'text' },
-    { name: 'Value', type: 'text' },
+  const [columns, setColumns] = useState<Column[]>(initialColumns.length > 0 ? initialColumns : [
+    { name: 'Column 1', type: 'text' },
+    { name: 'Column 2', type: 'text' },
   ]);
-  const [rows, setRows] = useState<TableRow[]>([
-    { Item: 'Example 1', Value: 'Data 1' },
-    { Item: 'Example 2', Value: 'Data 2' },
+  const [rows, setRows] = useState<TableRow[]>(initialRows.length > 0 ? initialRows : [
+    { 'Column 1': 'Value 1', 'Column 2': 'Value 2' },
+    { 'Column 1': 'Value 3', 'Column 2': 'Value 4' },
   ]);
-  const [style, setStyle] = useState<'striped' | 'bordered' | 'compact'>('striped');
-  const [saving, setSaving] = useState(false);
+  const [style, setStyle] = useState<'default' | 'striped' | 'bordered' | 'compact'>(initialStyle || 'default');
   const [error, setError] = useState<string | null>(null);
 
   const handleAddRow = () => {
@@ -97,66 +95,63 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     setRows(newRows);
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = async () => {
     try {
-      setSaving(true);
       setError(null);
       await onSave({
-        headers: columns.map(c => c.name),
+        columns,
         rows,
         style,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(false);
     }
   };
 
-  const sectionColor = section.section_type?.color || '#EF4444';
-
   return (
-    <div className="w-full bg-white rounded-lg shadow">
+    <div className="w-full bg-background rounded-lg shadow border border-border h-full flex flex-col">
       {/* Header */}
-      <div className="border-b px-6 py-4" style={{ borderColor: sectionColor }}>
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{section.section_type?.icon || '📊'}</span>
+      <div className="border-b border-border px-6 py-4" style={{ borderLeftWidth: '4px', borderLeftColor: color }}>
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              {section.section_type?.name || section.title}
+            <h2 className="text-lg font-bold text-text-primary">
+              Table Editor
             </h2>
-            <p className="text-sm text-gray-500 mt-1">Table editor</p>
+            <p className="text-sm text-text-muted mt-1">
+              Create and manage table content
+            </p>
           </div>
         </div>
       </div>
 
       {/* Toolbar */}
-      <div className="border-b px-6 py-3 bg-gray-50 flex items-center gap-3 flex-wrap">
+      <div className="border-b border-border px-6 py-3 bg-surface flex items-center gap-3 flex-wrap">
         <button
           onClick={handleAddRow}
-          disabled={readOnly || saving}
-          className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+          disabled={readOnly || isSaving}
+          className="btn-secondary text-sm flex items-center gap-2"
         >
           <PlusIcon className="w-4 h-4" />
           Add Row
         </button>
         <button
           onClick={handleAddColumn}
-          disabled={readOnly || saving}
-          className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+          disabled={readOnly || isSaving}
+          className="btn-secondary text-sm flex items-center gap-2"
         >
           <PlusIcon className="w-4 h-4" />
           Add Column
         </button>
-        <div className="border-l border-gray-300 h-6"></div>
-        <label className="text-sm text-gray-700">
+        <div className="border-l border-border h-6 mx-2"></div>
+        <label className="text-sm text-text-primary flex items-center gap-2">
           Style:
           <select
             value={style}
             onChange={(e) => setStyle(e.target.value as any)}
             disabled={readOnly}
-            className="ml-2 px-2 py-1 border border-gray-300 rounded text-sm"
+            className="px-2 py-1 border border-border rounded text-sm bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
           >
+            <option value="default">Default</option>
             <option value="striped">Striped</option>
             <option value="bordered">Bordered</option>
             <option value="compact">Compact</option>
@@ -165,142 +160,149 @@ export const TableEditor: React.FC<TableEditorProps> = ({
       </div>
 
       {/* Table */}
-      <div className="p-6 overflow-x-auto">
-        <table
-          className={`w-full border-collapse ${
-            style === 'striped'
-              ? 'border-2 border-gray-300'
-              : style === 'bordered'
-              ? 'border border-gray-300'
-              : ''
-          }`}
-        >
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 w-12 border border-gray-300">
-                #
-              </th>
-              {columns.map((col, idx) => (
-                <th
-                  key={idx}
-                  className={`px-4 py-2 text-left text-sm font-semibold text-gray-700 border border-gray-300 ${
-                    style === 'striped' ? '' : ''
+      <div className="flex-1 p-6 overflow-auto">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-surface border-b border-border">
+                <th className="px-4 py-2 text-left text-sm font-semibold text-text-primary w-12">
+                  #
+                </th>
+                {columns.map((col, idx) => (
+                  <th
+                    key={idx}
+                    className="px-4 py-2 text-left text-sm font-semibold text-text-primary border-b border-border"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <input
+                          type="text"
+                          value={col.name}
+                          onChange={(e) => {
+                            const newColumns = [...columns];
+                            newColumns[idx].name = e.target.value;
+                            setColumns(newColumns);
+                          }}
+                          disabled={readOnly}
+                          className="font-semibold bg-transparent border-none p-0 focus:outline-none text-text-primary"
+                        />
+                        <select
+                          value={col.type}
+                          onChange={(e) => {
+                            const newColumns = [...columns];
+                            newColumns[idx].type = e.target.value as ColumnType;
+                            setColumns(newColumns);
+                          }}
+                          disabled={readOnly}
+                          className="text-xs text-text-muted bg-transparent border-none p-0 mt-1 focus:outline-none"
+                        >
+                          <option value="text">Text</option>
+                          <option value="number">Number</option>
+                          <option value="currency">Currency</option>
+                          <option value="date">Date</option>
+                        </select>
+                      </div>
+                      {!readOnly && (
+                        <button
+                          onClick={() => handleDeleteColumn(idx)}
+                          className="text-error hover:text-error-dark text-sm"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                ))}
+                {!readOnly && <th className="px-4 py-2 w-20 text-sm font-semibold text-text-primary">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIdx) => (
+                <tr
+                  key={rowIdx}
+                  className={`border-b border-border ${
+                    style === 'striped' && rowIdx % 2 === 1 ? 'bg-surface' : ''
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
+                  <td className="px-4 py-2 text-sm text-text-muted font-medium">
+                    {rowIdx + 1}
+                  </td>
+                  {columns.map((col, colIdx) => (
+                    <td key={colIdx} className="px-4 py-2">
                       <input
-                        type="text"
-                        value={col.name}
-                        onChange={(e) => {
-                          const newColumns = [...columns];
-                          newColumns[idx].name = e.target.value;
-                          setColumns(newColumns);
-                        }}
+                        type={col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text'}
+                        value={row[col.name] || ''}
+                        onChange={(e) =>
+                          handleCellChange(
+                            rowIdx,
+                            col.name,
+                            col.type === 'number' ? parseFloat(e.target.value) || '' : e.target.value
+                          )
+                        }
                         disabled={readOnly}
-                        className="font-semibold bg-transparent border-none p-0 focus:outline-none"
+                        className="w-full px-2 py-1 text-sm border border-border rounded bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                       />
-                      <select
-                        value={col.type}
-                        onChange={(e) => {
-                          const newColumns = [...columns];
-                          newColumns[idx].type = e.target.value as ColumnType;
-                          setColumns(newColumns);
-                        }}
-                        disabled={readOnly}
-                        className="text-xs text-gray-500 bg-transparent border-none p-0 mt-1 focus:outline-none"
-                      >
-                        <option value="text">Text</option>
-                        <option value="number">Number</option>
-                        <option value="currency">Currency</option>
-                        <option value="date">Date</option>
-                      </select>
-                    </div>
-                    {!readOnly && (
-                      <button
-                        onClick={() => handleDeleteColumn(idx)}
-                        className="text-red-600 hover:text-red-700 text-sm"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </th>
+                    </td>
+                  ))}
+                  {!readOnly && (
+                    <td className="px-4 py-2 text-sm">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleMoveRow(rowIdx, 'up')}
+                          disabled={rowIdx === 0}
+                          className="text-text-muted hover:text-text-primary disabled:opacity-30"
+                        >
+                          <ArrowUpIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveRow(rowIdx, 'down')}
+                          disabled={rowIdx === rows.length - 1}
+                          className="text-text-muted hover:text-text-primary disabled:opacity-30"
+                        >
+                          <ArrowDownIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRow(rowIdx)}
+                          className="text-error hover:text-error-dark"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
               ))}
-              {!readOnly && <th className="px-4 py-2 w-20 border border-gray-300">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, rowIdx) => (
-              <tr
-                key={rowIdx}
-                className={style === 'striped' && rowIdx % 2 === 1 ? 'bg-gray-50' : ''}
-              >
-                <td className="px-4 py-2 text-sm text-gray-600 border border-gray-300 font-medium">
-                  {rowIdx + 1}
-                </td>
-                {columns.map((col, colIdx) => (
-                  <td key={colIdx} className="px-4 py-2 border border-gray-300">
-                    <input
-                      type={col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text'}
-                      value={row[col.name] || ''}
-                      onChange={(e) =>
-                        handleCellChange(
-                          rowIdx,
-                          col.name,
-                          col.type === 'number' ? parseFloat(e.target.value) || '' : e.target.value
-                        )
-                      }
-                      disabled={readOnly}
-                      className="w-full px-2 py-1 text-sm border-none bg-transparent focus:outline-none"
-                    />
-                  </td>
-                ))}
-                {!readOnly && (
-                  <td className="px-4 py-2 text-sm border border-gray-300">
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleMoveRow(rowIdx, 'up')}
-                        disabled={rowIdx === 0}
-                        className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                      >
-                        <ArrowUpIcon className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleMoveRow(rowIdx, 'down')}
-                        disabled={rowIdx === rows.length - 1}
-                        className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                      >
-                        <ArrowDownIcon className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRow(rowIdx)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+          <div className="mt-4 p-3 bg-error-light border border-error rounded text-sm text-error">
             {error}
           </div>
         )}
 
         {!readOnly && (
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-2 mt-4 justify-end">
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => {
+                setError(null);
+                onCancel();
+              }}
+              disabled={isSaving}
+              className="btn-secondary text-sm flex items-center gap-2"
             >
-              Save Table
+              <XMarkIcon className="w-4 h-4" />
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveClick}
+              disabled={isSaving}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {isSaving && <span className="w-4 h-4 animate-spin">⟳</span>}
+              <CheckIcon className="w-4 h-4" />
+              Save
             </button>
           </div>
         )}

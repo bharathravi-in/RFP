@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface CodeBlock {
   id: string;
@@ -8,23 +8,15 @@ interface CodeBlock {
 }
 
 interface TechnicalEditorProps {
-  section: {
-    id: number;
-    title: string;
-    content?: string;
-    section_type?: {
-      name: string;
-      icon: string;
-      color?: string;
-      template_type: string;
-      recommended_word_count?: number;
-    };
-  };
-  onSave: (content: {
+  description: string;
+  codeBlocks: CodeBlock[];
+  onSave: (data: {
     description: string;
     codeBlocks: CodeBlock[];
-    metadata: Record<string, string>;
   }) => Promise<void>;
+  onCancel: () => void;
+  isSaving?: boolean;
+  color?: string;
   readOnly?: boolean;
 }
 
@@ -44,17 +36,20 @@ const LANGUAGE_OPTIONS = [
 ];
 
 export const TechnicalEditor: React.FC<TechnicalEditorProps> = ({
-  section,
+  description: initialDescription,
+  codeBlocks: initialCodeBlocks,
   onSave,
+  onCancel,
+  isSaving = false,
+  color = '#FB923C',
   readOnly = false,
 }) => {
-  const [description, setDescription] = useState(section.content || '');
-  const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>([
-    { id: '1', language: 'javascript', code: '// Example code block' },
+  const [description, setDescription] = useState(initialDescription || '');
+  const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>(initialCodeBlocks.length > 0 ? initialCodeBlocks : [
+    { id: '1', language: 'javascript', code: '// Example code' },
   ]);
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   const [darkMode, setDarkMode] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleAddCodeBlock = () => {
@@ -80,42 +75,33 @@ export const TechnicalEditor: React.FC<TechnicalEditorProps> = ({
     navigator.clipboard.writeText(code);
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = async () => {
     try {
-      setSaving(true);
       setError(null);
       await onSave({
         description,
         codeBlocks,
-        metadata: {},
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setSaving(false);
     }
   };
 
-  const sectionColor = section.section_type?.color || '#FB923C';
-
   return (
-    <div className={`w-full rounded-lg shadow ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
+    <div className={`w-full rounded-lg shadow border border-border h-full flex flex-col ${darkMode ? 'bg-gray-900' : 'bg-background'}`}>
       {/* Header */}
       <div
-        className={`border-b px-6 py-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}
-        style={{ borderColor: sectionColor }}
+        className={`border-b border-border px-6 py-4 ${darkMode ? 'bg-gray-800' : 'bg-background'}`}
+        style={{ borderLeftWidth: '4px', borderLeftColor: color }}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{section.section_type?.icon || '🔧'}</span>
-            <div>
-              <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {section.section_type?.name || section.title}
-              </h2>
-              <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Technical documentation editor
-              </p>
-            </div>
+          <div>
+            <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-text-primary'}`}>
+              Technical Editor
+            </h2>
+            <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-text-muted'}`}>
+              Add code blocks and technical documentation
+            </p>
           </div>
         </div>
       </div>
@@ -128,7 +114,7 @@ export const TechnicalEditor: React.FC<TechnicalEditorProps> = ({
       >
         <button
           onClick={handleAddCodeBlock}
-          disabled={readOnly || saving}
+          disabled={readOnly || isSaving}
           className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
         >
           <PlusIcon className="w-4 h-4" />
@@ -218,7 +204,7 @@ export const TechnicalEditor: React.FC<TechnicalEditorProps> = ({
           Code Blocks
         </h3>
 
-        {codeBlocks.map((block, index) => (
+        {codeBlocks.map((block) => (
           <div
             key={block.id}
             className={`rounded-lg border-2 overflow-hidden ${
@@ -290,13 +276,26 @@ export const TechnicalEditor: React.FC<TechnicalEditorProps> = ({
         )}
 
         {!readOnly && (
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-2 pt-4 justify-end">
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => {
+                setError(null);
+                onCancel();
+              }}
+              disabled={isSaving}
+              className="btn-secondary text-sm flex items-center gap-2"
             >
-              Save Documentation
+              <XMarkIcon className="w-4 h-4" />
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveClick}
+              disabled={isSaving}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {isSaving && <span className="w-4 h-4 animate-spin">⟳</span>}
+              <CheckIcon className="w-4 h-4" />
+              Save
             </button>
           </div>
         )}
