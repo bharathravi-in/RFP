@@ -199,3 +199,52 @@ INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:22:26] "POST /api/sections/3/generat
 INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1/sections HTTP/1.1" 200 -
 127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1 HTTP/1.1" 200 -
 INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:22:26] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/auth/me HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/auth/me HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:30:32] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:42] "GET /api/questions?project_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:43] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:43] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:43] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:43] "GET /api/projects/1 HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:44] "GET /api/projects/1/sections HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:44] "GET /api/projects/1/sections HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 10:35:44] "GET /api/projects/1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Dec/2025 10:35:44] "GET /api/projects/1 HTTP/1.1" 200 -
+ * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/tests/test_data_generator.py', reloading
+INFO:werkzeug: * Detected change in '/home/bharathkumarr/AI-hackathon/RFP-project/V1/backend/tests/test_data_generator.py', reloading
+ * Restarting with watchdog (inotify)
+/home/bharathkumarr/.local/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+ * Debugger is active!
+ * Debugger PIN: 128-188-299
