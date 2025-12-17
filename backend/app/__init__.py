@@ -29,7 +29,7 @@ def create_app(config_name=None):
     os.makedirs(upload_folder, exist_ok=True)
     
     # Register blueprints
-    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections
+    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections, ai_config, agent_config
     from .routes.agents import agents_bp
     from .routes.profiles import profiles_bp
     
@@ -47,6 +47,8 @@ def create_app(config_name=None):
     app.register_blueprint(sections.bp)  # Uses /api prefix defined in blueprint
     app.register_blueprint(agents_bp)  # Multi-agent RFP analysis system
     app.register_blueprint(profiles_bp, url_prefix='/api/knowledge')  # Knowledge profiles
+    app.register_blueprint(ai_config.bp)  # AI configuration management
+    app.register_blueprint(agent_config.bp)  # Agent-specific AI configuration
     
     # Health check endpoint
     @app.route('/api/health')

@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
+import AIConfigurationSection from '@/components/settings/AIConfigurationSection';
 
 const tabs = [
     { id: 'profile', name: 'Profile', icon: UserCircleIcon },
@@ -211,40 +212,8 @@ export default function Settings() {
                     )}
 
                     {activeTab === 'ai' && (
-                        <div className="card">
-                            <h2 className="text-xl font-semibold text-text-primary mb-6">AI Settings</h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Default AI Model
-                                    </label>
-                                    <select className="input">
-                                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Recommended)</option>
-                                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Faster)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Default Tone
-                                    </label>
-                                    <select className="input">
-                                        <option value="professional">Professional</option>
-                                        <option value="formal">Formal</option>
-                                        <option value="friendly">Friendly</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Answer Length
-                                    </label>
-                                    <select className="input">
-                                        <option value="concise">Concise</option>
-                                        <option value="standard">Standard</option>
-                                        <option value="detailed">Detailed</option>
-                                    </select>
-                                </div>
-                                <button className="btn-primary">Save Preferences</button>
-                            </div>
+                        <div className="max-w-4xl">
+                            <AIConfigurationSection />
                         </div>
                     )}
                 </div>

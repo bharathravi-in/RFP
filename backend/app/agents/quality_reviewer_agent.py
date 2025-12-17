@@ -53,8 +53,8 @@ Return JSON:
 
 Return ONLY valid JSON."""
 
-    def __init__(self):
-        self.config = get_agent_config()
+    def __init__(self, org_id: int = None):
+        self.config = get_agent_config(org_id=org_id, agent_type='answer_generation')
         self.name = "QualityReviewerAgent"
     
     def review_answers(

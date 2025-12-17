@@ -269,6 +269,19 @@ def _parse_document_internal(document):
             print(f"Auto-analysis error: {analysis_error}")
             analysis_result = {'error': str(analysis_error)}
         
+        # Update project status and completion after successful analysis
+        project = document.project
+        if project:
+            # Update status from draft to in_progress
+            if project.status == 'draft':
+                project.status = 'in_progress'
+            
+            # Calculate completion based on questions answered and sections created
+            completion = project.calculate_completion()
+            project.completion_percent = completion
+            
+            db.session.commit()
+        
         return {
             'message': 'Document parsed and analyzed successfully',
             'document': document.to_dict(),

@@ -10,6 +10,7 @@ import re
 from typing import Dict, List, Any, Optional
 
 from .config import get_agent_config, SessionKeys
+from .utils import with_retry, RetryConfig  # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,8 @@ class DocumentAnalyzerAgent:
 
 Return ONLY valid JSON, no markdown formatting or code blocks."""
 
-    def __init__(self):
-        self.config = get_agent_config()
+    def __init__(self, org_id: int = None):
+        self.config = get_agent_config(org_id=org_id, agent_type='rfp_analysis')
         self.name = "DocumentAnalyzerAgent"
     
     def analyze(self, document_text: str, session_state: Dict = None) -> Dict:
@@ -127,6 +128,10 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
             "session_state": session_state
         }
     
+    @with_retry(
+        config=RetryConfig(max_attempts=3, initial_delay=1.0),
+        fallback_models=['gemini-1.5-pro']
+    )
     def _analyze_with_ai(self, text: str) -> Dict:
         """Use AI to analyze document structure."""
         client = self.config.client
@@ -209,6 +214,6 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         }
 
 
-def get_document_analyzer_agent() -> DocumentAnalyzerAgent:
+def get_document_analyzer_agent(org_id: int = None) -> DocumentAnalyzerAgent:
     """Factory function to get Document Analyzer Agent."""
-    return DocumentAnalyzerAgent()
+    return DocumentAnalyzerAgent(org_id=org_id)

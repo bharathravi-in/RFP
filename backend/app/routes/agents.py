@@ -51,8 +51,10 @@ def analyze_rfp():
             return jsonify({"error": "Document has no extracted text"}), 400
         document_text = document.extracted_text
         org_id = data.get('org_id') or (document.project.organization_id if document.project else None)
+        project_id = data.get('project_id') or (document.project_id if document.project_id else None)  # NEW
     else:
         org_id = data.get('org_id')
+        project_id = data.get('project_id')  # NEW
     
     if not document_text:
         return jsonify({"error": "No document text provided"}), 400
@@ -64,6 +66,7 @@ def analyze_rfp():
         result = orchestrator.analyze_rfp(
             document_text=document_text,
             org_id=org_id,
+            project_id=project_id,  # NEW
             options=options
         )
         return jsonify(result)
@@ -158,6 +161,7 @@ def generate_answers():
         return jsonify({"error": "No questions provided"}), 400
     
     org_id = data.get('org_id')
+    project_id = data.get('project_id')  # NEW
     options = data.get('options', {})
     
     try:
@@ -165,11 +169,139 @@ def generate_answers():
         result = orchestrator.generate_answers_for_questions(
             questions=questions,
             org_id=org_id,
+            project_id=project_id,  # NEW
             options=options
         )
         return jsonify(result)
     except Exception as e:
         logger.error(f"Answer generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/analyze-rfp-async', methods=['POST'])
+def analyze_rfp_async():
+    """
+    Start async RFP analysis workflow (returns job ID immediately).
+    
+    Request body: Same as /analyze-rfp
+    
+    Returns:
+        {"job_id": "uuid", "status_url": "/api/agents/job-status/<job_id>"}
+    """
+    try:
+        from app.extensions import celery
+        data = request.get_json() or {}
+        
+        # Get document text
+        document_text = data.get('document_text')
+        document_id = data.get('document_id')
+        
+        if not document_text and document_id:
+            document = Document.query.get(document_id)
+            if not document:
+                return jsonify({"error": "Document not found"}), 404
+            if not document.extracted_text:
+                return jsonify({"error": "Document has no extracted text"}), 400
+            document_text = document.extracted_text
+            org_id = data.get('org_id') or (document.project.organization_id if document.project else None)
+            project_id = data.get('project_id') or (document.project_id if document.project_id else None)
+        else:
+            org_id = data.get('org_id')
+            project_id = data.get('project_id')
+        
+        if not document_text:
+            return jsonify({"error": "No document text provided"}), 400
+        
+        options = data.get('options', {})
+        
+        # Submit async task
+        task = celery.send_task(
+            'agents.analyze_rfp_async',
+            args=[document_text],
+            kwargs={
+                'org_id': org_id,
+                'project_id': project_id,
+                'options': options
+            }
+        )
+        
+        return jsonify({
+            "job_id": task.id,
+            "status_url": f"/api/agents/job-status/{task.id}",
+            "status": "PENDING"
+        }), 202
+        
+    except Exception as e:
+        logger.error(f"Failed to start async RFP analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/job-status/<job_id>', methods=['GET'])
+def job_status(job_id):
+    """
+    Get status of async job.
+    
+    Returns:
+        {
+            "job_id": "uuid",
+            "status": "PENDING|PROGRESS|SUCCESS|FAILURE",
+            "result": {...},  // if SUCCESS
+            "error": "...",   // if FAILURE
+            "progress": {...}  // if PROGRESS
+        }
+    """
+    try:
+        from app.extensions import celery
+        from celery.result import AsyncResult
+        
+        task = AsyncResult(job_id, app=celery)
+        
+        response = {
+            "job_id": job_id,
+            "status": task.state
+        }
+        
+        if task.state == 'PENDING':
+            response['message'] = 'Task is queued'
+        elif task.state == 'PROGRESS':
+            response['progress'] = task.info
+        elif task.state == 'SUCCESS':
+            response['result'] = task.result
+        elif task.state == 'FAILURE':
+            response['error'] = str(task.info)
+        else:
+            response['info'] = str(task.info)
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"Failed to get job status: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/cancel-job/<job_id>', methods=['POST'])
+def cancel_job(job_id):
+    """
+    Cancel a running async job.
+    
+    Returns:
+        {"job_id": "uuid", "status": "CANCELLED"}
+    """
+    try:
+        from app.extensions import celery
+        from celery.result import AsyncResult
+        
+        task = AsyncResult(job_id, app=celery)
+        task.revoke(terminate=True)
+        
+        return jsonify({
+            "job_id": job_id,
+            "status": "CANCELLED",
+            "message": "Task cancellation requested"
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to cancel job: {e}")
         return jsonify({"error": str(e)}), 500
 
 

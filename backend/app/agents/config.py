@@ -22,12 +22,50 @@ import google.generativeai as genai_legacy
 
 
 class AgentConfig:
-    """Configuration for ADK agents."""
+    """Configuration for ADK agents with database-backed agent-specific settings."""
     
-    def __init__(self):
+    def __init__(self, org_id: int = None, agent_type: str = 'default'):
+        """
+        Initialize agent configuration.
+        
+        Args:
+            org_id: Organization ID for database config lookup
+            agent_type: Type of agent (e.g., 'rfp_analysis', 'answer_generation')
+        """
+        self.api_key = None
+        self.model_name = None
+        self.provider = None
+        self._client = None
+        
+        # Try to get from database first
+        if org_id:
+            self._load_from_database(org_id, agent_type)
+        
+        # Fallback to environment variables if database config not found
+        if not self.api_key:
+            self._load_from_environment()
+    
+    def _load_from_database(self, org_id: int, agent_type: str):
+        """Load configuration from database."""
+        try:
+            from app.services.ai_config_service import AIConfigService
+            
+            config = AIConfigService.get_agent_config(org_id, agent_type)
+            if config:
+                self.api_key = config.get_api_key()
+                self.model_name = config.model
+                self.provider = config.provider
+                print(f"✓ Loaded {agent_type} config from database: {self.provider}/{self.model_name}")
+        except Exception as e:
+            print(f"Warning: Failed to load config from database: {e}")
+    
+    def _load_from_environment(self):
+        """Load configuration from environment variables (fallback)."""
         self.api_key = os.getenv('GOOGLE_API_KEY')
         self.model_name = os.getenv('GOOGLE_MODEL', 'gemini-1.5-flash')
-        self._client = None
+        self.provider = 'google'
+        if self.api_key:
+            print(f"✓ Loaded config from environment: {self.provider}/{self.model_name}")
     
     @property
     def client(self):
@@ -47,9 +85,18 @@ class AgentConfig:
 
 
 @lru_cache(maxsize=1)
-def get_agent_config() -> AgentConfig:
-    """Get the singleton agent configuration."""
-    return AgentConfig()
+def get_agent_config(org_id: int = None, agent_type: str = 'default') -> AgentConfig:
+    """
+    Factory function to get agent configuration.
+    
+    Args:
+        org_id: Organization ID for database config lookup
+        agent_type: Type of agent (e.g., 'rfp_analysis', 'answer_generation')
+        
+    Returns:
+        AgentConfig instance
+    """
+    return AgentConfig(org_id=org_id, agent_type=agent_type)
 
 
 # Session state keys for agent communication
@@ -61,6 +108,7 @@ class SessionKeys:
     KNOWLEDGE_CONTEXT = "knowledge_context"
     DRAFT_ANSWERS = "draft_answers"
     REVIEWED_ANSWERS = "reviewed_answers"
+    CLARIFICATION_QUESTIONS = "clarification_questions"  # NEW
     AGENT_MESSAGES = "agent_messages"
     CURRENT_STEP = "current_step"
     ERRORS = "errors"

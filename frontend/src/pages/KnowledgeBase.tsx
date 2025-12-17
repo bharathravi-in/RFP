@@ -110,11 +110,11 @@ export default function KnowledgeBasePage() {
         setIsUploadOpen(true);
     };
 
-    const handleUpload = async (files: File[]) => {
+    const handleUpload = async (file: File) => {
         if (!uploadFolderId) return;
 
         const formData = new FormData();
-        files.forEach((file) => formData.append('files', file));
+        formData.append('files', file);
 
         await api.post(`/folders/${uploadFolderId}/upload`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },

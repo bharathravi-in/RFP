@@ -8,6 +8,7 @@ import json
 from typing import Dict, List, Any, Optional
 
 from .config import get_agent_config, SessionKeys
+from .utils import with_retry, RetryConfig  # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +80,8 @@ class AnswerGeneratorAgent:
 
 Write the answer directly, no preamble."""
 
-    def __init__(self):
-        self.config = get_agent_config()
+    def __init__(self, org_id: int = None):
+        self.config = get_agent_config(org_id=org_id, agent_type='answer_generation')
         self.name = "AnswerGeneratorAgent"
     
     def generate_answers(
@@ -173,6 +174,10 @@ Write the answer directly, no preamble."""
             "session_state": session_state
         }
     
+    @with_retry(
+        config=RetryConfig(max_attempts=2, initial_delay=0.5),
+        fallback_models=['gemini-1.5-pro']
+    )
     def _generate_answer(
         self,
         question: str,

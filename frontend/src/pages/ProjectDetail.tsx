@@ -25,7 +25,7 @@ export default function ProjectDetail() {
 
     const loadProject = useCallback(async () => {
         if (!id) return;
-        
+
         try {
             const [projectRes, questionsRes, documentsRes] = await Promise.all([
                 projectsApi.get(Number(id)),
@@ -51,46 +51,56 @@ export default function ProjectDetail() {
         if (!id) return;
 
         setIsUploading(true);
+        let shouldNavigateToProposal = false;
+        let totalSectionsCreated = 0;
+
         try {
+            // Upload all files first, then navigate at the end
             for (const file of acceptedFiles) {
-                const uploadResult = await documentsApi.upload(Number(id), file);
-                const uploadedDoc = uploadResult.data.document;
-
-                toast.success(`Uploaded ${file.name}`);
-
-                // Auto-analyze the document after upload
                 try {
-                    const analysisResult = await documentsApi.analyze(uploadedDoc.id);
-                    
-                    if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
-                        // Auto-build the proposal with suggested sections
-                        const sectionIds = analysisResult.data.suggested_sections
-                            .filter((s: any) => s.selected !== false)
-                            .map((s: any) => s.section_type_id);
-                        
-                        if (sectionIds.length > 0) {
-                            await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
-                            
-                            toast.success(
-                                `✨ Auto-analyzed RFP and created ${sectionIds.length} proposal sections with AI content!`,
-                                { duration: 4000 }
-                            );
-                            
-                            // Navigate to proposal builder to see the created sections
-                            navigate(`/projects/${id}/proposal`);
-                            return;
+                    const uploadResult = await documentsApi.upload(Number(id), file);
+                    const uploadedDoc = uploadResult.data.document;
+
+                    toast.success(`Uploaded ${file.name}`);
+
+                    // Auto-analyze the document after upload
+                    try {
+                        const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+
+                        if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
+                            // Auto-build the proposal with suggested sections
+                            const sectionIds = analysisResult.data.suggested_sections
+                                .filter((s: any) => s.selected !== false)
+                                .map((s: any) => s.section_type_id);
+
+                            if (sectionIds.length > 0) {
+                                await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
+                                totalSectionsCreated += sectionIds.length;
+                                shouldNavigateToProposal = true;
+                            }
                         }
+
+                        toast.success(`RFP analysis complete for ${file.name}`, { duration: 3000 });
+                    } catch (analysisError) {
+                        toast.error(`Analysis failed for ${file.name}, but document uploaded successfully`);
                     }
-                    
-                    toast.success('RFP analysis complete', { duration: 3000 });
-                } catch (analysisError) {
-                    toast.error('Analysis failed, but document uploaded successfully');
+                } catch (uploadError) {
+                    toast.error(`Failed to upload ${file.name}`);
                 }
             }
-            
-            loadProject();
+
+            await loadProject();
+
+            // Navigate to proposal builder after all files are processed
+            if (shouldNavigateToProposal) {
+                toast.success(
+                    `✨ Auto-analyzed ${acceptedFiles.length} RFP(s) and created ${totalSectionsCreated} proposal sections with AI content!`,
+                    { duration: 4000 }
+                );
+                navigate(`/projects/${id}/proposal`);
+            }
         } catch {
-            toast.error('Failed to upload document');
+            toast.error('Failed to upload documents');
         } finally {
             setIsUploading(false);
         }

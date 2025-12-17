@@ -1,0 +1,25 @@
+# ============================================
+# CELERY CONFIGURATION (Add to your .env file)
+# ============================================
+
+# Redis broker URL for Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+
+# Redis result backend for storing task results  
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Track when tasks start executing
+CELERY_TASK_TRACK_STARTED=True
+
+# Maximum time a task can run (1 hour)
+CELERY_TASK_TIME_LIMIT=3600
+
+# How long to keep task results (24 hours)
+CELERY_RESULT_EXPIRES=86400
+
+# ============================================
+# INSTRUCTIONS:
+# 1. Copy the CELERY_* lines above
+# 2. Paste them at the end of your .env file
+# 3. Save the file
+# ============================================

@@ -20,8 +20,8 @@ class KnowledgeBaseAgent:
     - Retrieves company information
     """
     
-    def __init__(self):
-        self.config = get_agent_config()
+    def __init__(self, org_id: int = None):
+        self.config = get_agent_config(org_id=org_id, agent_type='default')
         self.name = "KnowledgeBaseAgent"
         self._qdrant = None
         self._answer_reuse = None
@@ -52,8 +52,9 @@ class KnowledgeBaseAgent:
         self,
         questions: List[Dict] = None,
         org_id: int = None,
+        project_id: int = None,  # NEW: Auto-fetch project dimensions
         session_state: Dict = None,
-        # Project dimension filters
+        # Project dimension filters (optional - will be auto-fetched from project if not provided)
         geography: str = None,
         client_type: str = None,
         industry: str = None,
@@ -65,14 +66,15 @@ class KnowledgeBaseAgent:
         Args:
             questions: List of questions to find context for
             org_id: Organization ID for scoping knowledge search
+            project_id: Project ID to auto-fetch dimensions (NEW)
             session_state: Shared state with extracted questions
-            geography: Filter by geography (US, EU, APAC, etc.)
-            client_type: Filter by client type (government, private, etc.)
-            industry: Filter by industry (healthcare, finance, etc.)
-            knowledge_profile_ids: List of profile IDs to search within
+            geography: Filter by geography (US, EU, APAC, etc.) - auto-fetched if not provided
+            client_type: Filter by client type (government, private, etc.) - auto-fetched if not provided
+            industry: Filter by industry (healthcare, finance, etc.) - auto-fetched if not provided
+            knowledge_profile_ids: List of profile IDs to search within - auto-fetched if not provided
             
         Returns:
-            Context mapping for each question
+            Context mapping for each question with applied filters
         """
         session_state = session_state or {}
         
@@ -80,6 +82,22 @@ class KnowledgeBaseAgent:
         questions = questions or session_state.get(SessionKeys.EXTRACTED_QUESTIONS, [])
         if not questions:
             return {"success": False, "error": "No questions to process"}
+        
+        # Auto-fetch project dimensions if project_id provided
+        if project_id and not all([geography, client_type, industry, knowledge_profile_ids]):
+            try:
+                from app.models import Project
+                project = Project.query.get(project_id)
+                if project:
+                    geography = geography or project.geography
+                    client_type = client_type or project.client_type
+                    industry = industry or project.industry
+                    # Get knowledge profile IDs from project's profiles
+                    if not knowledge_profile_ids and project.knowledge_profiles:
+                        knowledge_profile_ids = [p.id for p in project.knowledge_profiles]
+                    logger.info(f"Auto-fetched project dimensions: geography={geography}, client_type={client_type}, industry={industry}")
+            except Exception as e:
+                logger.warning(f"Could not auto-fetch project dimensions: {e}")
         
         # Build dimension filter for Qdrant
         dimension_filter = {}

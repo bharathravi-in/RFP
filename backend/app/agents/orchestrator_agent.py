@@ -13,6 +13,7 @@ from .document_analyzer_agent import get_document_analyzer_agent
 from .question_extractor_agent import get_question_extractor_agent
 from .knowledge_base_agent import get_knowledge_base_agent
 from .answer_generator_agent import get_answer_generator_agent
+from .clarification_agent import get_clarification_agent  # NEW
 from .quality_reviewer_agent import get_quality_reviewer_agent
 
 logger = logging.getLogger(__name__)
@@ -27,11 +28,12 @@ class OrchestratorAgent:
     2. Question Extractor → Identifies questions
     3. Knowledge Base → Retrieves context
     4. Answer Generator → Creates draft answers
+    4.5. Clarification Agent → Identifies questions needing clarification (NEW)
     5. Quality Reviewer → Reviews and validates
     """
     
-    def __init__(self):
-        self.config = get_agent_config()
+    def __init__(self, org_id: int = None):
+        self.config = get_agent_config(org_id=org_id, agent_type='default')
         self.name = "OrchestratorAgent"
         
         # Initialize sub-agents
@@ -39,12 +41,14 @@ class OrchestratorAgent:
         self.question_extractor = get_question_extractor_agent()
         self.knowledge_base = get_knowledge_base_agent()
         self.answer_generator = get_answer_generator_agent()
+        self.clarification_agent = get_clarification_agent()  # NEW
         self.quality_reviewer = get_quality_reviewer_agent()
     
     def analyze_rfp(
         self,
         document_text: str,
         org_id: int = None,
+        project_id: int = None,  # NEW: Pass to KB agent for dimension filtering
         options: Dict = None
     ) -> Dict:
         """
@@ -53,6 +57,7 @@ class OrchestratorAgent:
         Args:
             document_text: Extracted text from the RFP document
             org_id: Organization ID for knowledge base scoping
+            project_id: Project ID for auto-fetching dimensions (NEW)
             options: Configuration options (tone, length, etc.)
             
         Returns:
@@ -119,6 +124,7 @@ class OrchestratorAgent:
             
             kb_result = self.knowledge_base.retrieve_context(
                 org_id=org_id,
+                project_id=project_id,  # NEW: Auto-fetch project dimensions
                 session_state=session_state
             )
             
@@ -142,6 +148,25 @@ class OrchestratorAgent:
             
             result["steps_completed"].append("answer_generation")
             session_state = answer_result.get("session_state", session_state)
+            
+            # Step 4.5: Identify Clarifications (NEW)
+            session_state[SessionKeys.CURRENT_STEP] = "identifying_clarifications"
+            logger.info("Step 4.5: Identifying clarification needs...")
+            
+            clarification_result = self.clarification_agent.analyze_questions(
+                confidence_threshold=0.5,
+                session_state=session_state
+            )
+            
+            # Clarifications are optional - don't fail if this step has issues
+            if clarification_result.get("success"):
+                result["clarifications"] = clarification_result.get("clarifications", [])
+                result["steps_completed"].append("clarification_detection")
+            else:
+                result["clarifications"] = []
+                result["steps_completed"].append("clarification_detection_skipped")
+            
+            session_state = clarification_result.get("session_state", session_state)
             
             # Step 5: Review Answers
             session_state[SessionKeys.CURRENT_STEP] = "reviewing_answers"
@@ -196,6 +221,7 @@ class OrchestratorAgent:
         self,
         questions: List[Dict],
         org_id: int = None,
+        project_id: int = None,  # NEW
         options: Dict = None
     ) -> Dict:
         """Generate answers for provided questions without document analysis."""
@@ -209,6 +235,7 @@ class OrchestratorAgent:
         self.knowledge_base.retrieve_context(
             questions=questions,
             org_id=org_id,
+            project_id=project_id,  # NEW
             session_state=session_state
         )
         

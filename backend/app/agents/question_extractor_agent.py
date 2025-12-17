@@ -9,6 +9,7 @@ import re
 from typing import Dict, List, Any
 
 from .config import get_agent_config, SessionKeys
+from .utils import with_retry, RetryConfig  # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,26 @@ class QuestionExtractorAgent:
     
     EXTRACTION_PROMPT = """You are an expert at analyzing RFP documents. Your task is to extract ALL questions and requirements that need vendor responses.
 
+**CRITICAL: WHAT TO EXTRACT vs WHAT TO IGNORE**
+
+✅ **EXTRACT THESE:**
+- Questions from the RFP issuer/buyer asking vendors to respond
+- Requirements that need vendor confirmation or description
+- Requests for information from vendors
+- Items in vendor response sections that are BLANK or need filling
+
+❌ **DO NOT EXTRACT THESE:**
+- Example answers or sample responses
+- Service provider's previous answers or responses
+- Content labeled as "Vendor Response:", "Answer:", "Response:", "Example:"
+- Pre-filled answers or completed sections
+- Narrative text explaining what vendors should do
+- Instructions or guidelines (unless they contain a specific question)
+
 **IMPORTANT EXTRACTION RULES:**
-1. Extract EVERY question, including implicit ones
-2. Look for questions in these forms:
+1. Extract EVERY question that needs a NEW vendor response
+2. SKIP any text that appears to be an existing answer or example
+3. Look for questions in these forms:
    - Direct questions ending with "?"
    - Imperative statements: "Provide...", "Describe...", "Explain...", "List..."
    - Requirements phrased as: "The vendor must/shall/should..."
@@ -33,7 +51,7 @@ class QuestionExtractorAgent:
    - Tables or matrices requiring completion
    - "Please confirm...", "Indicate whether..."
 
-3. For each question, identify:
+4. For each question, identify:
    - The EXACT text (preserve original wording)
    - Category (security, compliance, technical, pricing, legal, product, support, integration, general)
    - Whether it's mandatory (must, shall, required) or optional (should, may, preferred)
@@ -85,8 +103,8 @@ class QuestionExtractorAgent:
 
 Return ONLY valid JSON, no markdown formatting or code blocks."""
 
-    def __init__(self):
-        self.config = get_agent_config()
+    def __init__(self, org_id: int = None):
+        self.config = get_agent_config(org_id=org_id, agent_type='rfp_analysis')
         self.name = "QuestionExtractorAgent"
     
     def extract(self, document_text: str = None, session_state: Dict = None) -> Dict:
@@ -136,6 +154,10 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
             "session_state": session_state
         }
     
+    @with_retry(
+        config=RetryConfig(max_attempts=3, initial_delay=1.0),
+        fallback_models=['gemini-1.5-pro']
+    )
     def _extract_with_ai(self, text: str, doc_structure: Dict) -> Dict:
         """Use AI to extract questions."""
         client = self.config.client
@@ -171,6 +193,15 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         """Pattern-based question extraction fallback."""
         questions = []
         
+        # Patterns to identify answer/response sections (to skip)
+        answer_indicators = [
+            r'(?:vendor|service provider|supplier)\s+(?:response|answer)',
+            r'(?:response|answer|example):\s*',
+            r'(?:sample|example)\s+(?:response|answer)',
+            r'completed\s+by',
+            r'answered\s+by'
+        ]
+        
         # Question patterns
         patterns = [
             r'(?:^|\n)\s*\d+[\.\)]\s*(.+\?)',  # Numbered questions
@@ -182,22 +213,43 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         seen = set()
         question_id = 1
         
-        for pattern in patterns:
-            matches = re.findall(pattern, text, re.MULTILINE | re.IGNORECASE)
-            for match in matches:
-                match = match.strip()
-                if len(match) > 20 and match not in seen:
-                    seen.add(match)
-                    category = self._guess_category(match)
-                    questions.append({
-                        "id": question_id,
-                        "text": match,
-                        "category": category,
-                        "mandatory": True,
-                        "priority": "medium",
-                        "section_reference": None
-                    })
-                    question_id += 1
+        # Split text into lines for context checking
+        lines = text.split('\n')
+        
+        for i, line in enumerate(lines):
+            # Skip if line appears to be in an answer section
+            line_lower = line.lower()
+            if any(re.search(pattern, line_lower, re.IGNORECASE) for pattern in answer_indicators):
+                continue
+            
+            # Check context (previous 2 lines) for answer indicators
+            context_start = max(0, i - 2)
+            context = ' '.join(lines[context_start:i+1]).lower()
+            if any(re.search(pattern, context, re.IGNORECASE) for pattern in answer_indicators):
+                continue
+            
+            # Try to match question patterns
+            for pattern in patterns:
+                matches = re.findall(pattern, line, re.IGNORECASE)
+                for match in matches:
+                    match = match.strip()
+                    # Filter out very short or very long matches
+                    if 20 < len(match) < 500 and match not in seen:
+                        # Additional check: skip if it looks like an answer (contains lots of detail)
+                        if match.count('.') > 3 or match.count(',') > 5:
+                            continue
+                        
+                        seen.add(match)
+                        category = self._guess_category(match)
+                        questions.append({
+                            "id": question_id,
+                            "text": match,
+                            "category": category,
+                            "mandatory": True,
+                            "priority": "medium",
+                            "section_reference": None
+                        })
+                        question_id += 1
         
         # Build category breakdown
         category_breakdown = {}

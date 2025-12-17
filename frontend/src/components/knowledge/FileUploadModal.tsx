@@ -22,7 +22,7 @@ interface FileUploadModalProps {
     onClose: () => void;
     folderId: number;
     folderName: string;
-    onUpload: (files: File[]) => Promise<void>;
+    onUpload: (file: File) => Promise<void>;
 }
 
 export default function FileUploadModal({
@@ -73,34 +73,62 @@ export default function FileUploadModal({
 
         setIsUploading(true);
 
-        // Mark all as uploading
-        setFiles((prev) =>
-            prev.map((f) => ({ ...f, status: 'uploading' as const, progress: 50 }))
-        );
-
-        try {
-            await onUpload(files.map((f) => f.file));
-
-            // Mark all as success
+        // Upload files concurrently with individual progress tracking
+        const uploadPromises = files.map(async (uploadFile, index) => {
+            // Mark this file as uploading
             setFiles((prev) =>
-                prev.map((f) => ({ ...f, status: 'success' as const, progress: 100 }))
+                prev.map((f, i) =>
+                    i === index
+                        ? { ...f, status: 'uploading' as const, progress: 50 }
+                        : f
+                )
             );
 
-            // Close after delay
+            try {
+                await onUpload(uploadFile.file);
+
+                // Mark this file as success
+                setFiles((prev) =>
+                    prev.map((f, i) =>
+                        i === index
+                            ? { ...f, status: 'success' as const, progress: 100 }
+                            : f
+                    )
+                );
+                return { success: true };
+            } catch (error: any) {
+                // Mark this file as error
+                setFiles((prev) =>
+                    prev.map((f, i) =>
+                        i === index
+                            ? {
+                                ...f,
+                                status: 'error' as const,
+                                error: error.message || 'Upload failed',
+                            }
+                            : f
+                    )
+                );
+                return { success: false };
+            }
+        });
+
+        // Wait for all uploads to complete
+        const results = await Promise.allSettled(uploadPromises);
+
+        setIsUploading(false);
+
+        // Check if all files were successful
+        const allSuccess = results.every(
+            (result) => result.status === 'fulfilled' && result.value.success
+        );
+
+        // Close after delay if all successful
+        if (allSuccess) {
             setTimeout(() => {
                 onClose();
                 setFiles([]);
             }, 1000);
-        } catch (error: any) {
-            setFiles((prev) =>
-                prev.map((f) => ({
-                    ...f,
-                    status: 'error' as const,
-                    error: error.message || 'Upload failed',
-                }))
-            );
-        } finally {
-            setIsUploading(false);
         }
     };
 

@@ -141,57 +141,75 @@ export default function Projects() {
                     {filteredProjects.map((project) => (
                         <div
                             key={project.id}
-                            className="card group relative hover:border-primary transition-all"
+                            className="group relative bg-surface border border-border rounded-xl overflow-hidden hover:shadow-lg hover:border-primary/50 transition-all duration-300"
                         >
-                            {/* Project Link */}
+                            {/* Gradient Header */}
+                            <div className="h-2 bg-gradient-to-r from-primary via-primary-dark to-primary" />
+
+                            {/* Card Content */}
                             <Link
                                 to={`/projects/${project.id}`}
-                                className="block hover:text-primary transition-colors"
+                                className="block p-6"
                             >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center">
-                                        <FolderIcon className="h-5 w-5 text-primary" />
+                                {/* Icon and Title */}
+                                <div className="flex items-start gap-4 mb-4">
+                                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                                        <FolderIcon className="h-6 w-6 text-primary" />
                                     </div>
-                                    <span className={`badge ${getStatusBadge(project.status)}`}>
-                                        {project.status.replace('_', ' ')}
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-lg text-text-primary group-hover:text-primary transition-colors mb-1 truncate">
+                                            {project.name}
+                                        </h3>
+                                        <p className="text-xs text-text-muted">
+                                            {project.question_count || 0} questions
+                                        </p>
+                                    </div>
                                 </div>
-                                <h3 className="font-semibold text-text-primary group-hover:text-primary transition-colors mb-2">
-                                    {project.name}
-                                </h3>
+
+                                {/* Description */}
                                 {project.description && (
-                                    <p className="text-sm text-text-secondary line-clamp-2 mb-4">
+                                    <p className="text-sm text-text-secondary line-clamp-2 mb-4 min-h-[40px]">
                                         {project.description}
                                     </p>
                                 )}
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-text-muted">
-                                        {project.question_count || 0} questions
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium text-text-primary">
+
+                                {/* Progress Bar */}
+                                <div className="mb-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-medium text-text-muted">Progress</span>
+                                        <span className="text-xs font-semibold text-primary">
                                             {Math.round(project.completion_percent)}%
                                         </span>
-                                        <div className="w-16 h-1.5 bg-background rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-primary rounded-full transition-all"
-                                                style={{ width: `${project.completion_percent}%` }}
-                                            />
-                                        </div>
                                     </div>
+                                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-primary to-primary-dark rounded-full transition-all duration-500"
+                                            style={{ width: `${project.completion_percent}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Footer with Status */}
+                                <div className="flex items-center justify-between pt-4 border-t border-border">
+                                    <span className={`badge ${getStatusBadge(project.status)} text-xs`}>
+                                        {project.status.replace('_', ' ')}
+                                    </span>
+                                    <span className="text-xs text-text-muted">
+                                        Updated recently
+                                    </span>
                                 </div>
                             </Link>
 
-                            {/* Edit Menu Button */}
+                            {/* Edit Menu Button - Top Right */}
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
                                     setEditingProject(project);
                                 }}
-                                className="absolute top-4 right-4 p-2 opacity-0 group-hover:opacity-100 hover:bg-background rounded-lg transition-all"
+                                className="absolute top-4 right-4 p-2 opacity-0 group-hover:opacity-100 hover:bg-background/80 backdrop-blur-sm rounded-lg transition-all z-10 shadow-sm"
                                 title="Edit project"
                             >
-                                <EllipsisHorizontalIcon className="h-5 w-5 text-text-secondary" />
+                                <EllipsisHorizontalIcon className="h-5 w-5 text-text-secondary hover:text-text-primary" />
                             </button>
                         </div>
                     ))}

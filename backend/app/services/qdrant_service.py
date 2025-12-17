@@ -28,11 +28,13 @@ class QdrantService:
     """Service for vector storage and semantic search using Qdrant."""
     
     COLLECTION_NAME = "knowledge_base"
-    EMBEDDING_DIMENSION = 768  # Google text-embedding dimension
+    EMBEDDING_DIMENSION = 768  # Default dimension (can vary by provider)
     
-    def __init__(self):
+    def __init__(self, org_id: int = None):
         self.enabled = False
         self.client = None
+        self.org_id = org_id
+        self.embedding_provider = None
         
         if not QDRANT_AVAILABLE:
             logger.warning("Qdrant client not available")
@@ -50,6 +52,10 @@ class QdrantService:
             self._ensure_collection()
             self.enabled = True
             logger.info("Qdrant connection established")
+            
+            # Initialize embedding provider if org_id provided
+            if org_id:
+                self._init_embedding_provider(org_id)
         except Exception as e:
             logger.error(f"Failed to connect to Qdrant: {e}")
     
@@ -68,19 +74,60 @@ class QdrantService:
             )
             logger.info(f"Created collection: {self.COLLECTION_NAME}")
     
-    def _get_embedding(self, text: str) -> List[float]:
-        """Generate embedding using Google AI."""
-        api_key = current_app.config.get('GOOGLE_API_KEY')
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY not configured")
+    def _init_embedding_provider(self, org_id: int):
+        """Initialize embedding provider from organization config."""
+        from app.models import OrganizationAIConfig
+        from app.services.embedding_providers import EmbeddingProviderFactory
         
-        genai.configure(api_key=api_key)
-        result = genai.embed_content(
-            model="models/text-embedding-004",
-            content=text,
-            task_type="retrieval_document"
-        )
-        return result['embedding']
+        config = OrganizationAIConfig.query.filter_by(
+            organization_id=org_id,
+            is_active=True
+        ).first()
+        
+        if config:
+            try:
+                self.embedding_provider = EmbeddingProviderFactory.create(
+                    provider=config.embedding_provider,
+                    api_key=config.get_embedding_key(),
+                    model=config.embedding_model,
+                    endpoint=config.embedding_api_endpoint
+                )
+                logger.info(f"Initialized {config.embedding_provider} embedding provider for org {org_id}")
+            except Exception as e:
+                logger.error(f"Failed to initialize embedding provider: {e}")
+                self._init_fallback_provider()
+        else:
+            logger.warning(f"No AI config found for org {org_id}, using fallback")
+            self._init_fallback_provider()
+    
+    def _init_fallback_provider(self):
+        """Initialize fallback provider using system environment variables."""
+        from app.services.embedding_providers import GoogleEmbeddingProvider
+        
+        api_key = current_app.config.get('GOOGLE_API_KEY')
+        if api_key:
+            self.embedding_provider = GoogleEmbeddingProvider(api_key=api_key)
+            logger.info("Using fallback Google AI provider from environment")
+        else:
+            logger.warning("No fallback API key configured")
+    
+    def _get_embedding(self, text: str) -> List[float]:
+        """Generate embedding using configured provider."""
+        if self.embedding_provider:
+            return self.embedding_provider.get_embedding(text)
+        else:
+            # Ultimate fallback to hardcoded Google AI
+            api_key = current_app.config.get('GOOGLE_API_KEY')
+            if not api_key:
+                raise ValueError("No embedding provider configured and GOOGLE_API_KEY not set")
+            
+            genai.configure(api_key=api_key)
+            result = genai.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_document"
+            )
+            return result['embedding']
     
     def _generate_point_id(self, item_id: int, org_id: int) -> str:
         """Generate unique point ID."""
@@ -227,9 +274,17 @@ class QdrantService:
 # Singleton
 _qdrant_instance = None
 
-def get_qdrant_service() -> QdrantService:
-    """Get Qdrant service instance."""
+def get_qdrant_service(org_id: int = None) -> QdrantService:
+    """
+    Get Qdrant service instance.
+    
+    Args:
+        org_id: Organization ID for provider initialization (optional)
+        
+    Returns:
+        QdrantService instance
+    """
     global _qdrant_instance
-    if _qdrant_instance is None:
-        _qdrant_instance = QdrantService()
+    if _qdrant_instance is None or (org_id and _qdrant_instance.org_id != org_id):
+        _qdrant_instance = QdrantService(org_id=org_id)
     return _qdrant_instance

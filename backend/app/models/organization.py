@@ -17,6 +17,7 @@ class Organization(db.Model):
     users = db.relationship('User', back_populates='organization')
     projects = db.relationship('Project', back_populates='organization')
     knowledge_items = db.relationship('KnowledgeItem', back_populates='organization')
+    ai_configs = db.relationship('OrganizationAIConfig', back_populates='organization', cascade='all, delete-orphan')
     
     def to_dict(self):
         """Serialize organization to dictionary."""
