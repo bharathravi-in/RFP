@@ -26,58 +26,57 @@ interface KnowledgeProfile {
     created_at: string;
 }
 
-// Dimension options
-const GEOGRAPHIES = [
-    { code: 'GLOBAL', name: 'Global' },
-    { code: 'US', name: 'United States' },
-    { code: 'EU', name: 'European Union' },
-    { code: 'UK', name: 'United Kingdom' },
-    { code: 'APAC', name: 'Asia Pacific' },
-    { code: 'IN', name: 'India' },
-    { code: 'MEA', name: 'Middle East & Africa' },
-    { code: 'LATAM', name: 'Latin America' },
-];
+interface DimensionOption {
+    id: number;
+    code: string;
+    name: string;
+    description?: string;
+    icon?: string;
+}
 
-const CLIENT_TYPES = [
-    { code: 'government', name: 'Government' },
-    { code: 'private', name: 'Private Sector' },
-    { code: 'enterprise', name: 'Enterprise' },
-    { code: 'public_sector', name: 'Public Sector' },
-    { code: 'ngo', name: 'NGO' },
-    { code: 'smb', name: 'SMB' },
-];
+interface Dimensions {
+    geography: DimensionOption[];
+    client_type: DimensionOption[];
+    currency: DimensionOption[];
+    industry: DimensionOption[];
+    compliance: DimensionOption[];
+}
 
-const CURRENCIES = [
-    { code: 'USD', name: 'US Dollar' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'GBP', name: 'British Pound' },
-    { code: 'INR', name: 'Indian Rupee' },
-    { code: 'JPY', name: 'Japanese Yen' },
-];
+// Hook to fetch dimensions from API
+function useDimensions() {
+    const [dimensions, setDimensions] = useState<Dimensions>({
+        geography: [],
+        client_type: [],
+        currency: [],
+        industry: [],
+        compliance: [],
+    });
+    const [isLoading, setIsLoading] = useState(true);
 
-const INDUSTRIES = [
-    { code: 'healthcare', name: 'Healthcare' },
-    { code: 'finance', name: 'Financial Services' },
-    { code: 'technology', name: 'Technology' },
-    { code: 'defense', name: 'Defense & Aerospace' },
-    { code: 'manufacturing', name: 'Manufacturing' },
-    { code: 'energy', name: 'Energy & Utilities' },
-];
+    useEffect(() => {
+        const fetchDimensions = async () => {
+            try {
+                const response = await api.get('/knowledge/dimensions');
+                setDimensions(response.data);
+            } catch (error) {
+                console.error('Failed to load dimensions:', error);
+                // Fallback to empty arrays - will show empty options
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchDimensions();
+    }, []);
 
-const COMPLIANCE = [
-    { code: 'SOC2', name: 'SOC 2' },
-    { code: 'ISO27001', name: 'ISO 27001' },
-    { code: 'GDPR', name: 'GDPR' },
-    { code: 'HIPAA', name: 'HIPAA' },
-    { code: 'FedRAMP', name: 'FedRAMP' },
-    { code: 'PCI_DSS', name: 'PCI DSS' },
-];
+    return { dimensions, isLoading };
+}
 
 export default function KnowledgeProfiles() {
     const [profiles, setProfiles] = useState<KnowledgeProfile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingProfile, setEditingProfile] = useState<KnowledgeProfile | null>(null);
+    const { dimensions, isLoading: dimensionsLoading } = useDimensions();
 
     useEffect(() => {
         loadProfiles();
@@ -102,6 +101,20 @@ export default function KnowledgeProfiles() {
             loadProfiles();
         } catch {
             toast.error('Failed to delete profile');
+        }
+    };
+
+    const [isReindexing, setIsReindexing] = useState(false);
+
+    const handleReindex = async () => {
+        setIsReindexing(true);
+        try {
+            const response = await api.post('/knowledge/reindex');
+            toast.success(`Reindexed ${response.data.count} items with dimension data`);
+        } catch {
+            toast.error('Failed to reindex. Admin access required.');
+        } finally {
+            setIsReindexing(false);
         }
     };
 
@@ -132,10 +145,26 @@ export default function KnowledgeProfiles() {
                         Create profiles to filter knowledge by Geography, Client Type, Industry, and more
                     </p>
                 </div>
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-                    <PlusIcon className="h-5 w-5" />
-                    New Profile
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleReindex}
+                        disabled={isReindexing}
+                        className="btn-secondary flex items-center gap-2"
+                    >
+                        {isReindexing ? (
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                        )}
+                        {isReindexing ? 'Reindexing...' : 'Reindex All'}
+                    </button>
+                    <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+                        <PlusIcon className="h-5 w-5" />
+                        New Profile
+                    </button>
+                </div>
             </div>
 
             {/* Profiles Grid */}
@@ -160,9 +189,14 @@ export default function KnowledgeProfiles() {
                             <div className="flex items-start justify-between mb-3">
                                 <div>
                                     <h3 className="font-semibold text-text-primary">{profile.name}</h3>
-                                    {profile.is_default && (
-                                        <span className="text-xs text-primary font-medium">Default</span>
-                                    )}
+                                    <div className="flex items-center gap-2 mt-1">
+                                        {profile.is_default && (
+                                            <span className="text-xs text-primary font-medium">Default</span>
+                                        )}
+                                        <span className="text-xs px-2 py-0.5 bg-primary-light text-primary rounded-full">
+                                            {profile.items_count || 0} items
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <button
@@ -207,6 +241,7 @@ export default function KnowledgeProfiles() {
             {(showCreateModal || editingProfile) && (
                 <ProfileModal
                     profile={editingProfile}
+                    dimensions={dimensions}
                     onClose={() => {
                         setShowCreateModal(false);
                         setEditingProfile(null);
@@ -225,10 +260,12 @@ export default function KnowledgeProfiles() {
 // Profile Modal Component
 function ProfileModal({
     profile,
+    dimensions,
     onClose,
     onSaved,
 }: {
     profile: KnowledgeProfile | null;
+    dimensions: Dimensions;
     onClose: () => void;
     onSaved: () => void;
 }) {
@@ -301,8 +338,8 @@ function ProfileModal({
                         type="button"
                         onClick={() => toggleItem(selected, setSelected, opt.code)}
                         className={`px-3 py-1.5 rounded-full text-sm transition-all ${selected.includes(opt.code)
-                                ? 'bg-primary text-white'
-                                : 'bg-background text-text-secondary hover:bg-primary-light'
+                            ? 'bg-primary text-white'
+                            : 'bg-background text-text-secondary hover:bg-primary-light'
                             }`}
                     >
                         {opt.name}
@@ -355,11 +392,11 @@ function ProfileModal({
                             Select which dimensions this profile should match
                         </p>
 
-                        <CheckboxGroup label="Geographies" options={GEOGRAPHIES} selected={geographies} setSelected={setGeographies} />
-                        <CheckboxGroup label="Client Types" options={CLIENT_TYPES} selected={clientTypes} setSelected={setClientTypes} />
-                        <CheckboxGroup label="Currencies" options={CURRENCIES} selected={currencies} setSelected={setCurrencies} />
-                        <CheckboxGroup label="Industries" options={INDUSTRIES} selected={industries} setSelected={setIndustries} />
-                        <CheckboxGroup label="Compliance" options={COMPLIANCE} selected={compliance} setSelected={setCompliance} />
+                        <CheckboxGroup label="Geographies" options={dimensions.geography || []} selected={geographies} setSelected={setGeographies} />
+                        <CheckboxGroup label="Client Types" options={dimensions.client_type || []} selected={clientTypes} setSelected={setClientTypes} />
+                        <CheckboxGroup label="Currencies" options={dimensions.currency || []} selected={currencies} setSelected={setCurrencies} />
+                        <CheckboxGroup label="Industries" options={dimensions.industry || []} selected={industries} setSelected={setIndustries} />
+                        <CheckboxGroup label="Compliance" options={dimensions.compliance || []} selected={compliance} setSelected={setCompliance} />
                     </div>
 
                     {/* Default Toggle */}

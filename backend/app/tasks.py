@@ -39,7 +39,11 @@ def create_embedding_task(self, item_id: int, org_id: int):
             title=item.title,
             content=item.content,
             folder_id=item.folder_id,
-            tags=item.tags or []
+            tags=item.tags or [],
+            geography=item.geography,
+            client_type=item.client_type,
+            industry=item.industry,
+            knowledge_profile_id=item.knowledge_profile_id
         )
         
         if embedding_id:

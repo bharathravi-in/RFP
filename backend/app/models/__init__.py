@@ -12,6 +12,7 @@ from .knowledge_folder import KnowledgeFolder
 from .knowledge_profile import KnowledgeProfile, DimensionValues, project_knowledge_profiles
 from .audit_log import AuditLog, ComplianceMapping, ExportHistory
 from .rfp_section import RFPSectionType, RFPSection, SectionTemplate, seed_section_types
+from .filter_dimension import FilterDimension, seed_filter_dimensions
 from .feedback import AnswerEdit, AnswerFeedback, AgentPerformance  # NEW
 
 __all__ = [
@@ -37,6 +38,9 @@ __all__ = [
     'RFPSection',
     'SectionTemplate',
     'seed_section_types',
+    # Filter Dimensions
+    'FilterDimension',
+    'seed_filter_dimensions',
     # Feedback models
     'AnswerEdit',
     'AnswerFeedback',

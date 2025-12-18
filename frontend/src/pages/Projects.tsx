@@ -7,7 +7,6 @@ import {
     PlusIcon,
     FolderIcon,
     MagnifyingGlassIcon,
-    FunnelIcon,
     EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
@@ -257,58 +256,41 @@ function CreateProjectModal({
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [clientName, setClientName] = useState('');
-    const [clientType, setClientType] = useState('');
-    const [geography, setGeography] = useState('');
-    const [currency, setCurrency] = useState('');
-    const [industry, setIndustry] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [showAdvanced, setShowAdvanced] = useState(false);
 
-    // Dimension options
-    const clientTypes = [
-        { code: 'government', name: 'Government' },
-        { code: 'private', name: 'Private Sector' },
-        { code: 'enterprise', name: 'Enterprise' },
-        { code: 'public_sector', name: 'Public Sector' },
-        { code: 'ngo', name: 'NGO' },
-        { code: 'smb', name: 'SMB' },
-    ];
+    // Knowledge Profiles
+    const [availableProfiles, setAvailableProfiles] = useState<{ id: number; name: string; description?: string }[]>([]);
+    const [selectedProfileIds, setSelectedProfileIds] = useState<number[]>([]);
 
-    const geographies = [
-        { code: 'GLOBAL', name: 'Global' },
-        { code: 'US', name: 'United States' },
-        { code: 'EU', name: 'European Union' },
-        { code: 'UK', name: 'United Kingdom' },
-        { code: 'APAC', name: 'Asia Pacific' },
-        { code: 'IN', name: 'India' },
-        { code: 'MEA', name: 'Middle East & Africa' },
-        { code: 'LATAM', name: 'Latin America' },
-    ];
+    // Fetch profiles from API
+    useEffect(() => {
+        import('@/api/client').then(({ default: api }) => {
+            api.get('/knowledge/profiles').then(res => {
+                setAvailableProfiles(res.data.profiles || []);
+            }).catch(() => { });
+        });
+    }, []);
 
-    const currencies = [
-        { code: 'USD', name: 'US Dollar ($)' },
-        { code: 'EUR', name: 'Euro (€)' },
-        { code: 'GBP', name: 'British Pound (£)' },
-        { code: 'INR', name: 'Indian Rupee (₹)' },
-        { code: 'JPY', name: 'Japanese Yen (¥)' },
-        { code: 'AUD', name: 'Australian Dollar (A$)' },
-    ];
-
-    const industries = [
-        { code: 'healthcare', name: 'Healthcare & Life Sciences' },
-        { code: 'finance', name: 'Financial Services' },
-        { code: 'technology', name: 'Technology & Software' },
-        { code: 'defense', name: 'Defense & Aerospace' },
-        { code: 'manufacturing', name: 'Manufacturing' },
-        { code: 'energy', name: 'Energy & Utilities' },
-        { code: 'retail', name: 'Retail & Consumer Goods' },
-        { code: 'telecom', name: 'Telecommunications' },
-    ];
+    const handleProfileToggle = (profileId: number) => {
+        setSelectedProfileIds((prev) =>
+            prev.includes(profileId)
+                ? prev.filter((id) => id !== profileId)
+                : [...prev, profileId]
+        );
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) {
             toast.error('Project name is required');
+            return;
+        }
+        if (!clientName.trim()) {
+            toast.error('Client name is required');
+            return;
+        }
+        if (selectedProfileIds.length === 0) {
+            toast.error('Please select at least one Knowledge Profile');
             return;
         }
 
@@ -317,11 +299,8 @@ function CreateProjectModal({
             const response = await projectsApi.create({
                 name,
                 description,
-                client_name: clientName || undefined,
-                client_type: clientType || undefined,
-                geography: geography || undefined,
-                currency: currency || undefined,
-                industry: industry || undefined,
+                client_name: clientName,
+                knowledge_profile_ids: selectedProfileIds,
             });
             toast.success('Project created!');
             onCreated(response.data.project);
@@ -353,7 +332,7 @@ function CreateProjectModal({
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-text-primary mb-2">
-                            Client Name <span className="text-text-muted">(optional)</span>
+                            Client Name *
                         </label>
                         <input
                             type="text"
@@ -361,6 +340,7 @@ function CreateProjectModal({
                             onChange={(e) => setClientName(e.target.value)}
                             className="input"
                             placeholder="e.g., Department of Health"
+                            required
                         />
                     </div>
                     <div>
@@ -375,95 +355,52 @@ function CreateProjectModal({
                         />
                     </div>
 
-                    {/* Dimension Selection */}
+                    {/* Knowledge Profile Selection - Required */}
                     <div className="border-t border-border pt-4 mt-4">
-                        <button
-                            type="button"
-                            onClick={() => setShowAdvanced(!showAdvanced)}
-                            className="flex items-center gap-2 text-sm text-primary hover:text-primary-dark"
-                        >
-                            <FunnelIcon className="h-4 w-4" />
-                            {showAdvanced ? 'Hide' : 'Show'} Knowledge Base Filters
-                        </button>
-                    </div>
-
-                    {showAdvanced && (
-                        <div className="space-y-4 bg-background p-4 rounded-lg">
-                            <p className="text-xs text-text-muted mb-2">
-                                Select dimensions to filter the knowledge base for this project
-                            </p>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Client Type
-                                    </label>
-                                    <select
-                                        value={clientType}
-                                        onChange={(e) => setClientType(e.target.value)}
-                                        className="input"
-                                    >
-                                        <option value="">All types</option>
-                                        {clientTypes.map((ct) => (
-                                            <option key={ct.code} value={ct.code}>
-                                                {ct.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Geography
-                                    </label>
-                                    <select
-                                        value={geography}
-                                        onChange={(e) => setGeography(e.target.value)}
-                                        className="input"
-                                    >
-                                        <option value="">All regions</option>
-                                        {geographies.map((geo) => (
-                                            <option key={geo.code} value={geo.code}>
-                                                {geo.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Currency
-                                    </label>
-                                    <select
-                                        value={currency}
-                                        onChange={(e) => setCurrency(e.target.value)}
-                                        className="input"
-                                    >
-                                        <option value="">All currencies</option>
-                                        {currencies.map((cur) => (
-                                            <option key={cur.code} value={cur.code}>
-                                                {cur.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Industry
-                                    </label>
-                                    <select
-                                        value={industry}
-                                        onChange={(e) => setIndustry(e.target.value)}
-                                        className="input"
-                                    >
-                                        <option value="">All industries</option>
-                                        {industries.map((ind) => (
-                                            <option key={ind.code} value={ind.code}>
-                                                {ind.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                        <label className="block text-sm font-medium text-text-primary mb-2">
+                            Knowledge Profile *
+                        </label>
+                        <p className="text-xs text-text-muted mb-3">
+                            Select profiles to scope AI-generated answers to matching knowledge
+                        </p>
+                        {availableProfiles.length === 0 ? (
+                            <div className="text-sm text-text-muted bg-background p-3 rounded-lg">
+                                No knowledge profiles available. Create one in Settings → Knowledge Profiles.
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="space-y-2 max-h-40 overflow-y-auto bg-background p-3 rounded-lg">
+                                {availableProfiles.map((profile) => (
+                                    <label
+                                        key={profile.id}
+                                        className={clsx(
+                                            'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border',
+                                            selectedProfileIds.includes(profile.id)
+                                                ? 'border-primary bg-primary/10'
+                                                : 'border-transparent hover:bg-surface'
+                                        )}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedProfileIds.includes(profile.id)}
+                                            onChange={() => handleProfileToggle(profile.id)}
+                                            className="checkbox"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm font-medium text-text-primary">{profile.name}</span>
+                                            {profile.description && (
+                                                <p className="text-xs text-text-muted truncate">{profile.description}</p>
+                                            )}
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                        {selectedProfileIds.length > 0 && (
+                            <p className="text-xs text-primary mt-2">
+                                {selectedProfileIds.length} profile{selectedProfileIds.length > 1 ? 's' : ''} selected
+                            </p>
+                        )}
+                    </div>
 
                     <div className="flex gap-3 pt-4">
                         <button type="button" onClick={onClose} className="btn-secondary flex-1">
@@ -478,4 +415,5 @@ function CreateProjectModal({
         </div>
     );
 }
+
 

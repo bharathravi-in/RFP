@@ -141,7 +141,12 @@ class QdrantService:
         content: str,
         folder_id: Optional[int] = None,
         tags: List[str] = None,
-        metadata: Dict = None
+        metadata: Dict = None,
+        # Dimension fields for filtering
+        geography: str = None,
+        client_type: str = None,
+        industry: str = None,
+        knowledge_profile_id: int = None
     ) -> str:
         """
         Add or update a knowledge item in Qdrant.
@@ -166,6 +171,11 @@ class QdrantService:
             "content_preview": content[:500],
             "folder_id": folder_id,
             "tags": tags or [],
+            # Add dimension fields to payload for filtering
+            "geography": geography,
+            "client_type": client_type,
+            "industry": industry,
+            "knowledge_profile_id": knowledge_profile_id,
             **(metadata or {})
         }
         
@@ -205,10 +215,21 @@ class QdrantService:
         org_id: int,
         folder_id: Optional[int] = None,
         limit: int = 10,
-        score_threshold: float = 0.5
+        score_threshold: float = 0.3,
+        filters: Dict = None  # NEW: support dimension filters
     ) -> List[Dict]:
         """
-        Semantic search in knowledge base.
+        Semantic search in knowledge base with dimension filtering.
+        
+        Args:
+            query: Search query text
+            org_id: Organization ID
+            folder_id: Optional folder filter
+            limit: Max results
+            score_threshold: Minimum similarity score
+            filters: Optional dimension filters dict with keys:
+                - geography, client_type, industry
+                - knowledge_profile_ids (list of profile IDs)
         
         Returns:
             List of results with item_id, score, and preview
@@ -219,7 +240,7 @@ class QdrantService:
         # Get query embedding
         query_embedding = self._get_embedding(query)
         
-        # Build filter
+        # Build filter conditions
         filter_conditions = [
             FieldCondition(key="org_id", match=MatchValue(value=org_id))
         ]
@@ -227,6 +248,43 @@ class QdrantService:
             filter_conditions.append(
                 FieldCondition(key="folder_id", match=MatchValue(value=folder_id))
             )
+        
+        # Add dimension filters
+        if filters:
+            if filters.get('geography'):
+                filter_conditions.append(
+                    FieldCondition(key="geography", match=MatchValue(value=filters['geography']))
+                )
+            if filters.get('client_type'):
+                filter_conditions.append(
+                    FieldCondition(key="client_type", match=MatchValue(value=filters['client_type']))
+                )
+            if filters.get('industry'):
+                filter_conditions.append(
+                    FieldCondition(key="industry", match=MatchValue(value=filters['industry']))
+                )
+            # Filter by knowledge profile IDs (match any)
+            if filters.get('knowledge_profile_ids'):
+                profile_ids = filters['knowledge_profile_ids']
+                # For profile matching, we need items that match ANY of the profile IDs
+                # Using MatchAny if available, otherwise we'll match first profile
+                if len(profile_ids) == 1:
+                    filter_conditions.append(
+                        FieldCondition(key="knowledge_profile_id", match=MatchValue(value=profile_ids[0]))
+                    )
+                else:
+                    # Match any of the profile IDs - need MatchAny
+                    try:
+                        from qdrant_client.models import MatchAny
+                        filter_conditions.append(
+                            FieldCondition(key="knowledge_profile_id", match=MatchAny(any=profile_ids))
+                        )
+                    except ImportError:
+                        # Fallback to first profile if MatchAny not available
+                        filter_conditions.append(
+                            FieldCondition(key="knowledge_profile_id", match=MatchValue(value=profile_ids[0]))
+                        )
+                        logger.warning("MatchAny not available, filtering by first profile only")
         
         results = self.client.search(
             collection_name=self.COLLECTION_NAME,
@@ -243,7 +301,11 @@ class QdrantService:
                 "content_preview": r.payload.get("content_preview"),
                 "folder_id": r.payload.get("folder_id"),
                 "tags": r.payload.get("tags", []),
-                "score": round(r.score, 4)
+                "score": round(r.score, 4),
+                "geography": r.payload.get("geography"),
+                "client_type": r.payload.get("client_type"),
+                "industry": r.payload.get("industry"),
+                "knowledge_profile_id": r.payload.get("knowledge_profile_id")
             }
             for r in results
         ]

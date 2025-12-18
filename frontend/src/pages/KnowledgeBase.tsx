@@ -3,12 +3,14 @@ import {
     PlusIcon,
     MagnifyingGlassIcon,
     FolderIcon,
+    ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import FolderTree, { KnowledgeItemList } from '../components/knowledge/FolderTree';
 import CreateFolderModal from '../components/knowledge/CreateFolderModal';
 import FileUploadModal from '../components/knowledge/FileUploadModal';
 import DocumentPreviewSidebar from '../components/knowledge/DocumentPreviewSidebar';
 import api from '../api/client';
+import toast from 'react-hot-toast';
 
 interface Folder {
     id: number;
@@ -59,6 +61,10 @@ export default function KnowledgeBasePage() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
+    // Reindex and count state
+    const [isReindexing, setIsReindexing] = useState(false);
+    const [totalItemCount, setTotalItemCount] = useState(0);
+
     // Load folders
     const loadFolders = useCallback(async () => {
         try {
@@ -74,12 +80,16 @@ export default function KnowledgeBasePage() {
         try {
             if (selectedFolder) {
                 const response = await api.get(`/folders/${selectedFolder.id}`);
-                setItems(response.data.folder?.items || []);
+                const folderItems = response.data.folder?.items || [];
+                setItems(folderItems);
+                setTotalItemCount(folderItems.length);
             } else {
                 const response = await api.get('/knowledge', {
                     params: { search: searchQuery || undefined },
                 });
-                setItems(response.data.items || []);
+                const allItems = response.data.items || [];
+                setItems(allItems);
+                setTotalItemCount(response.data.total || allItems.length);
             }
         } catch (error) {
             console.error('Failed to load items:', error);
@@ -97,6 +107,21 @@ export default function KnowledgeBasePage() {
         setIsCreateFolderOpen(true);
     };
 
+    // Reindex all knowledge items with dimensions
+    const handleReindex = async () => {
+        setIsReindexing(true);
+        try {
+            const response = await api.post('/knowledge/reindex');
+            toast.success(`Reindexed ${response.data.count} items with dimension data`);
+            // Refresh items after reindex
+            await loadItems();
+        } catch {
+            toast.error('Failed to reindex. Please try again.');
+        } finally {
+            setIsReindexing(false);
+        }
+    };
+
     const handleCreateFolderSubmit = async (data: { name: string; description?: string; color?: string }) => {
         await api.post('/folders', {
             ...data,
@@ -110,11 +135,17 @@ export default function KnowledgeBasePage() {
         setIsUploadOpen(true);
     };
 
-    const handleUpload = async (file: File) => {
+    const handleUpload = async (file: File, dimensions?: { geography?: string; client_type?: string; industry?: string; knowledge_profile_id?: number }) => {
         if (!uploadFolderId) return;
 
         const formData = new FormData();
         formData.append('files', file);
+
+        // Append dimension tags if provided
+        if (dimensions?.geography) formData.append('geography', dimensions.geography);
+        if (dimensions?.client_type) formData.append('client_type', dimensions.client_type);
+        if (dimensions?.industry) formData.append('industry', dimensions.industry);
+        if (dimensions?.knowledge_profile_id) formData.append('knowledge_profile_id', dimensions.knowledge_profile_id.toString());
 
         await api.post(`/folders/${uploadFolderId}/upload`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
@@ -211,9 +242,28 @@ export default function KnowledgeBasePage() {
                         <h1 className="text-xl font-semibold text-text-primary">
                             {selectedFolder ? selectedFolder.name : 'All Knowledge Items'}
                         </h1>
+                        {/* Item Count Badge */}
+                        <span className="text-xs px-2.5 py-1 bg-primary-light text-primary rounded-full font-medium">
+                            {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                        </span>
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Reindex Button */}
+                        <button
+                            onClick={handleReindex}
+                            disabled={isReindexing}
+                            className="btn-secondary flex items-center gap-2"
+                            title="Re-index all knowledge items with dimensions"
+                        >
+                            {isReindexing ? (
+                                <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <ArrowPathIcon className="h-4 w-4" />
+                            )}
+                            {isReindexing ? 'Reindexing...' : 'Reindex All'}
+                        </button>
+
                         {/* Search */}
                         <div className="relative">
                             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />

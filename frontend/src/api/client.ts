@@ -87,7 +87,18 @@ export const projectsApi = {
     get: (id: number) =>
         api.get(`/projects/${id}`),
 
-    create: (data: { name: string; description?: string; due_date?: string }) =>
+    create: (data: {
+        name: string;
+        description?: string;
+        due_date?: string;
+        client_name?: string;
+        client_type?: string;
+        geography?: string;
+        currency?: string;
+        industry?: string;
+        compliance_requirements?: string[];
+        knowledge_profile_ids?: number[];
+    }) =>
         api.post('/projects', data),
 
     update: (id: number, data: Partial<{
@@ -101,6 +112,7 @@ export const projectsApi = {
         currency: string;
         industry: string;
         compliance_requirements: string[];
+        knowledge_profile_ids: number[];
     }>) =>
         api.put(`/projects/${id}`, data),
 

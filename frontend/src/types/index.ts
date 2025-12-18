@@ -44,6 +44,14 @@ export interface Project {
     document_count?: number;
     question_count?: number;
     reviewer_ids?: number[];
+    // Dimension fields for knowledge scoping
+    client_name?: string;
+    client_type?: string;
+    geography?: string;
+    currency?: string;
+    industry?: string;
+    compliance_requirements?: string[];
+    knowledge_profiles?: { id: number; name: string }[];
 }
 
 // ===============================

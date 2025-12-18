@@ -8,15 +8,18 @@ import {
     BellIcon,
     CogIcon,
     FolderIcon,
+    TagIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
+import FilterDimensions from '@/components/knowledge/FilterDimensions';
 import AIConfigurationSection from '@/components/settings/AIConfigurationSection';
 
 const tabs = [
     { id: 'profile', name: 'Profile', icon: UserCircleIcon },
     { id: 'organization', name: 'Organization', icon: BuildingOfficeIcon },
     { id: 'knowledge', name: 'Knowledge Profiles', icon: FolderIcon },
+    { id: 'dimensions', name: 'Filter Dimensions', icon: TagIcon },
     { id: 'security', name: 'Security', icon: KeyIcon },
     { id: 'notifications', name: 'Notifications', icon: BellIcon },
     { id: 'ai', name: 'AI Settings', icon: CogIcon },
@@ -156,6 +159,12 @@ export default function Settings() {
                     {activeTab === 'knowledge' && (
                         <div className="max-w-4xl">
                             <KnowledgeProfiles />
+                        </div>
+                    )}
+
+                    {activeTab === 'dimensions' && (
+                        <div className="max-w-4xl">
+                            <FilterDimensions />
                         </div>
                     )}
 

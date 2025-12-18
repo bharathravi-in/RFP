@@ -340,8 +340,9 @@ def generate_section_content(section_id):
     inputs = {**section.inputs, **data.get('inputs', {})}
     generation_params = {**section.ai_generation_params, **data.get('generation_params', {})}
     
-    # Retrieve context from knowledge base
-    qdrant = QdrantService()
+    # Retrieve context from knowledge base with project dimension filtering
+    from app.services.qdrant_service import get_qdrant_service
+    qdrant = get_qdrant_service(user.organization_id)
     context = []
     
     # Build search query from inputs
@@ -349,8 +350,24 @@ def generate_section_content(section_id):
     if not search_query:
         search_query = section_type.name
     
+    # Build dimension filters from project
+    dimension_filters = {}
+    if project.geography:
+        dimension_filters['geography'] = project.geography
+    if project.client_type:
+        dimension_filters['client_type'] = project.client_type
+    if project.industry:
+        dimension_filters['industry'] = project.industry
+    if project.knowledge_profiles:
+        dimension_filters['knowledge_profile_ids'] = [p.id for p in project.knowledge_profiles]
+    
     try:
-        context = qdrant.search(search_query, user.organization_id, limit=5)
+        context = qdrant.search(
+            query=search_query, 
+            org_id=user.organization_id, 
+            limit=5,
+            filters=dimension_filters if dimension_filters else None
+        )
     except Exception as e:
         print(f"Error retrieving context: {e}")
     
@@ -398,10 +415,28 @@ def regenerate_section(section_id):
     
     # Use regenerate with feedback
     generator = get_section_generator()
-    qdrant = QdrantService()
+    from app.services.qdrant_service import get_qdrant_service
+    qdrant = get_qdrant_service(user.organization_id)
+    project = section.project
+    
+    # Build dimension filters from project
+    dimension_filters = {}
+    if project.geography:
+        dimension_filters['geography'] = project.geography
+    if project.client_type:
+        dimension_filters['client_type'] = project.client_type
+    if project.industry:
+        dimension_filters['industry'] = project.industry
+    if project.knowledge_profiles:
+        dimension_filters['knowledge_profile_ids'] = [p.id for p in project.knowledge_profiles]
     
     try:
-        context = qdrant.search(section.section_type.name, user.organization_id, limit=5)
+        context = qdrant.search(
+            query=section.section_type.name, 
+            org_id=user.organization_id, 
+            limit=5,
+            filters=dimension_filters if dimension_filters else None
+        )
     except:
         context = []
     

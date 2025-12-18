@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import {
@@ -7,8 +7,11 @@ import {
     DocumentIcon,
     CheckCircleIcon,
     ExclamationCircleIcon,
+    ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import api from '../../api/client';
+import toast from 'react-hot-toast';
 
 interface UploadFile {
     file: File;
@@ -17,12 +20,26 @@ interface UploadFile {
     error?: string;
 }
 
+interface DimensionOption {
+    id: number;
+    code: string;
+    name: string;
+    icon?: string;
+}
+
+interface DimensionTags {
+    geography?: string;
+    client_type?: string;
+    industry?: string;
+    knowledge_profile_id?: number;
+}
+
 interface FileUploadModalProps {
     isOpen: boolean;
     onClose: () => void;
     folderId: number;
     folderName: string;
-    onUpload: (file: File) => Promise<void>;
+    onUpload: (file: File, dimensions?: DimensionTags) => Promise<void>;
 }
 
 export default function FileUploadModal({
@@ -36,6 +53,36 @@ export default function FileUploadModal({
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Dimension state
+    const [dimensions, setDimensions] = useState<{
+        geography: DimensionOption[];
+        client_type: DimensionOption[];
+        industry: DimensionOption[];
+    }>({ geography: [], client_type: [], industry: [] });
+    const [profiles, setProfiles] = useState<{ id: number; name: string }[]>([]);
+    const [selectedGeography, setSelectedGeography] = useState('');
+    const [selectedClientType, setSelectedClientType] = useState('');
+    const [selectedIndustry, setSelectedIndustry] = useState('');
+    const [selectedProfileId, setSelectedProfileId] = useState<number | undefined>();
+    const [showDimensions, setShowDimensions] = useState(false);
+
+    // Fetch dimensions and profiles
+    useEffect(() => {
+        if (isOpen) {
+            api.get('/knowledge/dimensions').then(res => {
+                setDimensions({
+                    geography: res.data.geography || [],
+                    client_type: res.data.client_type || [],
+                    industry: res.data.industry || [],
+                });
+            }).catch(() => { });
+
+            api.get('/knowledge/profiles').then(res => {
+                setProfiles(res.data.profiles || []);
+            }).catch(() => { });
+        }
+    }, [isOpen]);
 
     const handleFiles = (newFiles: FileList | null) => {
         if (!newFiles) return;
@@ -71,7 +118,20 @@ export default function FileUploadModal({
     const handleUpload = async () => {
         if (files.length === 0) return;
 
+        // Validate required profile selection
+        if (!selectedProfileId) {
+            toast.error('Please select a Knowledge Profile');
+            return;
+        }
+
         setIsUploading(true);
+
+        // Build dimension tags
+        const dimensionTags: DimensionTags = {};
+        if (selectedGeography) dimensionTags.geography = selectedGeography;
+        if (selectedClientType) dimensionTags.client_type = selectedClientType;
+        if (selectedIndustry) dimensionTags.industry = selectedIndustry;
+        if (selectedProfileId) dimensionTags.knowledge_profile_id = selectedProfileId;
 
         // Upload files concurrently with individual progress tracking
         const uploadPromises = files.map(async (uploadFile, index) => {
@@ -85,7 +145,7 @@ export default function FileUploadModal({
             );
 
             try {
-                await onUpload(uploadFile.file);
+                await onUpload(uploadFile.file, dimensionTags);
 
                 // Mark this file as success
                 setFiles((prev) =>
@@ -128,6 +188,11 @@ export default function FileUploadModal({
             setTimeout(() => {
                 onClose();
                 setFiles([]);
+                // Reset selections
+                setSelectedGeography('');
+                setSelectedClientType('');
+                setSelectedIndustry('');
+                setSelectedProfileId(undefined);
             }, 1000);
         }
     };
@@ -203,6 +268,99 @@ export default function FileUploadModal({
                                         />
                                     </div>
 
+                                    {/* Knowledge Profile - REQUIRED */}
+                                    <div className="mt-4 p-4 bg-primary-light/30 border border-primary/20 rounded-lg">
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            Knowledge Profile <span className="text-red-500">*</span>
+                                        </label>
+                                        <p className="text-xs text-text-muted mb-2">
+                                            All files will be tagged with this profile for AI to use when generating proposals
+                                        </p>
+                                        <select
+                                            value={selectedProfileId || ''}
+                                            onChange={(e) => setSelectedProfileId(e.target.value ? Number(e.target.value) : undefined)}
+                                            className={clsx(
+                                                'input text-sm',
+                                                !selectedProfileId && 'border-red-300'
+                                            )}
+                                            required
+                                        >
+                                            <option value="">Select a profile...</option>
+                                            {profiles.map((p) => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                        {!selectedProfileId && profiles.length > 0 && (
+                                            <p className="text-xs text-red-500 mt-1">Required</p>
+                                        )}
+                                        {profiles.length === 0 && (
+                                            <p className="text-xs text-orange-500 mt-1">
+                                                No profiles available. Create one in Settings → Knowledge Profiles
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Additional Dimension Tags - Collapsible */}
+                                    <div className="mt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDimensions(!showDimensions)}
+                                            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary"
+                                        >
+                                            <ChevronDownIcon className={clsx('h-4 w-4 transition-transform', showDimensions && 'rotate-180')} />
+                                            Additional dimension tags (optional)
+                                        </button>
+
+                                        {showDimensions && (
+                                            <div className="mt-3 grid grid-cols-2 gap-3">
+                                                {/* Geography */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-text-muted mb-1">Geography</label>
+                                                    <select
+                                                        value={selectedGeography}
+                                                        onChange={(e) => setSelectedGeography(e.target.value)}
+                                                        className="input text-sm py-1.5"
+                                                    >
+                                                        <option value="">Select...</option>
+                                                        {dimensions.geography.map((d) => (
+                                                            <option key={d.code} value={d.code}>{d.icon} {d.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Client Type */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-text-muted mb-1">Client Type</label>
+                                                    <select
+                                                        value={selectedClientType}
+                                                        onChange={(e) => setSelectedClientType(e.target.value)}
+                                                        className="input text-sm py-1.5"
+                                                    >
+                                                        <option value="">Select...</option>
+                                                        {dimensions.client_type.map((d) => (
+                                                            <option key={d.code} value={d.code}>{d.icon} {d.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Industry */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-text-muted mb-1">Industry</label>
+                                                    <select
+                                                        value={selectedIndustry}
+                                                        onChange={(e) => setSelectedIndustry(e.target.value)}
+                                                        className="input text-sm py-1.5"
+                                                    >
+                                                        <option value="">Select...</option>
+                                                        {dimensions.industry.map((d) => (
+                                                            <option key={d.code} value={d.code}>{d.icon} {d.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* File list */}
                                     {files.length > 0 && (
                                         <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
@@ -250,7 +408,7 @@ export default function FileUploadModal({
                                     </button>
                                     <button
                                         onClick={handleUpload}
-                                        disabled={files.length === 0 || isUploading}
+                                        disabled={files.length === 0 || isUploading || !selectedProfileId}
                                         className="btn-primary"
                                     >
                                         {isUploading
@@ -266,3 +424,4 @@ export default function FileUploadModal({
         </Transition>
     );
 }
+

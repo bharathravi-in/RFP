@@ -197,6 +197,14 @@ def upload_to_folder(folder_id):
     if 'files' not in request.files:
         return jsonify({'error': 'No files provided'}), 400
     
+    # Read dimension data from form
+    geography = request.form.get('geography')
+    client_type = request.form.get('client_type')
+    industry = request.form.get('industry')
+    knowledge_profile_id = request.form.get('knowledge_profile_id')
+    if knowledge_profile_id:
+        knowledge_profile_id = int(knowledge_profile_id)
+    
     files = request.files.getlist('files')
     uploaded = []
     errors = []
@@ -231,7 +239,7 @@ def upload_to_folder(folder_id):
                 except:
                     pass
             
-            # Create knowledge item with file data in database
+            # Create knowledge item with file data and dimension fields
             item = KnowledgeItem(
                 title=filename,
                 content=content,
@@ -241,24 +249,34 @@ def upload_to_folder(folder_id):
                 file_data=file_content,  # Store binary in database
                 file_size=file_size,
                 folder_id=folder_id,
+                geography=geography,
+                client_type=client_type,
+                industry=industry,
+                knowledge_profile_id=knowledge_profile_id,
                 organization_id=user.organization_id,
                 created_by=user_id
             )
             db.session.add(item)
+            db.session.flush()  # Get item.id
             
-            # Index in Qdrant
+            # Index in Qdrant with dimension fields
             try:
                 from ..services.qdrant_service import get_qdrant_service
-                qdrant = get_qdrant_service()
+                qdrant = get_qdrant_service(user.organization_id)
                 item.embedding_id = qdrant.upsert_item(
                     item_id=item.id,
                     org_id=user.organization_id,
                     title=item.title,
                     content=item.content,
-                    folder_id=folder_id
+                    folder_id=folder_id,
+                    geography=geography,
+                    client_type=client_type,
+                    industry=industry,
+                    knowledge_profile_id=knowledge_profile_id
                 )
             except Exception as e:
-                pass  # Continue even if indexing fails
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to index item {item.id} in Qdrant: {e}")
             
             uploaded.append({
                 'filename': filename,

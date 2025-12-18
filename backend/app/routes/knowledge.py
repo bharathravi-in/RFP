@@ -40,6 +40,14 @@ def list_knowledge():
     tag = request.args.get('tag')
     source_type = request.args.get('source_type')
     search = request.args.get('search')
+    folder_id = request.args.get('folder_id')
+    # Dimension filters
+    geography = request.args.get('geography')
+    client_type = request.args.get('client_type')
+    currency = request.args.get('currency')
+    industry = request.args.get('industry')
+    compliance = request.args.get('compliance')
+    knowledge_profile_id = request.args.get('knowledge_profile_id')
     
     query = KnowledgeItem.query.filter_by(
         organization_id=user.organization_id,
@@ -51,6 +59,23 @@ def list_knowledge():
     
     if source_type:
         query = query.filter_by(source_type=source_type)
+    
+    if folder_id:
+        query = query.filter_by(folder_id=int(folder_id))
+    
+    # Dimension filters
+    if geography:
+        query = query.filter_by(geography=geography)
+    if client_type:
+        query = query.filter_by(client_type=client_type)
+    if currency:
+        query = query.filter_by(currency=currency)
+    if industry:
+        query = query.filter_by(industry=industry)
+    if compliance:
+        query = query.filter(KnowledgeItem.compliance_frameworks.contains([compliance]))
+    if knowledge_profile_id:
+        query = query.filter_by(knowledge_profile_id=int(knowledge_profile_id))
     
     if search:
         query = query.filter(
@@ -90,6 +115,16 @@ def create_knowledge():
         content=data['content'],
         tags=data.get('tags', []),
         source_type='manual',
+        # Dimension fields for profile filtering
+        geography=data.get('geography'),
+        client_type=data.get('client_type'),
+        currency=data.get('currency'),
+        industry=data.get('industry'),
+        compliance_frameworks=data.get('compliance_frameworks', []),
+        language=data.get('language', 'en'),
+        knowledge_profile_id=data.get('knowledge_profile_id'),
+        folder_id=data.get('folder_id'),
+        category=data.get('category'),
         organization_id=user.organization_id,
         created_by=user_id
     )
@@ -109,7 +144,11 @@ def create_knowledge():
                     title=item.title,
                     content=item.content,
                     folder_id=item.folder_id,
-                    tags=item.tags or []
+                    tags=item.tags or [],
+                    geography=item.geography,
+                    client_type=item.client_type,
+                    industry=item.industry,
+                    knowledge_profile_id=item.knowledge_profile_id
                 )
                 if embedding_id:
                     item.embedding_id = embedding_id
@@ -175,6 +214,25 @@ def update_knowledge(item_id):
         item.tags = data['tags']
     if 'is_active' in data:
         item.is_active = data['is_active']
+    # Dimension fields
+    if 'geography' in data:
+        item.geography = data['geography']
+    if 'client_type' in data:
+        item.client_type = data['client_type']
+    if 'currency' in data:
+        item.currency = data['currency']
+    if 'industry' in data:
+        item.industry = data['industry']
+    if 'compliance_frameworks' in data:
+        item.compliance_frameworks = data['compliance_frameworks']
+    if 'language' in data:
+        item.language = data['language']
+    if 'knowledge_profile_id' in data:
+        item.knowledge_profile_id = data['knowledge_profile_id']
+    if 'folder_id' in data:
+        item.folder_id = data['folder_id']
+    if 'category' in data:
+        item.category = data['category']
     
     db.session.commit()
     
@@ -191,7 +249,11 @@ def update_knowledge(item_id):
                         title=item.title,
                         content=item.content,
                         folder_id=item.folder_id,
-                        tags=item.tags or []
+                        tags=item.tags or [],
+                        geography=item.geography,
+                        client_type=item.client_type,
+                        industry=item.industry,
+                        knowledge_profile_id=item.knowledge_profile_id
                     )
                     if embedding_id:
                         item.embedding_id = embedding_id
@@ -268,7 +330,7 @@ def import_csv():
 @bp.route('/reindex', methods=['POST'])
 @jwt_required()
 def reindex_knowledge():
-    """Trigger re-indexing of all knowledge items."""
+    """Trigger re-indexing of all knowledge items with dimension data."""
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -290,22 +352,32 @@ def reindex_knowledge():
             is_active=True
         ).all()
         
-        # Convert to list of dicts for reindexing
-        items_data = [{
-            'id': item.id,
-            'title': item.title,
-            'content': item.content,
-            'folder_id': item.folder_id,
-            'tags': item.tags or []
-        } for item in items]
-        
-        count = qdrant.reindex_all(items=items_data, org_id=user.organization_id)
+        # Reindex each item with full dimension data
+        count = 0
+        for item in items:
+            try:
+                qdrant.upsert_item(
+                    item_id=item.id,
+                    org_id=user.organization_id,
+                    title=item.title,
+                    content=item.content,
+                    folder_id=item.folder_id,
+                    tags=item.tags or [],
+                    geography=item.geography,
+                    client_type=item.client_type,
+                    industry=item.industry,
+                    knowledge_profile_id=item.knowledge_profile_id
+                )
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to reindex item {item.id}: {e}")
         
         logger.info(f"Reindexed {count} items for org {user.organization_id}")
         
         return jsonify({
-            'message': f'Reindexed {count} items',
+            'message': f'Reindexed {count} items with dimension data',
             'count': count,
+            'total': len(items),
             'status': 'completed'
         }), 200
     except Exception as e:

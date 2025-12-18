@@ -55,4 +55,29 @@ def create_app(config_name=None):
     def health_check():
         return {'status': 'healthy', 'service': 'autorespond-api'}
     
+    # Auto-seed section types on first request
+    @app.before_request
+    def seed_data_on_first_request():
+        """Seed section types and filter dimensions if they don't exist (runs once on first request)"""
+        if not getattr(app, '_seeded', False):
+            try:
+                from .models import seed_section_types, RFPSectionType
+                from .models import seed_filter_dimensions, FilterDimension
+                
+                # Seed section types
+                if RFPSectionType.query.count() == 0:
+                    seed_section_types(db.session)
+                    print("Auto-seeded section types on first request")
+                
+                # Seed filter dimensions
+                if FilterDimension.query.count() == 0:
+                    seed_filter_dimensions(db.session)
+                    print("Auto-seeded filter dimensions on first request")
+                
+                app._seeded = True
+            except Exception as e:
+                # Don't fail startup if seeding fails
+                print(f"Warning: Could not seed data: {e}")
+                app._seeded = True  # Don't retry on every request
+    
     return app
