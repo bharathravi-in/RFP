@@ -316,6 +316,135 @@ def reorder_sections(project_id):
 # Section Generation Endpoints
 # ============================================================
 
+@bp.route('/sections/chat', methods=['POST'])
+@jwt_required()
+def chat_for_section():
+    """Chat with AI for section content generation"""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json()
+    
+    project_id = data.get('project_id')
+    section_type_id = data.get('section_type_id')
+    message = data.get('message', '')
+    knowledge_item_ids = data.get('knowledge_item_ids', [])
+    conversation_history = data.get('conversation_history', [])
+    
+    if not project_id or not message:
+        return jsonify({'error': 'project_id and message are required'}), 400
+    
+    # Get project for context
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get section type if provided
+    section_type = None
+    if section_type_id:
+        section_type = RFPSectionType.query.get(section_type_id)
+    
+    # Retrieve knowledge context
+    from app.services.qdrant_service import get_qdrant_service
+    from app.models import KnowledgeItem
+    
+    qdrant = get_qdrant_service(user.organization_id)
+    context = []
+    sources = []
+    
+    # Get selected knowledge items first
+    if knowledge_item_ids:
+        knowledge_items = KnowledgeItem.query.filter(
+            KnowledgeItem.id.in_(knowledge_item_ids),
+            KnowledgeItem.organization_id == user.organization_id
+        ).all()
+        for item in knowledge_items:
+            context.append({
+                'content': item.content or '',
+                'metadata': {'title': item.title, 'id': item.id}
+            })
+            sources.append({'title': item.title, 'snippet': (item.content or '')[:200]})
+    
+    # Also search for relevant context
+    try:
+        # Build dimension filters from project
+        dimension_filters = {}
+        if project.knowledge_profiles:
+            dimension_filters['knowledge_profile_ids'] = [p.id for p in project.knowledge_profiles]
+        
+        search_results = qdrant.search(
+            query=message,
+            org_id=user.organization_id,
+            limit=5,
+            filters=dimension_filters if dimension_filters else None
+        )
+        for result in search_results:
+            if result not in context:
+                context.append(result)
+                if 'metadata' in result and 'title' in result['metadata']:
+                    sources.append({
+                        'title': result['metadata']['title'],
+                        'snippet': result.get('content', '')[:200]
+                    })
+    except Exception as e:
+        print(f"Error searching knowledge: {e}")
+    
+    # Build the prompt for the AI
+    generator = get_section_generator()
+    
+    # Build system context
+    system_context = f"""You are an AI assistant helping to create proposal content.
+Project: {project.name}
+Client: {project.client_name or 'Not specified'}
+"""
+    
+    if section_type:
+        system_context += f"Section Type: {section_type.name}\n"
+        system_context += f"Section Description: {section_type.description or ''}\n"
+    
+    # Add knowledge context
+    if context:
+        system_context += "\nRelevant Knowledge Base Content:\n"
+        for i, ctx in enumerate(context[:5], 1):
+            content = ctx.get('content', '')[:500]
+            title = ctx.get('metadata', {}).get('title', f'Source {i}')
+            system_context += f"\n[{title}]\n{content}\n"
+    
+    # Build messages for the AI
+    messages = [{"role": "system", "content": system_context}]
+    
+    # Add conversation history
+    for msg in conversation_history:
+        messages.append(msg)
+    
+    # Add current message
+    messages.append({"role": "user", "content": message})
+    
+    # Generate response using the section generator
+    try:
+        response = generator.chat(messages)
+        
+        # Check if user asked for content generation
+        is_generation_request = any(keyword in message.lower() for keyword in [
+            'generate', 'create', 'write', 'draft', 'produce', 'make'
+        ])
+        
+        return jsonify({
+            'response': response,
+            'sources': sources[:5],
+            'suggested_content': response if is_generation_request else None,
+        })
+    except Exception as e:
+        print(f"Error in chat: {e}")
+        return jsonify({'error': f'AI error: {str(e)}'}), 500
+
+
 @bp.route('/sections/<int:section_id>/generate', methods=['POST'])
 @jwt_required()
 def generate_section_content(section_id):

@@ -3,6 +3,7 @@ import { sectionsApi, questionsApi } from '@/api/client';
 import { RFPSection, Question } from '@/types';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import SimpleMarkdown from '@/components/common/SimpleMarkdown';
 import {
     SparklesIcon,
     CheckCircleIcon,
@@ -17,6 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
+import SectionAIChatSidebar from '@/components/sections/SectionAIChatSidebar';
 import { ConfidenceIndicator } from '@/components/ai';
 import {
     NarrativeEditor,
@@ -38,6 +40,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [isSaving, setIsSaving] = useState(false);
     const [feedback, setFeedback] = useState('');
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+    const [showAIChatPanel, setShowAIChatPanel] = useState(false);
 
     // Q&A Section state
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -183,13 +186,31 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
         }
     };
 
+    // Handler for AI-generated content from chat panel
+    const handleAIContent = async (generatedContent: string) => {
+        setIsSaving(true);
+        try {
+            const response = await sectionsApi.updateSection(projectId, section.id, {
+                content: generatedContent,
+                status: 'generated',
+            });
+            setContent(generatedContent);
+            onUpdate(response.data.section);
+            setShowAIChatPanel(false);
+        } catch {
+            toast.error('Failed to update section');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Handler for saving from specialized editors
     const handleEditorSave = async (editorData: any) => {
         setIsSaving(true);
         try {
             // Transform editor data to content string based on editor type
             let contentToSave = '';
-            
+
             if (templateType === 'narrative') {
                 contentToSave = editorData.content || '';
             } else if (templateType === 'table') {
@@ -220,7 +241,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
             const response = await sectionsApi.updateSection(projectId, section.id, {
                 content: contentToSave,
             });
-            
+
             setContent(contentToSave);
             setIsEditing(false);
             onUpdate(response.data.section);
@@ -375,18 +396,27 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                 {!isQASection && (
                     <div className="flex items-center gap-2 mt-3">
                         {!section.content ? (
-                            <button
-                                onClick={handleGenerate}
-                                disabled={isGenerating}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                {isGenerating ? (
-                                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <SparklesIcon className="h-4 w-4" />
-                                )}
-                                Generate Content
-                            </button>
+                            <>
+                                <button
+                                    onClick={handleGenerate}
+                                    disabled={isGenerating}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    {isGenerating ? (
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <SparklesIcon className="h-4 w-4" />
+                                    )}
+                                    Generate Content
+                                </button>
+                                <button
+                                    onClick={() => setShowAIChatPanel(true)}
+                                    className="btn-secondary flex items-center gap-2"
+                                >
+                                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                                    AI Assistant
+                                </button>
+                            </>
                         ) : (
                             <>
                                 {!isEditing ? (
@@ -434,6 +464,14 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                 >
                                     <ArrowPathIcon className="h-4 w-4" />
                                     Regenerate
+                                </button>
+
+                                <button
+                                    onClick={() => setShowAIChatPanel(true)}
+                                    className="btn-secondary flex items-center gap-2"
+                                >
+                                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                                    AI Assistant
                                 </button>
 
                                 {section.status !== 'approved' && (
@@ -494,207 +532,211 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
 
             {/* Content Area */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Main Content */}
-                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-                    {isQASection ? (
-                        // Q&A Section - Show Questions List
-                        <div className="space-y-4">
-                            {/* Create Question Form */}
-                            {showCreateQuestion && (
-                                <div className="p-4 rounded-lg border-2 border-dashed border-primary bg-primary-light/20 mb-4">
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        New Question
-                                    </label>
-                                    <textarea
-                                        value={newQuestionText}
-                                        onChange={(e) => setNewQuestionText(e.target.value)}
-                                        rows={3}
-                                        className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                                        placeholder="Enter your question..."
-                                        autoFocus
-                                    />
-                                    <div className="flex justify-end gap-2 mt-3">
+                {/* Main Content Column */}
+                <div className="flex-1 flex flex-col min-h-0">
+                    {/* Scrollable Content */}
+                    <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                        {isQASection ? (
+                            // Q&A Section - Show Questions List
+                            <div className="space-y-4">
+                                {/* Create Question Form */}
+                                {showCreateQuestion && (
+                                    <div className="p-4 rounded-lg border-2 border-dashed border-primary bg-primary-light/20 mb-4">
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            New Question
+                                        </label>
+                                        <textarea
+                                            value={newQuestionText}
+                                            onChange={(e) => setNewQuestionText(e.target.value)}
+                                            rows={3}
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                                            placeholder="Enter your question..."
+                                            autoFocus
+                                        />
+                                        <div className="flex justify-end gap-2 mt-3">
+                                            <button
+                                                onClick={() => {
+                                                    setShowCreateQuestion(false);
+                                                    setNewQuestionText('');
+                                                }}
+                                                className="btn-secondary text-sm"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleCreateQuestion}
+                                                disabled={isCreating || !newQuestionText.trim()}
+                                                className="btn-primary text-sm flex items-center gap-2"
+                                            >
+                                                {isCreating && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
+                                                <PlusIcon className="h-4 w-4" />
+                                                Create Question
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {loadingQuestions ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <ArrowPathIcon className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                ) : questions.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <ChatBubbleLeftRightIcon className="h-16 w-16 mx-auto text-text-muted mb-4" />
+                                        <h3 className="text-lg font-medium text-text-primary mb-2">
+                                            No Questions Yet
+                                        </h3>
+                                        <p className="text-text-secondary max-w-md mx-auto mb-4">
+                                            Upload and analyze an RFP document to extract customer questions, or create them manually.
+                                        </p>
                                         <button
-                                            onClick={() => {
-                                                setShowCreateQuestion(false);
-                                                setNewQuestionText('');
-                                            }}
-                                            className="btn-secondary text-sm"
+                                            onClick={() => setShowCreateQuestion(true)}
+                                            className="btn-primary inline-flex items-center gap-2"
                                         >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={handleCreateQuestion}
-                                            disabled={isCreating || !newQuestionText.trim()}
-                                            className="btn-primary text-sm flex items-center gap-2"
-                                        >
-                                            {isCreating && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
                                             <PlusIcon className="h-4 w-4" />
-                                            Create Question
+                                            Create First Question
                                         </button>
                                     </div>
-                                </div>
-                            )}
-
-                            {loadingQuestions ? (
-                                <div className="flex items-center justify-center py-12">
-                                    <ArrowPathIcon className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : questions.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <ChatBubbleLeftRightIcon className="h-16 w-16 mx-auto text-text-muted mb-4" />
-                                    <h3 className="text-lg font-medium text-text-primary mb-2">
-                                        No Questions Yet
-                                    </h3>
-                                    <p className="text-text-secondary max-w-md mx-auto mb-4">
-                                        Upload and analyze an RFP document to extract customer questions, or create them manually.
-                                    </p>
-                                    <button
-                                        onClick={() => setShowCreateQuestion(true)}
-                                        className="btn-primary inline-flex items-center gap-2"
-                                    >
-                                        <PlusIcon className="h-4 w-4" />
-                                        Create First Question
-                                    </button>
-                                </div>
-                            ) : (
-                                questions.map((question, index) => (
-                                    <div
-                                        key={question.id}
-                                        onClick={() => setSelectedQuestion(question)}
-                                        className="p-4 rounded-lg border border-border bg-background hover:border-primary hover:shadow-sm transition-all cursor-pointer"
-                                    >
-                                        {/* Question Header */}
-                                        <div className="flex items-start gap-3">
-                                            <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-light text-primary text-sm flex items-center justify-center font-medium">
-                                                {index + 1}
-                                            </span>
-                                            <div className="flex-1">
-                                                <p className="text-text-primary font-medium leading-relaxed line-clamp-2">
-                                                    {question.text}
-                                                </p>
-                                                {question.section && (
-                                                    <p className="text-xs text-text-muted mt-1">
-                                                        From section: {question.section}
+                                ) : (
+                                    questions.map((question, index) => (
+                                        <div
+                                            key={question.id}
+                                            onClick={() => setSelectedQuestion(question)}
+                                            className="p-4 rounded-lg border border-border bg-background hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                                        >
+                                            {/* Question Header */}
+                                            <div className="flex items-start gap-3">
+                                                <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-light text-primary text-sm flex items-center justify-center font-medium">
+                                                    {index + 1}
+                                                </span>
+                                                <div className="flex-1">
+                                                    <p className="text-text-primary font-medium leading-relaxed line-clamp-2">
+                                                        {question.text}
                                                     </p>
-                                                )}
-                                                {question.answer && (
-                                                    <p className="text-sm text-text-secondary mt-2 line-clamp-2 bg-surface p-2 rounded">
-                                                        {question.answer.content}
-                                                    </p>
-                                                )}
+                                                    {question.section && (
+                                                        <p className="text-xs text-text-muted mt-1">
+                                                            From section: {question.section}
+                                                        </p>
+                                                    )}
+                                                    {question.answer && (
+                                                        <p className="text-sm text-text-secondary mt-2 line-clamp-2 bg-surface p-2 rounded">
+                                                            {question.answer.content}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <span className={clsx(
+                                                    'px-2 py-1 rounded-full text-xs font-medium',
+                                                    question.status === 'approved' && 'bg-success-light text-success',
+                                                    question.status === 'answered' && 'bg-primary-light text-primary',
+                                                    question.status === 'pending' && 'bg-gray-100 text-gray-600',
+                                                )}>
+                                                    {question.status}
+                                                </span>
                                             </div>
-                                            <span className={clsx(
-                                                'px-2 py-1 rounded-full text-xs font-medium',
-                                                question.status === 'approved' && 'bg-success-light text-success',
-                                                question.status === 'answered' && 'bg-primary-light text-primary',
-                                                question.status === 'pending' && 'bg-gray-100 text-gray-600',
-                                            )}>
-                                                {question.status}
-                                            </span>
-                                        </div>
 
-                                        {/* Quick action hint */}
-                                        <div className="mt-3 flex items-center justify-end">
-                                            <span className="text-xs text-text-muted">
-                                                Click to {question.answer ? 'edit or regenerate' : 'generate answer'}
-                                            </span>
+                                            {/* Quick action hint */}
+                                            <div className="mt-3 flex items-center justify-end">
+                                                <span className="text-xs text-text-muted">
+                                                    Click to {question.answer ? 'edit or regenerate' : 'generate answer'}
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    ) : !section.content ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center">
-                            <DocumentTextIcon className="h-16 w-16 text-text-muted mb-4" />
-                            <h3 className="text-lg font-medium text-text-primary mb-2">
-                                No Content Yet
-                            </h3>
-                            <p className="text-text-secondary mb-6 max-w-md">
-                                Click "Generate Content" to create AI-powered content for this section
-                                based on your knowledge base.
-                            </p>
-                        </div>
-                    ) : isEditing ? (
-                        renderEditor()
-                    ) : (
-                        <div className="prose prose-sm max-w-none">
-                            <div className="whitespace-pre-wrap text-text-primary">
-                                {(() => {
-                                    // Handle display of content based on template type
-                                    if (['table', 'card', 'technical'].includes(templateType)) {
-                                        try {
-                                            const parsed = JSON.parse(content);
-                                            if (templateType === 'table') {
-                                                return (
-                                                    <div className="w-full overflow-x-auto">
-                                                        <table className="w-full border-collapse">
-                                                            <thead>
-                                                                <tr>
-                                                                    {parsed.columns?.map((col: any, idx: number) => (
-                                                                        <th key={idx} className="border border-border p-2 bg-surface text-left">
-                                                                            {col.name}
-                                                                        </th>
-                                                                    ))}
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {parsed.rows?.map((row: any, rIdx: number) => (
-                                                                    <tr key={rIdx}>
-                                                                        {row.map((cell: any, cIdx: number) => (
-                                                                            <td key={cIdx} className="border border-border p-2">
-                                                                                {cell}
-                                                                            </td>
+                                    ))
+                                )}
+                            </div>
+                        ) : !section.content ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center">
+                                <DocumentTextIcon className="h-16 w-16 text-text-muted mb-4" />
+                                <h3 className="text-lg font-medium text-text-primary mb-2">
+                                    No Content Yet
+                                </h3>
+                                <p className="text-text-secondary mb-6 max-w-md">
+                                    Click "Generate Content" to create AI-powered content for this section
+                                    based on your knowledge base.
+                                </p>
+                            </div>
+                        ) : isEditing ? (
+                            renderEditor()
+                        ) : (
+                            <div className="prose prose-sm max-w-none">
+                                <div className="whitespace-pre-wrap text-text-primary">
+                                    {(() => {
+                                        // Handle display of content based on template type
+                                        if (['table', 'card', 'technical'].includes(templateType)) {
+                                            try {
+                                                const parsed = JSON.parse(content);
+                                                if (templateType === 'table') {
+                                                    return (
+                                                        <div className="w-full overflow-x-auto">
+                                                            <table className="w-full border-collapse">
+                                                                <thead>
+                                                                    <tr>
+                                                                        {parsed.columns?.map((col: any, idx: number) => (
+                                                                            <th key={idx} className="border border-border p-2 bg-surface text-left">
+                                                                                {col.name}
+                                                                            </th>
                                                                         ))}
                                                                     </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                );
-                                            } else if (templateType === 'card') {
-                                                return (
-                                                    <div className={`grid gap-4 grid-cols-${parsed.columnLayout || 2}`}>
-                                                        {parsed.cards?.map((card: any, idx: number) => (
-                                                            <div key={idx} className="p-4 rounded-lg border border-border bg-surface">
-                                                                {card.image && (
-                                                                    <img src={card.image} alt={card.title} className="w-full h-40 object-cover rounded-lg mb-3" />
-                                                                )}
-                                                                <h3 className="font-bold text-text-primary mb-2">{card.title}</h3>
-                                                                <p className="text-text-secondary">{card.description}</p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            } else if (templateType === 'technical') {
-                                                return (
-                                                    <div className="space-y-4">
-                                                        {parsed.description && (
-                                                            <div className="p-4 rounded-lg bg-surface border border-border">
-                                                                <p className="text-text-primary whitespace-pre-wrap">{parsed.description}</p>
-                                                            </div>
-                                                        )}
-                                                        {parsed.codeBlocks?.map((block: any, idx: number) => (
-                                                            <div key={idx} className="p-4 rounded-lg bg-gray-900 text-white font-mono text-sm overflow-x-auto">
-                                                                <div className="text-gray-400 mb-2">{block.language || 'code'}</div>
-                                                                <pre>{block.code}</pre>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                );
+                                                                </thead>
+                                                                <tbody>
+                                                                    {parsed.rows?.map((row: any, rIdx: number) => (
+                                                                        <tr key={rIdx}>
+                                                                            {row.map((cell: any, cIdx: number) => (
+                                                                                <td key={cIdx} className="border border-border p-2">
+                                                                                    {cell}
+                                                                                </td>
+                                                                            ))}
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    );
+                                                } else if (templateType === 'card') {
+                                                    return (
+                                                        <div className={`grid gap-4 grid-cols-${parsed.columnLayout || 2}`}>
+                                                            {parsed.cards?.map((card: any, idx: number) => (
+                                                                <div key={idx} className="p-4 rounded-lg border border-border bg-surface">
+                                                                    {card.image && (
+                                                                        <img src={card.image} alt={card.title} className="w-full h-40 object-cover rounded-lg mb-3" />
+                                                                    )}
+                                                                    <h3 className="font-bold text-text-primary mb-2">{card.title}</h3>
+                                                                    <p className="text-text-secondary">{card.description}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                } else if (templateType === 'technical') {
+                                                    return (
+                                                        <div className="space-y-4">
+                                                            {parsed.description && (
+                                                                <div className="p-4 rounded-lg bg-surface border border-border">
+                                                                    <p className="text-text-primary whitespace-pre-wrap">{parsed.description}</p>
+                                                                </div>
+                                                            )}
+                                                            {parsed.codeBlocks?.map((block: any, idx: number) => (
+                                                                <div key={idx} className="p-4 rounded-lg bg-gray-900 text-white font-mono text-sm overflow-x-auto">
+                                                                    <div className="text-gray-400 mb-2">{block.language || 'code'}</div>
+                                                                    <pre>{block.code}</pre>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                }
+                                            } catch {
+                                                // If JSON parsing fails, show raw content
+                                                return content;
                                             }
-                                        } catch {
-                                            // If JSON parsing fails, show raw content
-                                            return content;
                                         }
-                                    }
-                                    // Default narrative display
-                                    return content;
-                                })()}
+                                        // Default narrative display - render as markdown
+                                        return <SimpleMarkdown content={content} />;
+                                    })()}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
+
 
                 {/* Right Sidebar - Sources & Flags (only for non-Q&A sections with content) */}
                 {!isQASection && section.content && (
@@ -787,6 +829,17 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                         section={section}
                         projectId={projectId}
                         onUpdate={onUpdate}
+                    />
+                )}
+
+                {/* AI Chat Sidebar - for non-Q&A sections */}
+                {!isQASection && (
+                    <SectionAIChatSidebar
+                        section={section}
+                        projectId={projectId}
+                        isOpen={showAIChatPanel}
+                        onClose={() => setShowAIChatPanel(false)}
+                        onContentGenerated={handleAIContent}
                     />
                 )}
             </div>

@@ -2,21 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 import { sectionsApi } from '@/api/client';
 import { RFPSectionType } from '@/types';
 import toast from 'react-hot-toast';
-import { XMarkIcon, MagnifyingGlassIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, MagnifyingGlassIcon, CheckCircleIcon, SparklesIcon, DocumentPlusIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import SectionChatAssistant from './SectionChatAssistant';
 
 interface SectionTypeSelectorProps {
-    onSelect: (sectionType: RFPSectionType, inputs: Record<string, string>) => void;
+    projectId: number;
+    onSelect: (sectionType: RFPSectionType, inputs: Record<string, string>, initialContent?: string) => void;
     onClose: () => void;
     existingSectionSlugs?: string[];
 }
 
-export default function SectionTypeSelector({ onSelect, onClose, existingSectionSlugs = [] }: SectionTypeSelectorProps) {
+export default function SectionTypeSelector({ projectId, onSelect, onClose, existingSectionSlugs = [] }: SectionTypeSelectorProps) {
     const [sectionTypes, setSectionTypes] = useState<RFPSectionType[]>([]);
     const [selectedType, setSelectedType] = useState<RFPSectionType | null>(null);
     const [inputs, setInputs] = useState<Record<string, string>>({});
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [showChatAssistant, setShowChatAssistant] = useState(false);
 
     const loadSectionTypes = useCallback(async () => {
         try {
@@ -66,6 +69,17 @@ export default function SectionTypeSelector({ onSelect, onClose, existingSection
         onSelect(selectedType, inputs);
     };
 
+    const handleCreateWithAI = () => {
+        if (!selectedType) return;
+        setShowChatAssistant(true);
+    };
+
+    const handleContentReady = (content: string) => {
+        if (!selectedType) return;
+        // Create section with pre-generated content
+        onSelect(selectedType, inputs, content);
+    };
+
     const filteredTypes = sectionTypes.filter(type =>
         type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         type.description?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -80,6 +94,22 @@ export default function SectionTypeSelector({ onSelect, onClose, existingSection
         const singleInstanceTypes = ['qa_questionnaire'];
         return singleInstanceTypes.includes(type.slug) && existingSectionSlugs.includes(type.slug);
     };
+
+    // If chat assistant is shown, render it
+    if (showChatAssistant && selectedType) {
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-surface rounded-xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col overflow-hidden">
+                    <SectionChatAssistant
+                        sectionType={selectedType}
+                        projectId={projectId}
+                        onContentReady={handleContentReady}
+                        onClose={() => setShowChatAssistant(false)}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -197,9 +227,9 @@ export default function SectionTypeSelector({ onSelect, onClose, existingSection
                                     ))}
                                 </div>
                             ) : (
-                                <div className="text-center py-8 text-text-muted">
-                                    <p>No additional information needed.</p>
-                                    <p className="text-sm">Click "Add Section" to continue.</p>
+                                <div className="text-center py-6">
+                                    <p className="text-text-muted mb-2">No additional information needed.</p>
+                                    <p className="text-sm text-text-muted">Choose how to create this section:</p>
                                 </div>
                             )}
                         </>
@@ -216,12 +246,22 @@ export default function SectionTypeSelector({ onSelect, onClose, existingSection
                             >
                                 Back
                             </button>
-                            <button
-                                onClick={handleConfirm}
-                                className="btn-primary"
-                            >
-                                Add Section
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleConfirm}
+                                    className="btn-secondary flex items-center gap-2"
+                                >
+                                    <DocumentPlusIcon className="h-4 w-4" />
+                                    Create Empty
+                                </button>
+                                <button
+                                    onClick={handleCreateWithAI}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="h-4 w-4" />
+                                    Configure with AI
+                                </button>
+                            </div>
                         </>
                     ) : (
                         <>

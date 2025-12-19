@@ -2,10 +2,116 @@
 Export service for generating RFP response documents.
 """
 import io
+import re
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.style import WD_STYLE_TYPE
 from datetime import datetime
+
+
+def add_markdown_to_doc(doc, content):
+    """
+    Convert markdown content to Word document formatting.
+    Handles: headers, bold, italic, lists, and paragraphs.
+    """
+    if not content:
+        return
+    
+    lines = content.split('\n')
+    current_list_items = []
+    is_in_list = False
+    
+    def flush_list():
+        nonlocal current_list_items, is_in_list
+        if current_list_items:
+            for item in current_list_items:
+                # Remove list markers
+                clean_item = re.sub(r'^[\*\-]\s*|^\d+\.\s*', '', item)
+                para = doc.add_paragraph(style='List Bullet')
+                add_formatted_text(para, clean_item)
+            current_list_items = []
+            is_in_list = False
+    
+    def add_formatted_text(paragraph, text):
+        """Add text with inline formatting (bold, italic)."""
+        # Pattern for bold, italic, code
+        pattern = r'(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\))'
+        last_end = 0
+        
+        for match in re.finditer(pattern, text):
+            # Add text before match
+            if match.start() > last_end:
+                paragraph.add_run(text[last_end:match.start()])
+            
+            if match.group(2):  # Bold italic ***text***
+                run = paragraph.add_run(match.group(2))
+                run.bold = True
+                run.italic = True
+            elif match.group(3):  # Bold **text**
+                run = paragraph.add_run(match.group(3))
+                run.bold = True
+            elif match.group(4):  # Italic *text*
+                run = paragraph.add_run(match.group(4))
+                run.italic = True
+            elif match.group(5):  # Code `text`
+                run = paragraph.add_run(match.group(5))
+                run.font.name = 'Courier New'
+                run.font.size = Pt(10)
+            elif match.group(6) and match.group(7):  # Link [text](url)
+                run = paragraph.add_run(match.group(6))
+                run.underline = True
+            
+            last_end = match.end()
+        
+        # Add remaining text
+        if last_end < len(text):
+            paragraph.add_run(text[last_end:])
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Skip empty lines
+        if not stripped:
+            flush_list()
+            continue
+        
+        # Headers
+        if stripped.startswith('### '):
+            flush_list()
+            heading = doc.add_heading(level=3)
+            add_formatted_text(heading, stripped[4:])
+            continue
+        elif stripped.startswith('## '):
+            flush_list()
+            heading = doc.add_heading(level=2)
+            add_formatted_text(heading, stripped[3:])
+            continue
+        elif stripped.startswith('# '):
+            flush_list()
+            heading = doc.add_heading(level=1)
+            add_formatted_text(heading, stripped[2:])
+            continue
+        
+        # Lists (bullet or numbered)
+        if re.match(r'^[\*\-]\s', stripped) or re.match(r'^\d+\.\s', stripped):
+            is_in_list = True
+            current_list_items.append(stripped)
+            continue
+        
+        # Horizontal rule
+        if re.match(r'^[-*_]{3,}$', stripped):
+            flush_list()
+            doc.add_paragraph('_' * 50)
+            continue
+        
+        # Regular paragraph
+        flush_list()
+        para = doc.add_paragraph()
+        add_formatted_text(para, stripped)
+    
+    # Flush any remaining list
+    flush_list()
 
 
 def generate_docx(project, questions):
@@ -54,7 +160,7 @@ def generate_docx(project, questions):
             # Answer
             answer = question.current_answer
             if answer and answer.content:
-                doc.add_paragraph(answer.content)
+                add_markdown_to_doc(doc, answer.content)
                 
                 # Status indicator
                 status_para = doc.add_paragraph()
@@ -165,12 +271,9 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None):
         section_title = f'{section.section_type.icon if section.section_type else ""} {section.title}'
         doc.add_heading(section_title.strip(), level=1)
         
-        # Section content
-        # Split content by paragraphs for better formatting
-        content_paragraphs = section.content.split('\n\n')
-        for para_text in content_paragraphs:
-            if para_text.strip():
-                doc.add_paragraph(para_text.strip())
+        # Section content - convert markdown to Word formatting
+        add_markdown_to_doc(doc, section.content)
+
         
         # Section metadata footer
         if section.confidence_score:
@@ -206,7 +309,7 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None):
                 # Answer
                 answer = question.current_answer
                 if answer and answer.content:
-                    doc.add_paragraph(answer.content)
+                    add_markdown_to_doc(doc, answer.content)
                 else:
                     no_answer = doc.add_paragraph('No answer provided.')
                     no_answer.runs[0].italic = True

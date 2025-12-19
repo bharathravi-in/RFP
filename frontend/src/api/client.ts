@@ -333,6 +333,15 @@ export const sectionsApi = {
     reviewSection: (sectionId: number, action: 'approve' | 'reject') =>
         api.post(`/sections/${sectionId}/review`, { action }),
 
+    // Chat for section generation
+    chat: (data: {
+        project_id: number;
+        section_type_id?: number;
+        message: string;
+        knowledge_item_ids?: number[];
+        conversation_history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    }) => api.post('/sections/chat', data),
+
     // Templates
     listTemplates: (sectionTypeId?: number) =>
         api.get('/section-templates', { params: sectionTypeId ? { section_type_id: sectionTypeId } : {} }),

@@ -153,7 +153,7 @@ export default function ProposalBuilder() {
 
     const loadProject = useCallback(async () => {
         if (!projectId) return;
-        
+
         try {
             const response = await projectsApi.get(projectId);
             setProject(response.data.project);
@@ -164,7 +164,7 @@ export default function ProposalBuilder() {
 
     const loadSections = useCallback(async () => {
         if (!projectId) return;
-        
+
         try {
             setIsLoading(true);
             const response = await sectionsApi.listSections(projectId);
@@ -199,13 +199,23 @@ export default function ProposalBuilder() {
         await sectionsApi.reorderSections(projectId, orderIds);
     };
 
-    const handleAddSection = async (sectionType: RFPSectionType, inputs: Record<string, string>) => {
+    const handleAddSection = async (sectionType: RFPSectionType, inputs: Record<string, string>, initialContent?: string) => {
         try {
             const response = await sectionsApi.addSection(projectId, {
                 section_type_id: sectionType.id,
                 inputs,
             });
-            const newSection = response.data.section;
+            let newSection = response.data.section;
+
+            // If initial content is provided (from AI chat), update the section immediately
+            if (initialContent) {
+                const updateResponse = await sectionsApi.updateSection(projectId, newSection.id, {
+                    content: initialContent,
+                    status: 'generated',
+                });
+                newSection = updateResponse.data.section;
+            }
+
             setSections([...sections, newSection]);
             setSelectedSection(newSection);
             setShowTypeSelector(false);
@@ -476,6 +486,7 @@ export default function ProposalBuilder() {
             {/* Section Type Selector Modal */}
             {showTypeSelector && (
                 <SectionTypeSelector
+                    projectId={projectId}
                     onSelect={handleAddSection}
                     onClose={() => setShowTypeSelector(false)}
                     existingSectionSlugs={sections.map(s => s.section_type?.slug || '').filter(Boolean)}

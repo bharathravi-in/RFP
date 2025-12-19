@@ -237,6 +237,40 @@ Please rewrite the content addressing the feedback while maintaining professiona
             inputs={},
             context=context,
         )
+    
+    def chat(self, messages: List[Dict]) -> str:
+        """
+        Chat-style conversation for section content generation.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+        
+        Returns:
+            AI response text
+        """
+        if not self.model:
+            return "AI model not available. Please configure GOOGLE_API_KEY."
+        
+        # Build the conversation as a single prompt
+        conversation_text = ""
+        for msg in messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+            if role == 'system':
+                conversation_text += f"System Instructions:\n{content}\n\n"
+            elif role == 'user':
+                conversation_text += f"User: {content}\n\n"
+            elif role == 'assistant':
+                conversation_text += f"Assistant: {content}\n\n"
+        
+        conversation_text += "Assistant: "
+        
+        try:
+            response = self.model.generate_content(conversation_text)
+            return response.text
+        except Exception as e:
+            print(f"Error in chat: {e}")
+            return f"Error generating response: {str(e)}"
 
 
 # Singleton instance
