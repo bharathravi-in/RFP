@@ -353,20 +353,36 @@ Format as a table with columns:
         'is_system': True,
     },
     {
-        'slug': 'qa_questionnaire',
-        'name': 'Q&A / Questionnaire',
-        'icon': '❓',
+        'slug': 'customer_queries',
+        'name': 'Customer Queries',
+        'icon': '💬',
         'color': '#10B981',
         'template_type': 'narrative',
         'recommended_word_count': 400,
-        'description': 'Answer individual questions from the RFP',
+        'description': 'Answer customer queries and questions from the RFP',
         'required_inputs': [],
         'knowledge_scopes': ['all'],
-        'default_prompt': '''Answer this RFP question professionally and accurately:
+        'default_prompt': '''Answer this customer query professionally and accurately:
 {{question}}
 
 Use knowledge from our database to provide a factual, confident response.
 Cite sources where applicable.''',
+        'is_system': True,
+    },
+    {
+        'slug': 'questions',
+        'name': 'Questions',
+        'icon': '❓',
+        'color': '#6366F1',
+        'template_type': 'narrative',
+        'recommended_word_count': 300,
+        'description': 'Questions section for RFP responses',
+        'required_inputs': [],
+        'knowledge_scopes': ['all'],
+        'default_prompt': '''Answer this question from the RFP:
+{{question}}
+
+Provide a clear, professional response based on our knowledge base.''',
         'is_system': True,
     },
     {
@@ -386,6 +402,20 @@ Format each item with:
 - Priority: High / Medium / Low
 - Question or statement
 - Reason why this needs clarification''',
+        'is_system': True,
+    },
+    {
+        'slug': 'diagram',
+        'name': 'Architecture Diagram',
+        'icon': '📊',
+        'color': '#8B5CF6',
+        'template_type': 'diagram',
+        'recommended_word_count': 0,
+        'description': 'Visual diagrams including architecture, org charts, flowcharts, and more using Mermaid',
+        'required_inputs': ['diagram_type'],
+        'knowledge_scopes': ['architecture', 'technical'],
+        'default_prompt': '''Generate a {{diagram_type}} diagram based on the project context.
+Use Mermaid.js syntax for clear, professional diagrams.''',
         'is_system': True,
     },
     {

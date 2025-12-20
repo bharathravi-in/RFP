@@ -38,7 +38,7 @@ export default function SectionTypeSelector({ projectId, onSelect, onClose, exis
 
     const handleSelectType = (type: RFPSectionType) => {
         // Check if this section type already exists (for single-instance types like Q&A)
-        const singleInstanceTypes = ['qa_questionnaire'];
+        const singleInstanceTypes = ['customer_queries', 'questions'];
         if (singleInstanceTypes.includes(type.slug) && existingSectionSlugs.includes(type.slug)) {
             toast.error('This section type already exists in your proposal');
             return;
@@ -91,7 +91,7 @@ export default function SectionTypeSelector({ projectId, onSelect, onClose, exis
 
     // Check if a section type is a single-instance type that already exists
     const isSectionDisabled = (type: RFPSectionType) => {
-        const singleInstanceTypes = ['qa_questionnaire'];
+        const singleInstanceTypes = ['customer_queries', 'questions'];
         return singleInstanceTypes.includes(type.slug) && existingSectionSlugs.includes(type.slug);
     };
 

@@ -78,8 +78,9 @@ class Project(db.Model):
             'language': self.language,
             'client_name': self.client_name,
             'project_value': self.project_value,
-            # Knowledge profiles
+            # Knowledge profiles - always include
             'knowledge_profile_ids': [p.id for p in self.knowledge_profiles] if self.knowledge_profiles else [],
+            'knowledge_profiles': [p.to_dict() for p in self.knowledge_profiles] if self.knowledge_profiles else [],
             'organization_id': self.organization_id,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -90,6 +91,5 @@ class Project(db.Model):
             data['document_count'] = len(self.documents) if self.documents else 0
             data['question_count'] = len(self.questions) if self.questions else 0
             data['reviewer_ids'] = [r.id for r in self.reviewers] if self.reviewers else []
-            data['knowledge_profiles'] = [p.to_dict() for p in self.knowledge_profiles] if self.knowledge_profiles else []
         
         return data

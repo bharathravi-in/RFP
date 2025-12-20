@@ -451,6 +451,29 @@ export default function ProposalBuilder() {
                                 })}
                             </div>
                         )}
+
+                        {/* Knowledge Context Section */}
+                        {project?.knowledge_profiles && project.knowledge_profiles.length > 0 && (
+                            <div className="mt-6 pt-4 border-t border-border">
+                                <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
+                                    <BookOpenIcon className="h-4 w-4" />
+                                    Knowledge Context
+                                </h3>
+                                <p className="text-xs text-text-muted mb-2">
+                                    AI uses these profiles for content generation:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {project.knowledge_profiles.map((profile: any) => (
+                                        <span
+                                            key={profile.id}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary-light text-xs text-primary font-medium"
+                                        >
+                                            {profile.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

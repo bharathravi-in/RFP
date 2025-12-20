@@ -867,3 +867,145 @@ def export_preview(project_id):
         ],
     })
 
+
+# ============================================================
+# Diagram Generation Endpoints
+# ============================================================
+
+@bp.route('/diagrams/types', methods=['GET'])
+@jwt_required()
+def get_diagram_types():
+    """Get available diagram types."""
+    from app.agents.diagram_agent import get_diagram_agent
+    
+    agent = get_diagram_agent()
+    return jsonify({
+        'diagram_types': agent.get_diagram_types()
+    })
+
+
+@bp.route('/sections/<int:section_id>/generate-diagram', methods=['POST'])
+@jwt_required()
+def generate_section_diagram(section_id):
+    """Generate a Mermaid diagram for a section."""
+    from app.agents.diagram_agent import get_diagram_agent
+    
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    project = Project.query.get(section.project_id)
+    if not project or project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    diagram_type = data.get('diagram_type', 'architecture')
+    context = data.get('context', '')
+    title = data.get('title')
+    additional_instructions = data.get('additional_instructions')
+    
+    # Build context from section and project if not provided
+    if not context:
+        context = f"""
+Project: {project.name}
+Section: {section.title}
+Section Content: {section.content[:2000] if section.content else 'No content yet'}
+"""
+    
+    # Get knowledge context if available
+    knowledge_context = None
+    try:
+        if project.knowledge_profiles:
+            qdrant = QdrantService()
+            search_results = qdrant.search(
+                query=f"{diagram_type} diagram {section.title}",
+                org_id=project.organization_id,
+                limit=3
+            )
+            if search_results:
+                knowledge_context = "\n\n".join([
+                    r.get('content', '')[:500] for r in search_results
+                ])
+    except Exception as e:
+        pass  # Knowledge context is optional
+    
+    agent = get_diagram_agent()
+    result = agent.generate_diagram(
+        diagram_type=diagram_type,
+        context=context,
+        title=title,
+        additional_instructions=additional_instructions,
+        knowledge_context=knowledge_context
+    )
+    
+    if 'error' in result and 'mermaid_code' not in result:
+        return jsonify(result), 400
+    
+    return jsonify(result)
+
+
+@bp.route('/diagrams/generate', methods=['POST'])
+@jwt_required()
+def generate_diagram_standalone():
+    """Generate a Mermaid diagram (standalone, not tied to a section)."""
+    from app.agents.diagram_agent import get_diagram_agent
+    
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json()
+    diagram_type = data.get('diagram_type', 'architecture')
+    context = data.get('context', '')
+    title = data.get('title')
+    additional_instructions = data.get('additional_instructions')
+    
+    if not context:
+        return jsonify({'error': 'Context is required'}), 400
+    
+    agent = get_diagram_agent()
+    result = agent.generate_diagram(
+        diagram_type=diagram_type,
+        context=context,
+        title=title,
+        additional_instructions=additional_instructions
+    )
+    
+    if 'error' in result and 'mermaid_code' not in result:
+        return jsonify(result), 400
+    
+    return jsonify(result)
+
+
+@bp.route('/diagrams/regenerate', methods=['POST'])
+@jwt_required()
+def regenerate_diagram():
+    """Regenerate a diagram based on feedback."""
+    from app.agents.diagram_agent import get_diagram_agent
+    
+    data = request.get_json()
+    original_code = data.get('mermaid_code', '')
+    diagram_type = data.get('diagram_type', 'architecture')
+    feedback = data.get('feedback', '')
+    
+    if not original_code:
+        return jsonify({'error': 'Original mermaid_code is required'}), 400
+    if not feedback:
+        return jsonify({'error': 'Feedback is required'}), 400
+    
+    agent = get_diagram_agent()
+    result = agent.regenerate_with_feedback(
+        original_code=original_code,
+        diagram_type=diagram_type,
+        feedback=feedback
+    )
+    
+    return jsonify(result)

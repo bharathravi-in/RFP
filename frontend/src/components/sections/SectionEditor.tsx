@@ -19,12 +19,14 @@ import {
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
 import SectionAIChatSidebar from '@/components/sections/SectionAIChatSidebar';
+import QuestionsTableView from '@/components/sections/QuestionsTableView';
 import { ConfidenceIndicator } from '@/components/ai';
 import {
     NarrativeEditor,
     TableEditor,
     CardEditor,
     TechnicalEditor,
+    DiagramEditor,
 } from '@/components/editors';
 
 interface SectionEditorProps {
@@ -51,7 +53,8 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [isCreating, setIsCreating] = useState(false);
 
     // Check if this is a Q&A section
-    const isQASection = section.section_type?.slug === 'qa_questionnaire' ||
+    const isQASection = section.section_type?.slug === 'customer_queries' ||
+        section.section_type?.slug === 'questions' ||
         section.section_type?.name?.toLowerCase().includes('questionnaire') ||
         section.section_type?.name?.toLowerCase().includes('q&a');
 
@@ -256,7 +259,21 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
 
     // Render the appropriate editor based on template type and whether we're editing
     const renderEditor = () => {
-        // Return null if not editing
+        // Diagram sections always show DiagramEditor (it handles both view and edit)
+        if (templateType === 'diagram') {
+            return (
+                <DiagramEditor
+                    sectionId={section.id}
+                    content={content}
+                    onContentChange={(newContent) => {
+                        setContent(newContent);
+                        handleEditorSave(newContent);
+                    }}
+                />
+            );
+        }
+
+        // Return null if not editing for other types
         if (!isEditing) {
             return null;
         }
@@ -333,6 +350,18 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                     />
                 );
 
+            case 'diagram':
+                return (
+                    <DiagramEditor
+                        sectionId={section.id}
+                        content={content}
+                        onContentChange={(newContent) => {
+                            setContent(newContent);
+                            handleEditorSave(newContent);
+                        }}
+                    />
+                );
+
             default:
                 // Fallback to plain textarea
                 return (
@@ -392,8 +421,8 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                     </div>
                 </div>
 
-                {/* Action Buttons - Only for non-Q&A sections */}
-                {!isQASection && (
+                {/* Action Buttons - Only for non-Q&A and non-Diagram sections */}
+                {!isQASection && templateType !== 'diagram' && (
                     <div className="flex items-center gap-2 mt-3">
                         {!section.content ? (
                             <>
@@ -580,68 +609,28 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                     <div className="flex items-center justify-center py-12">
                                         <ArrowPathIcon className="h-8 w-8 animate-spin text-primary" />
                                     </div>
-                                ) : questions.length === 0 ? (
-                                    <div className="text-center py-12">
-                                        <ChatBubbleLeftRightIcon className="h-16 w-16 mx-auto text-text-muted mb-4" />
-                                        <h3 className="text-lg font-medium text-text-primary mb-2">
-                                            No Questions Yet
-                                        </h3>
-                                        <p className="text-text-secondary max-w-md mx-auto mb-4">
-                                            Upload and analyze an RFP document to extract customer questions, or create them manually.
-                                        </p>
-                                        <button
-                                            onClick={() => setShowCreateQuestion(true)}
-                                            className="btn-primary inline-flex items-center gap-2"
-                                        >
-                                            <PlusIcon className="h-4 w-4" />
-                                            Create First Question
-                                        </button>
-                                    </div>
                                 ) : (
-                                    questions.map((question, index) => (
-                                        <div
-                                            key={question.id}
-                                            onClick={() => setSelectedQuestion(question)}
-                                            className="p-4 rounded-lg border border-border bg-background hover:border-primary hover:shadow-sm transition-all cursor-pointer"
-                                        >
-                                            {/* Question Header */}
-                                            <div className="flex items-start gap-3">
-                                                <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-light text-primary text-sm flex items-center justify-center font-medium">
-                                                    {index + 1}
-                                                </span>
-                                                <div className="flex-1">
-                                                    <p className="text-text-primary font-medium leading-relaxed line-clamp-2">
-                                                        {question.text}
-                                                    </p>
-                                                    {question.section && (
-                                                        <p className="text-xs text-text-muted mt-1">
-                                                            From section: {question.section}
-                                                        </p>
-                                                    )}
-                                                    {question.answer && (
-                                                        <p className="text-sm text-text-secondary mt-2 line-clamp-2 bg-surface p-2 rounded">
-                                                            {question.answer.content}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <span className={clsx(
-                                                    'px-2 py-1 rounded-full text-xs font-medium',
-                                                    question.status === 'approved' && 'bg-success-light text-success',
-                                                    question.status === 'answered' && 'bg-primary-light text-primary',
-                                                    question.status === 'pending' && 'bg-gray-100 text-gray-600',
-                                                )}>
-                                                    {question.status}
-                                                </span>
-                                            </div>
-
-                                            {/* Quick action hint */}
-                                            <div className="mt-3 flex items-center justify-end">
-                                                <span className="text-xs text-text-muted">
-                                                    Click to {question.answer ? 'edit or regenerate' : 'generate answer'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))
+                                    <QuestionsTableView
+                                        questions={questions}
+                                        projectId={projectId}
+                                        onQuestionClick={setSelectedQuestion}
+                                        onQuestionUpdate={(questionId, updates) => {
+                                            const question = questions.find(q => q.id === questionId);
+                                            if (question) {
+                                                handleQuestionUpdate({ ...question, ...updates });
+                                            }
+                                        }}
+                                        onQuestionDelete={handleQuestionDelete}
+                                        onCreateQuestion={async (text) => {
+                                            try {
+                                                const response = await questionsApi.create(projectId, { text });
+                                                setQuestions(prev => [...prev, response.data]);
+                                                toast.success('Question created');
+                                            } catch {
+                                                toast.error('Failed to create question');
+                                            }
+                                        }}
+                                    />
                                 )}
                             </div>
                         ) : !section.content ? (
@@ -655,6 +644,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                     based on your knowledge base.
                                 </p>
                             </div>
+                        ) : templateType === 'diagram' ? (
+                            // Diagram sections always show DiagramEditor
+                            renderEditor()
                         ) : isEditing ? (
                             renderEditor()
                         ) : (

@@ -58,9 +58,9 @@ SECTION_MAPPING = {
     'staff': 'team_qualifications',
     'qualifications': 'team_qualifications',
     'personnel': 'team_qualifications',
-    'questions': 'qa_questionnaire',
-    'questionnaire': 'qa_questionnaire',
-    'q&a': 'qa_questionnaire',
+    'questions': 'questions',
+    'questionnaire': 'customer_queries',
+    'q&a': 'customer_queries',
 }
 
 
@@ -252,14 +252,14 @@ Return ONLY the JSON object, no markdown formatting."""
                     })
                     added_slugs.add(slug)
         
-        # Add Q&A section if document has questions
-        if 'qa_questionnaire' not in added_slugs:
+        # Add Customer Queries section if document has questions
+        if 'customer_queries' not in added_slugs:
             suggested.append({
-                'slug': 'qa_questionnaire',
+                'slug': 'customer_queries',
                 'reason': 'Include extracted questions from RFP',
                 'priority': 4,
             })
-            added_slugs.add('qa_questionnaire')
+            added_slugs.add('customer_queries')
         
         # Sort by priority
         suggested.sort(key=lambda x: x['priority'])
@@ -465,9 +465,12 @@ and how we handle sensitive information.""",
 Include: support model, SLA overview, maintenance procedures,
 communication channels, and ongoing support commitment.""",
             
-            'qa_questionnaire': """Write an introduction for the Q&A questionnaire section.
-Explain that detailed responses to RFP questions follow, and highlight
+            'customer_queries': """Write an introduction for the Customer Queries section.
+Explain that detailed responses to customer queries follow, and highlight
 our commitment to addressing all requirements thoroughly.""",
+            
+            'questions': """Write an introduction for the Questions section.
+Provide context for the answers provided to the RFP questions.""",
         }
         
         base_prompt = section_prompts.get(

@@ -370,6 +370,29 @@ export const sectionsApi = {
     applyTemplate: (templateId: number, sectionId: number, variables: Record<string, string>) =>
         api.post(`/section-templates/${templateId}/apply`, { section_id: sectionId, variables }),
 
+    // Diagram Generation
+    getDiagramTypes: () => api.get('/diagrams/types'),
+
+    generateDiagram: (sectionId: number, data: {
+        diagram_type: string;
+        context?: string;
+        title?: string;
+        additional_instructions?: string;
+    }) => api.post(`/sections/${sectionId}/generate-diagram`, data),
+
+    generateDiagramStandalone: (data: {
+        diagram_type: string;
+        context: string;
+        title?: string;
+        additional_instructions?: string;
+    }) => api.post('/diagrams/generate', data),
+
+    regenerateDiagram: (data: {
+        mermaid_code: string;
+        diagram_type: string;
+        feedback: string;
+    }) => api.post('/diagrams/regenerate', data),
+
     // Export
     exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', includeQA: boolean = true) =>
         api.post(`/projects/${projectId}/export/proposal`, { format, include_qa: includeQA }, { responseType: 'blob' }),
