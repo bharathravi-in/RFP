@@ -15,10 +15,12 @@ import {
     PencilIcon,
     ChatBubbleLeftRightIcon,
     PlusIcon,
+    ClockIcon,
 } from '@heroicons/react/24/outline';
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
 import SectionAIChatSidebar from '@/components/sections/SectionAIChatSidebar';
+import SectionHistory from '@/components/sections/SectionHistory';
 import { ConfidenceIndicator } from '@/components/ai';
 import {
     NarrativeEditor,
@@ -41,6 +43,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [feedback, setFeedback] = useState('');
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
     const [showAIChatPanel, setShowAIChatPanel] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     // Q&A Section state
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -528,6 +531,15 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                 >
                                     <ChatBubbleLeftRightIcon className="h-4 w-4" />
                                     AI Assistant
+                                </button>
+
+                                <button
+                                    onClick={() => setShowHistoryModal(true)}
+                                    className="btn-secondary flex items-center gap-2"
+                                    title="View section history"
+                                >
+                                    <ClockIcon className="h-4 w-4" />
+                                    History
                                 </button>
 
                                 {section.status !== 'approved' && (
@@ -1100,6 +1112,18 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                     onDelete={handleQuestionDelete}
                 />
             )}
+
+            {/* Section History Modal */}
+            <SectionHistory
+                sectionId={section.id}
+                currentVersion={section.version}
+                isOpen={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                onRestore={() => {
+                    // Reload the section after restore
+                    window.location.reload();
+                }}
+            />
         </div>
     );
 }

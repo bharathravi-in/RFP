@@ -9,7 +9,8 @@ from datetime import datetime
 from app import db
 from app.models import (
     RFPSectionType, RFPSection, SectionTemplate,
-    Project, User, seed_section_types
+    Project, User, seed_section_types,
+    SectionVersion, save_section_version
 )
 from app.services.section_generation_service import get_section_generator
 from app.services.qdrant_service import QdrantService
@@ -248,13 +249,23 @@ def get_section(project_id, section_id):
 @jwt_required()
 def update_section(project_id, section_id):
     """Update a section"""
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     
     section = RFPSection.query.filter_by(id=section_id, project_id=project_id).first()
     if not section:
         return jsonify({'error': 'Section not found'}), 404
     
     data = request.get_json()
+    
+    # Save version history BEFORE content changes
+    content_changing = 'content' in data and data['content'] != section.content
+    if content_changing:
+        save_section_version(
+            section=section,
+            user_id=user_id,
+            change_type='edit',
+            change_summary='Manual content edit'
+        )
     
     if 'title' in data:
         section.title = data['title']
@@ -310,6 +321,86 @@ def reorder_sections(project_id):
     db.session.commit()
     
     return jsonify({'message': 'Sections reordered'})
+
+
+# ============================================================
+# Section History Endpoints
+# ============================================================
+
+@bp.route('/sections/<int:section_id>/history', methods=['GET'])
+@jwt_required()
+def get_section_history(section_id):
+    """Get version history for a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get all versions for this section
+    versions = SectionVersion.query.filter_by(section_id=section_id)\
+        .order_by(SectionVersion.version_number.desc()).all()
+    
+    return jsonify({
+        'section_id': section_id,
+        'current_version': section.version,
+        'history': [v.to_dict() for v in versions],
+        'total': len(versions)
+    })
+
+
+@bp.route('/sections/<int:section_id>/restore/<int:version_number>', methods=['POST'])
+@jwt_required()
+def restore_section_version(section_id, version_number):
+    """Restore a section to a previous version"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Find the version to restore
+    version = SectionVersion.query.filter_by(
+        section_id=section_id, 
+        version_number=version_number
+    ).first()
+    
+    if not version:
+        return jsonify({'error': 'Version not found'}), 404
+    
+    # Save current state before restoring
+    save_section_version(
+        section=section,
+        user_id=user_id,
+        change_type='restore',
+        change_summary=f'Before restoring to version {version_number}'
+    )
+    
+    # Restore the section
+    section.content = version.content
+    section.title = version.title or section.title
+    section.status = version.status or section.status
+    section.confidence_score = version.confidence_score
+    section.version += 1
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Restored to version {version_number}',
+        'section': section.to_dict()
+    })
 
 
 # ============================================================

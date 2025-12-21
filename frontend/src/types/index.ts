@@ -330,3 +330,117 @@ export interface SectionGenerationResult {
     sources: AnswerSource[];
     flags: string[];
 }
+
+// ===============================
+// Section Version Types
+// ===============================
+
+export type SectionChangeType = 'edit' | 'generate' | 'regenerate' | 'restore';
+
+export interface SectionVersion {
+    id: number;
+    section_id: number;
+    version_number: number;
+    content: string | null;
+    title: string | null;
+    status: SectionStatus | null;
+    confidence_score: number | null;
+    change_type: SectionChangeType;
+    change_summary: string | null;
+    changed_by: number | null;
+    changed_by_name: string | null;
+    created_at: string;
+}
+
+// ===============================
+// Proposal Version Types
+// ===============================
+
+export interface ProposalVersion {
+    id: number;
+    project_id: number;
+    version_number: number;
+    title: string;
+    description: string | null;
+    file_type: string;
+    file_size: number;
+    can_restore: boolean;
+    is_restoration_point: boolean;
+    restored_from_version: number | null;
+    created_by: number;
+    creator_name?: string;
+    created_at: string;
+}
+
+// ===============================
+// Version Comparison Types
+// ===============================
+
+export type DiffLineType = 'added' | 'removed' | 'unchanged' | 'context';
+
+export interface DiffLine {
+    type: DiffLineType;
+    content: string;
+}
+
+export type SectionDiffStatus = 'added' | 'removed' | 'modified' | 'unchanged';
+
+export interface SectionDiff {
+    title: string;
+    status: SectionDiffStatus;
+    content_a: string | null;
+    content_b: string | null;
+    diff_lines: DiffLine[];
+}
+
+export interface VersionComparisonStats {
+    total_sections: number;
+    added: number;
+    removed: number;
+    modified: number;
+    unchanged: number;
+}
+
+export interface VersionComparisonResult {
+    version_a: ProposalVersion;
+    version_b: ProposalVersion;
+    section_diffs: SectionDiff[];
+    stats: VersionComparisonStats;
+}
+
+// ===============================
+// Compliance Matrix Types
+// ===============================
+
+export type ComplianceStatus = 'compliant' | 'partial' | 'non_compliant' | 'not_applicable' | 'pending';
+
+export interface ComplianceItem {
+    id: number;
+    project_id: number;
+    requirement_id: string | null;
+    requirement_text: string;
+    source: string | null;
+    category: string | null;
+    compliance_status: ComplianceStatus;
+    section_id: number | null;
+    response_summary: string | null;
+    notes: string | null;
+    priority: 'high' | 'normal' | 'low';
+    order: number;
+    created_at: string;
+    updated_at: string;
+    section?: {
+        id: number;
+        title: string;
+        status: string;
+    };
+}
+
+export interface ComplianceStats {
+    total: number;
+    compliant: number;
+    partial: number;
+    non_compliant: number;
+    not_applicable: number;
+    pending: number;
+}

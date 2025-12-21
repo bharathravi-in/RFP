@@ -11,6 +11,7 @@ import Projects from '@/pages/Projects';
 import ProjectDetail from '@/pages/ProjectDetail';
 import AnswerWorkspace from '@/pages/AnswerWorkspace';
 import ProposalBuilder from '@/pages/ProposalBuilder';
+import DocumentVersioning from '@/pages/DocumentVersioning';
 import KnowledgeBase from '@/pages/KnowledgeBase';
 import TemplatesManager from '@/pages/TemplatesManager';
 import Settings from '@/pages/Settings';
@@ -92,6 +93,7 @@ function App() {
                     <Route path="projects/:id" element={<ProjectDetail />} />
                     <Route path="projects/:id/workspace" element={<AnswerWorkspace />} />
                     <Route path="projects/:id/proposal" element={<ProposalBuilder />} />
+                    <Route path="projects/:id/versions" element={<DocumentVersioning />} />
                     <Route path="knowledge" element={<KnowledgeBase />} />
                     <Route path="templates" element={<TemplatesManager />} />
                     <Route path="settings" element={<Settings />} />

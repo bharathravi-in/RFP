@@ -15,6 +15,9 @@ from .rfp_section import RFPSectionType, RFPSection, SectionTemplate, seed_secti
 from .filter_dimension import FilterDimension, seed_filter_dimensions
 from .feedback import AnswerEdit, AnswerFeedback, AgentPerformance
 from .invitation import Invitation
+from .proposal_version import ProposalVersion
+from .section_version import SectionVersion, save_section_version
+from .compliance_item import ComplianceItem
 
 __all__ = [
     'User',
@@ -48,5 +51,12 @@ __all__ = [
     'AgentPerformance',
     # Invitations
     'Invitation',
+    # Proposal Versions
+    'ProposalVersion',
+    # Section Versions
+    'SectionVersion',
+    'save_section_version',
+    # Compliance
+    'ComplianceItem',
 ]
 

@@ -384,6 +384,13 @@ export const sectionsApi = {
 
     getExportPreview: (projectId: number) =>
         api.get(`/projects/${projectId}/export/preview`),
+
+    // Section History
+    getHistory: (sectionId: number) =>
+        api.get(`/sections/${sectionId}/history`),
+
+    restoreVersion: (sectionId: number, versionNumber: number) =>
+        api.post(`/sections/${sectionId}/restore/${versionNumber}`),
 };
 
 // ===============================
@@ -465,5 +472,82 @@ export const invitationsApi = {
         api.post('/invitations/accept/register', data),
 };
 
-export default api;
+// ===============================
+// Versions API
+// ===============================
 
+export const versionsApi = {
+    list: (projectId: number) =>
+        api.get(`/projects/${projectId}/versions`),
+
+    create: (projectId: number, data: { title: string; description?: string; include_qa?: boolean }) =>
+        api.post(`/projects/${projectId}/versions`, data),
+
+    get: (id: number) =>
+        api.get(`/versions/${id}`),
+
+    getPreviewUrl: (id: number) => `/api/versions/${id}/preview`,
+
+    getDownloadUrl: (id: number) => `/api/versions/${id}/download`,
+
+    delete: (id: number) =>
+        api.delete(`/versions/${id}`),
+
+    restore: (id: number) =>
+        api.post(`/versions/${id}/restore`),
+
+    compare: (versionId: number, otherVersionId: number) =>
+        api.get(`/versions/${versionId}/compare/${otherVersionId}`),
+};
+
+// ===============================
+// Compliance API
+// ===============================
+
+export const complianceApi = {
+    list: (projectId: number, params?: { category?: string; status?: string }) =>
+        api.get(`/projects/${projectId}/compliance`, { params }),
+
+    create: (projectId: number, data: {
+        requirement_text: string;
+        requirement_id?: string;
+        source?: string;
+        category?: string;
+        compliance_status?: string;
+        section_id?: number;
+        response_summary?: string;
+        notes?: string;
+        priority?: string;
+    }) => api.post(`/projects/${projectId}/compliance`, data),
+
+    get: (id: number) =>
+        api.get(`/compliance/${id}`),
+
+    update: (id: number, data: Partial<{
+        requirement_id: string;
+        requirement_text: string;
+        source: string;
+        category: string;
+        compliance_status: string;
+        section_id: number | null;
+        response_summary: string;
+        notes: string;
+        priority: string;
+        order: number;
+    }>) => api.put(`/compliance/${id}`, data),
+
+    delete: (id: number) =>
+        api.delete(`/compliance/${id}`),
+
+    bulkCreate: (projectId: number, items: Array<{
+        requirement_text: string;
+        requirement_id?: string;
+        source?: string;
+        category?: string;
+    }>) => api.post(`/projects/${projectId}/compliance/bulk`, { items }),
+
+    getExportUrl: (projectId: number) =>
+        `/api/projects/${projectId}/compliance/export`,
+};
+
+export default api;

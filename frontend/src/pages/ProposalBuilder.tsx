@@ -27,9 +27,12 @@ import {
     ClipboardDocumentListIcon,
     LightBulbIcon,
     QuestionMarkCircleIcon,
+    DocumentDuplicateIcon,
+    ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
 import SectionTypeSelector from '@/components/sections/SectionTypeSelector';
 import SectionEditor from '@/components/sections/SectionEditor';
+import ComplianceMatrix from '@/components/compliance/ComplianceMatrix';
 
 // Section type styling configuration
 const SECTION_STYLES: Record<string, {
@@ -150,6 +153,7 @@ export default function ProposalBuilder() {
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [viewMode, setViewMode] = useState<'sections' | 'compliance'>('sections');
 
     const loadProject = useCallback(async () => {
         if (!projectId) return;
@@ -316,6 +320,44 @@ export default function ProposalBuilder() {
                     />
                 </div>
 
+                {/* View Versions Button */}
+                <button
+                    onClick={() => navigate(`/projects/${id}/versions`)}
+                    className="btn-secondary flex items-center gap-2"
+                    title="View saved versions"
+                >
+                    <DocumentDuplicateIcon className="h-4 w-4" />
+                    Versions
+                </button>
+
+                {/* View Mode Toggle */}
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                    <button
+                        onClick={() => setViewMode('sections')}
+                        className={clsx(
+                            'px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors',
+                            viewMode === 'sections'
+                                ? 'bg-primary text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                        )}
+                    >
+                        <DocumentTextIcon className="h-4 w-4" />
+                        Sections
+                    </button>
+                    <button
+                        onClick={() => setViewMode('compliance')}
+                        className={clsx(
+                            'px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors border-l border-gray-200',
+                            viewMode === 'compliance'
+                                ? 'bg-primary text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                        )}
+                    >
+                        <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                        Compliance
+                    </button>
+                </div>
+
                 {/* Export Button */}
                 <div className="relative">
                     <button
@@ -365,122 +407,131 @@ export default function ProposalBuilder() {
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Left: Section Navigator */}
-                <div className="w-[280px] border-r border-border bg-surface overflow-y-auto custom-scrollbar">
-                    <div className="p-4">
-                        <h2 className="text-sm font-medium text-text-secondary mb-3">
-                            Proposal Sections
-                        </h2>
-
-                        {sections.length === 0 ? (
-                            <div className="text-center py-8">
-                                <DocumentTextIcon className="h-10 w-10 mx-auto text-text-muted mb-3" />
-                                <p className="text-sm text-text-muted mb-4">No sections yet</p>
-                                <button
-                                    onClick={() => setShowTypeSelector(true)}
-                                    className="btn-secondary text-sm"
-                                >
-                                    <PlusIcon className="h-4 w-4" />
-                                    Add First Section
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {sections.map((section, index) => {
-                                    const style = getSectionStyle(section.section_type?.slug);
-                                    const IconComponent = style.icon;
-
-                                    return (
-                                        <div
-                                            key={section.id}
-                                            className={clsx(
-                                                'group rounded-lg transition-all border',
-                                                selectedSection?.id === section.id
-                                                    ? `${style.bgColor} ${style.borderColor}`
-                                                    : 'border-transparent hover:bg-background'
-                                            )}
-                                        >
-                                            <div className="flex items-center">
-                                                <div className="flex flex-col p-1">
-                                                    <button
-                                                        onClick={() => handleMoveSection(section.id, 'up')}
-                                                        disabled={index === 0}
-                                                        className="p-0.5 hover:bg-white/50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    >
-                                                        <ChevronUpIcon className="h-3 w-3 text-text-muted" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleMoveSection(section.id, 'down')}
-                                                        disabled={index === sections.length - 1}
-                                                        className="p-0.5 hover:bg-white/50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    >
-                                                        <ChevronDownIcon className="h-3 w-3 text-text-muted" />
-                                                    </button>
-                                                </div>
-
-                                                <button
-                                                    onClick={() => setSelectedSection(section)}
-                                                    className="flex-1 text-left p-3 pl-0"
-                                                >
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <div className={clsx(
-                                                            'p-1.5 rounded-md',
-                                                            style.bgColor
-                                                        )}>
-                                                            <IconComponent className={clsx('h-4 w-4', style.color)} />
-                                                        </div>
-                                                        {getStatusIcon(section.status)}
-                                                    </div>
-                                                    <p className="text-sm font-medium text-text-primary line-clamp-1">
-                                                        {section.title}
-                                                    </p>
-                                                    <p className="text-xs text-text-muted line-clamp-1 mt-0.5">
-                                                        {style.description}
-                                                    </p>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => handleDeleteSection(section.id)}
-                                                    className="p-2 opacity-0 group-hover:opacity-100 hover:text-error transition-opacity"
-                                                >
-                                                    <TrashIcon className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                {viewMode === 'compliance' ? (
+                    /* Compliance Matrix View */
+                    <div className="flex-1 overflow-auto p-6 bg-background">
+                        <ComplianceMatrix projectId={projectId} sections={sections} />
                     </div>
-                </div>
+                ) : (
+                    <>
+                        {/* Left: Section Navigator */}
+                        <div className="w-[280px] border-r border-border bg-surface overflow-y-auto custom-scrollbar">
+                            <div className="p-4">
+                                <h2 className="text-sm font-medium text-text-secondary mb-3">
+                                    Proposal Sections
+                                </h2>
 
-                {/* Right: Section Editor */}
-                <div className="flex-1 overflow-hidden">
-                    {selectedSection ? (
-                        <SectionEditor
-                            section={selectedSection}
-                            projectId={projectId}
-                            onUpdate={handleSectionUpdate}
-                        />
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                            <DocumentTextIcon className="h-16 w-16 text-text-muted mb-4" />
-                            <h3 className="text-lg font-medium text-text-primary mb-2">
-                                No Section Selected
-                            </h3>
-                            <p className="text-text-secondary mb-6 max-w-md">
-                                Select a section from the left panel to edit, or add a new section to get started.
-                            </p>
-                            <button
-                                onClick={() => setShowTypeSelector(true)}
-                                className="btn-primary"
-                            >
-                                <PlusIcon className="h-4 w-4" />
-                                Add Section
-                            </button>
+                                {sections.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <DocumentTextIcon className="h-10 w-10 mx-auto text-text-muted mb-3" />
+                                        <p className="text-sm text-text-muted mb-4">No sections yet</p>
+                                        <button
+                                            onClick={() => setShowTypeSelector(true)}
+                                            className="btn-secondary text-sm"
+                                        >
+                                            <PlusIcon className="h-4 w-4" />
+                                            Add First Section
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {sections.map((section, index) => {
+                                            const style = getSectionStyle(section.section_type?.slug);
+                                            const IconComponent = style.icon;
+
+                                            return (
+                                                <div
+                                                    key={section.id}
+                                                    className={clsx(
+                                                        'group rounded-lg transition-all border',
+                                                        selectedSection?.id === section.id
+                                                            ? `${style.bgColor} ${style.borderColor}`
+                                                            : 'border-transparent hover:bg-background'
+                                                    )}
+                                                >
+                                                    <div className="flex items-center">
+                                                        <div className="flex flex-col p-1">
+                                                            <button
+                                                                onClick={() => handleMoveSection(section.id, 'up')}
+                                                                disabled={index === 0}
+                                                                className="p-0.5 hover:bg-white/50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                            >
+                                                                <ChevronUpIcon className="h-3 w-3 text-text-muted" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleMoveSection(section.id, 'down')}
+                                                                disabled={index === sections.length - 1}
+                                                                className="p-0.5 hover:bg-white/50 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                                            >
+                                                                <ChevronDownIcon className="h-3 w-3 text-text-muted" />
+                                                            </button>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => setSelectedSection(section)}
+                                                            className="flex-1 text-left p-3 pl-0"
+                                                        >
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <div className={clsx(
+                                                                    'p-1.5 rounded-md',
+                                                                    style.bgColor
+                                                                )}>
+                                                                    <IconComponent className={clsx('h-4 w-4', style.color)} />
+                                                                </div>
+                                                                {getStatusIcon(section.status)}
+                                                            </div>
+                                                            <p className="text-sm font-medium text-text-primary line-clamp-1">
+                                                                {section.title}
+                                                            </p>
+                                                            <p className="text-xs text-text-muted line-clamp-1 mt-0.5">
+                                                                {style.description}
+                                                            </p>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleDeleteSection(section.id)}
+                                                            className="p-2 opacity-0 group-hover:opacity-100 hover:text-error transition-opacity"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Right: Section Editor */}
+                        <div className="flex-1 overflow-hidden">
+                            {selectedSection ? (
+                                <SectionEditor
+                                    section={selectedSection}
+                                    projectId={projectId}
+                                    onUpdate={handleSectionUpdate}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                                    <DocumentTextIcon className="h-16 w-16 text-text-muted mb-4" />
+                                    <h3 className="text-lg font-medium text-text-primary mb-2">
+                                        No Section Selected
+                                    </h3>
+                                    <p className="text-text-secondary mb-6 max-w-md">
+                                        Select a section from the left panel to edit, or add a new section to get started.
+                                    </p>
+                                    <button
+                                        onClick={() => setShowTypeSelector(true)}
+                                        className="btn-primary"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add Section
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Section Type Selector Modal */}
