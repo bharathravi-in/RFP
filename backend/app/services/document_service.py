@@ -47,12 +47,29 @@ class DocumentService:
         except Exception as e:
             raise ValueError(f"Failed to extract text from XLSX: {e}")
     
+    @staticmethod
+    def extract_text_from_pptx(file_path: str) -> str:
+        """Extract text content from PPTX file."""
+        try:
+            from pptx import Presentation
+            prs = Presentation(file_path)
+            text_parts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        text_parts.append(shape.text)
+            return '\n\n'.join(text_parts)
+        except Exception as e:
+            raise ValueError(f"Failed to extract text from PPTX: {e}")
+    
     @classmethod
     def extract_text(cls, file_path: str, file_type: str) -> str:
         """Extract text from document based on file type."""
         extractors = {
             'pdf': cls.extract_text_from_pdf,
             'docx': cls.extract_text_from_docx,
+            'pptx': cls.extract_text_from_pptx,
+            'ppt': cls.extract_text_from_pptx,
             'xlsx': cls.extract_text_from_xlsx,
             'xls': cls.extract_text_from_xlsx,
             'doc': cls.extract_text_from_docx,

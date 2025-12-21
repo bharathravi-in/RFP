@@ -37,3 +37,5 @@ pytest==7.4.3
 pytest-cov==4.1.0
 httpx==0.25.2
 openai>=1.0.0
+python-pptx>=0.6.21
+mammoth>=1.6.0

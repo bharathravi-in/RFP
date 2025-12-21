@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
-import { SparklesIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function Register() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [organizationName, setOrganizationName] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -35,7 +34,6 @@ export default function Register() {
                 name,
                 email,
                 password,
-                organization_name: organizationName || undefined,
             });
             toast.success('Account created successfully!');
             navigate('/dashboard');
@@ -53,12 +51,10 @@ export default function Register() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center gap-2">
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-lg">
-                            <SparklesIcon className="h-6 w-6 text-white" />
-                        </div>
-                        <span className="font-bold text-2xl text-text-primary">RFP War Room</span>
+                        <img src="/logo.svg" alt="RFP Pro" className="h-12 w-12" />
+                        <span className="font-bold text-2xl text-text-primary">RFP Pro</span>
                     </div>
-                    <p className="mt-2 text-text-secondary">AI-Powered RFP Automation</p>
+                    <p className="mt-2 text-text-secondary">AI-Powered Proposal Automation</p>
                 </div>
 
                 {/* Register Card */}
@@ -124,20 +120,6 @@ export default function Register() {
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="organization" className="block text-sm font-medium text-text-primary mb-2">
-                                Organization name <span className="text-text-muted">(optional)</span>
-                            </label>
-                            <input
-                                id="organization"
-                                type="text"
-                                value={organizationName}
-                                onChange={(e) => setOrganizationName(e.target.value)}
-                                className="input"
-                                placeholder="Acme Inc."
-                            />
-                        </div>
-
                         <button
                             type="submit"
                             disabled={isLoading}
@@ -165,3 +147,4 @@ export default function Register() {
         </div>
     );
 }
+

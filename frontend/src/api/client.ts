@@ -158,6 +158,11 @@ export const documentsApi = {
             section_type_ids: sectionTypeIds,
             generate_content: generateContent
         }),
+
+    // Preview and Download
+    getPreviewUrl: (id: number) => `/api/documents/${id}/preview`,
+
+    getDownloadUrl: (id: number) => `/api/documents/${id}/download`,
 };
 
 // ===============================
@@ -182,6 +187,9 @@ export const questionsApi = {
 
     split: (questionId: number, texts: string[]) =>
         api.post('/questions/split', { question_id: questionId, texts }),
+
+    generateAnswer: (questionId: number) =>
+        api.post(`/questions/${questionId}/generate-answer`),
 
     delete: (id: number) =>
         api.delete(`/questions/${id}`),
@@ -378,4 +386,84 @@ export const sectionsApi = {
         api.get(`/projects/${projectId}/export/preview`),
 };
 
+// ===============================
+// Users API
+// ===============================
+
+export const usersApi = {
+    getProfile: () =>
+        api.get('/users/profile'),
+
+    updateProfile: (data: { name?: string; email?: string }) =>
+        api.put('/users/profile', data),
+
+    uploadPhoto: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/users/profile/photo', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    removePhoto: () =>
+        api.delete('/users/profile/photo'),
+
+    changePassword: (data: { current_password: string; new_password: string }) =>
+        api.put('/users/profile/password', data),
+};
+
+// ===============================
+// Organizations API
+// ===============================
+
+export const organizationsApi = {
+    get: () =>
+        api.get('/organizations'),
+
+    create: (data: { name: string; settings?: Record<string, any> }) =>
+        api.post('/organizations', data),
+
+    update: (id: number, data: { name?: string; settings?: Record<string, any> }) =>
+        api.put(`/organizations/${id}`, data),
+
+    delete: (id: number, confirm: boolean = false) =>
+        api.delete(`/organizations/${id}`, { data: { confirm } }),
+
+    extractVendorProfile: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/organizations/extract-vendor-profile', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+};
+
+// ===============================
+// Invitations API
+// ===============================
+
+export const invitationsApi = {
+    list: () =>
+        api.get('/invitations'),
+
+    create: (data: { email: string; role?: string }) =>
+        api.post('/invitations', data),
+
+    resend: (invitationId: number) =>
+        api.post(`/invitations/${invitationId}/resend`),
+
+    cancel: (invitationId: number) =>
+        api.delete(`/invitations/${invitationId}`),
+
+    validate: (token: string) =>
+        api.get(`/invitations/validate/${token}`),
+
+    accept: (token: string) =>
+        api.post('/invitations/accept', { token }),
+
+    acceptAndRegister: (data: { token: string; name: string; password: string }) =>
+        api.post('/invitations/accept/register', data),
+};
+
 export default api;
+

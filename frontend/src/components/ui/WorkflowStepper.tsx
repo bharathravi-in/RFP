@@ -4,8 +4,11 @@ import {
     DocumentArrowUpIcon,
     DocumentMagnifyingGlassIcon,
     ChatBubbleLeftRightIcon,
-    DocumentCheckIcon,
     ArrowDownTrayIcon,
+    UserCircleIcon,
+    BookOpenIcon,
+    FolderPlusIcon,
+    Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 interface WorkflowStep {
@@ -17,6 +20,24 @@ interface WorkflowStep {
 
 const WORKFLOW_STEPS: WorkflowStep[] = [
     {
+        id: 'knowledge-profile',
+        label: 'Knowledge Profile',
+        description: 'Create knowledge profile',
+        icon: UserCircleIcon,
+    },
+    {
+        id: 'knowledge-base',
+        label: 'Knowledge Base',
+        description: 'Upload reusable content',
+        icon: BookOpenIcon,
+    },
+    {
+        id: 'create-project',
+        label: 'Create Project',
+        description: 'Start RFP response project',
+        icon: FolderPlusIcon,
+    },
+    {
         id: 'upload',
         label: 'Upload RFP',
         description: 'Import your RFP document',
@@ -24,21 +45,21 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     },
     {
         id: 'analyze',
-        label: 'Analyze',
+        label: 'Analyze RFP',
         description: 'Extract questions & requirements',
         icon: DocumentMagnifyingGlassIcon,
+    },
+    {
+        id: 'sections',
+        label: 'Extract Sections',
+        description: 'Organize into proposal sections',
+        icon: Squares2X2Icon,
     },
     {
         id: 'answer',
         label: 'Generate Answers',
         description: 'AI-powered response generation',
         icon: ChatBubbleLeftRightIcon,
-    },
-    {
-        id: 'review',
-        label: 'Review',
-        description: 'Review and approve answers',
-        icon: DocumentCheckIcon,
     },
     {
         id: 'export',
@@ -49,7 +70,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
 ];
 
 interface WorkflowStepperProps {
-    currentStep: 'upload' | 'analyze' | 'answer' | 'review' | 'export';
+    currentStep: 'knowledge-profile' | 'knowledge-base' | 'create-project' | 'upload' | 'analyze' | 'sections' | 'answer' | 'export';
     completedSteps?: string[];
     onStepClick?: (stepId: string) => void;
     compact?: boolean;
@@ -66,7 +87,7 @@ export default function WorkflowStepper({
     return (
         <div className={clsx(
             'flex items-center gap-1',
-            compact ? 'justify-center' : 'justify-between'
+            compact ? 'justify-center flex-wrap' : 'justify-between overflow-x-auto'
         )}>
             {WORKFLOW_STEPS.map((step, index) => {
                 const isCompleted = completedSteps.includes(step.id) || index < currentIndex;
@@ -82,7 +103,7 @@ export default function WorkflowStepper({
                             disabled={!isClickable}
                             className={clsx(
                                 'flex items-center gap-2 transition-all',
-                                compact ? 'p-2' : 'p-3',
+                                compact ? 'p-1.5' : 'p-2',
                                 isClickable ? 'cursor-pointer hover:opacity-80' : 'cursor-default',
                                 isCurrent && 'scale-105'
                             )}
@@ -92,7 +113,7 @@ export default function WorkflowStepper({
                             <div
                                 className={clsx(
                                     'relative flex items-center justify-center rounded-full transition-all',
-                                    compact ? 'h-8 w-8' : 'h-10 w-10',
+                                    compact ? 'h-7 w-7' : 'h-9 w-9',
                                     isCompleted
                                         ? 'bg-green-100 text-green-600'
                                         : isCurrent
@@ -101,18 +122,18 @@ export default function WorkflowStepper({
                                 )}
                             >
                                 {isCompleted ? (
-                                    <CheckIcon className={clsx(compact ? 'h-4 w-4' : 'h-5 w-5')} />
+                                    <CheckIcon className={clsx(compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
                                 ) : (
-                                    <IconComponent className={clsx(compact ? 'h-4 w-4' : 'h-5 w-5')} />
+                                    <IconComponent className={clsx(compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
                                 )}
                             </div>
 
                             {/* Label - hide in compact mode */}
                             {!compact && (
-                                <div className="text-left">
+                                <div className="text-left hidden lg:block">
                                     <p
                                         className={clsx(
-                                            'text-sm font-medium',
+                                            'text-xs font-medium whitespace-nowrap',
                                             isCurrent
                                                 ? 'text-primary'
                                                 : isCompleted
@@ -122,7 +143,6 @@ export default function WorkflowStepper({
                                     >
                                         {step.label}
                                     </p>
-                                    <p className="text-xs text-text-muted">{step.description}</p>
                                 </div>
                             )}
                         </button>
@@ -132,7 +152,7 @@ export default function WorkflowStepper({
                             <div
                                 className={clsx(
                                     'h-0.5 transition-all',
-                                    compact ? 'w-4' : 'w-8 lg:w-12',
+                                    compact ? 'w-2' : 'w-4 lg:w-6',
                                     index < currentIndex
                                         ? 'bg-green-400'
                                         : 'bg-gray-200'

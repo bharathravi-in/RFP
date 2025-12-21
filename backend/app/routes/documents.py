@@ -8,7 +8,7 @@ from ..models import Document, Project, User
 
 bp = Blueprint('documents', __name__)
 
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'xlsx', 'doc', 'xls'}
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'xlsx', 'doc', 'xls', 'ppt', 'pptx'}
 
 
 @bp.route('', methods=['GET'])
@@ -399,3 +399,214 @@ def auto_build_proposal(document_id):
         'message': 'Proposal sections created with content',
         **result
     }), 201
+
+
+@bp.route('/<int:document_id>/preview', methods=['GET'])
+@jwt_required()
+def preview_document(document_id):
+    """Get document content for preview/viewing."""
+    from flask import Response, send_file
+    import tempfile
+    import io
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if not document.file_data:
+        return jsonify({'error': 'No file data available'}), 404
+    
+    file_type = document.file_type.lower()
+    
+    # PDF - return directly
+    if file_type == 'pdf':
+        return Response(
+            document.file_data,
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'inline; filename="{document.original_filename}"'
+            }
+        )
+    
+    # DOCX - convert to HTML
+    if file_type in ['docx', 'doc']:
+        try:
+            import mammoth
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
+            temp_file.write(document.file_data)
+            temp_file.close()
+            
+            with open(temp_file.name, 'rb') as f:
+                result = mammoth.convert_to_html(f)
+                html_content = result.value
+            
+            os.unlink(temp_file.name)
+            
+            # Wrap in styled HTML
+            styled_html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.6; }}
+        h1, h2, h3 {{ color: #1f2937; }}
+        p {{ margin: 0.5em 0; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}
+        th, td {{ border: 1px solid #e5e7eb; padding: 8px; text-align: left; }}
+        th {{ background: #f3f4f6; }}
+    </style>
+</head>
+<body>{html_content}</body>
+</html>'''
+            
+            return Response(styled_html, mimetype='text/html')
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to convert DOCX: {str(e)}'}), 500
+    
+    # XLSX - convert to HTML table
+    if file_type in ['xlsx', 'xls']:
+        try:
+            from openpyxl import load_workbook
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
+            temp_file.write(document.file_data)
+            temp_file.close()
+            
+            wb = load_workbook(temp_file.name)
+            os.unlink(temp_file.name)
+            
+            html_tables = []
+            for sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                html = f'<h2>{sheet_name}</h2><table>'
+                for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
+                    if row_idx == 1:
+                        html += '<thead><tr>'
+                        html += ''.join(f'<th>{cell if cell else ""}</th>' for cell in row)
+                        html += '</tr></thead><tbody>'
+                    else:
+                        html += '<tr>'
+                        html += ''.join(f'<td>{cell if cell else ""}</td>' for cell in row)
+                        html += '</tr>'
+                html += '</tbody></table>'
+                html_tables.append(html)
+            
+            styled_html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; }}
+        h2 {{ color: #1f2937; margin-top: 2em; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 14px; }}
+        th, td {{ border: 1px solid #e5e7eb; padding: 8px; text-align: left; }}
+        th {{ background: #f3f4f6; font-weight: 600; }}
+        tr:hover {{ background: #f9fafb; }}
+    </style>
+</head>
+<body>{''.join(html_tables)}</body>
+</html>'''
+            
+            return Response(styled_html, mimetype='text/html')
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to convert XLSX: {str(e)}'}), 500
+    
+    # PPTX - convert to HTML with slide content
+    if file_type in ['pptx', 'ppt']:
+        try:
+            from pptx import Presentation
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
+            temp_file.write(document.file_data)
+            temp_file.close()
+            
+            prs = Presentation(temp_file.name)
+            os.unlink(temp_file.name)
+            
+            slides_html = []
+            for slide_idx, slide in enumerate(prs.slides, 1):
+                slide_content = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text.strip():
+                        slide_content.append(f'<p>{shape.text}</p>')
+                
+                slides_html.append(f'''
+                <div class="slide">
+                    <div class="slide-header">Slide {slide_idx}</div>
+                    <div class="slide-content">{''.join(slide_content) if slide_content else '<p class="empty">No text content</p>'}</div>
+                </div>
+                ''')
+            
+            styled_html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; background: #f3f4f6; }}
+        .slide {{ background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; overflow: hidden; }}
+        .slide-header {{ background: #3b82f6; color: white; padding: 10px 16px; font-weight: 600; }}
+        .slide-content {{ padding: 20px; min-height: 150px; }}
+        .slide-content p {{ margin: 0.5em 0; }}
+        .empty {{ color: #9ca3af; font-style: italic; }}
+    </style>
+</head>
+<body>{''.join(slides_html)}</body>
+</html>'''
+            
+            return Response(styled_html, mimetype='text/html')
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to convert PPTX: {str(e)}'}), 500
+    
+    # Unsupported type
+    return jsonify({'error': f'Preview not supported for {file_type}'}), 400
+
+
+@bp.route('/<int:document_id>/download', methods=['GET'])
+@jwt_required()
+def download_document(document_id):
+    """Download the original document file."""
+    from flask import Response
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if not document.file_data:
+        return jsonify({'error': 'No file data available'}), 404
+    
+    # Determine MIME type
+    mime_types = {
+        'pdf': 'application/pdf',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc': 'application/msword',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls': 'application/vnd.ms-excel',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'ppt': 'application/vnd.ms-powerpoint',
+    }
+    
+    mime_type = mime_types.get(document.file_type.lower(), 'application/octet-stream')
+    
+    return Response(
+        document.file_data,
+        mimetype=mime_type,
+        headers={
+            'Content-Disposition': f'attachment; filename="{document.original_filename}"'
+        }
+    )
+

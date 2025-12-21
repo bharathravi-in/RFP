@@ -13,7 +13,8 @@ from .knowledge_profile import KnowledgeProfile, DimensionValues, project_knowle
 from .audit_log import AuditLog, ComplianceMapping, ExportHistory
 from .rfp_section import RFPSectionType, RFPSection, SectionTemplate, seed_section_types
 from .filter_dimension import FilterDimension, seed_filter_dimensions
-from .feedback import AnswerEdit, AnswerFeedback, AgentPerformance  # NEW
+from .feedback import AnswerEdit, AnswerFeedback, AgentPerformance
+from .invitation import Invitation
 
 __all__ = [
     'User',
@@ -45,4 +46,7 @@ __all__ = [
     'AnswerEdit',
     'AnswerFeedback',
     'AgentPerformance',
+    # Invitations
+    'Invitation',
 ]
+

@@ -65,22 +65,23 @@ export default function Projects() {
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-semibold text-text-primary">Projects</h1>
-                    <p className="mt-1 text-text-secondary">
+                    <h1 className="section-title">Projects</h1>
+                    <p className="section-subtitle">
                         Manage your RFP, RFI, and questionnaire responses
                     </p>
                 </div>
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+                <button onClick={() => setShowCreateModal(true)} className="btn-primary self-start sm:self-auto">
                     <PlusIcon className="h-5 w-5" />
-                    New Project
+                    <span className="hidden xs:inline">New Project</span>
+                    <span className="xs:hidden">New</span>
                 </button>
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-4">
-                <div className="relative flex-1 max-w-md">
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-muted" />
                     <input
                         type="text"
@@ -90,16 +91,16 @@ export default function Projects() {
                         className="input pl-10"
                     />
                 </div>
-                <div className="flex items-center gap-2 bg-surface border border-border rounded-lg p-1">
+                <div className="flex items-center gap-1 bg-surface border border-border rounded-button p-1 overflow-x-auto no-scrollbar">
                     {statusFilters.map((filter) => (
                         <button
                             key={filter.value}
                             onClick={() => setStatusFilter(filter.value)}
                             className={clsx(
-                                'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                                'px-3 py-1.5 rounded-badge text-sm font-medium transition-all whitespace-nowrap',
                                 statusFilter === filter.value
                                     ? 'bg-primary text-white'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-background'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
                             )}
                         >
                             {filter.label}
@@ -110,12 +111,12 @@ export default function Projects() {
 
             {/* Projects Grid */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="cards-grid">
                     {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div key={i} className="card animate-pulse">
-                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4" />
-                            <div className="h-3 bg-gray-200 rounded w-1/2 mb-6" />
-                            <div className="h-2 bg-gray-200 rounded w-full" />
+                            <div className="h-4 skeleton w-3/4 mb-4" />
+                            <div className="h-3 skeleton w-1/2 mb-6" />
+                            <div className="h-2 skeleton w-full" />
                         </div>
                     ))}
                 </div>
@@ -136,7 +137,7 @@ export default function Projects() {
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="cards-grid">
                     {filteredProjects.map((project) => (
                         <div
                             key={project.id}

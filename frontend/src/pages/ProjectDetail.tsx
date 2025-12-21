@@ -14,6 +14,8 @@ import {
 import clsx from 'clsx';
 import WorkflowStepper from '@/components/ui/WorkflowStepper';
 import KnowledgeProfileSidebar from '@/components/knowledge/KnowledgeProfileSidebar';
+import UploadProgressModal, { UploadState } from '@/components/upload/UploadProgressModal';
+import DocumentActions from '@/components/ui/DocumentActions';
 
 export default function ProjectDetail() {
     const { id } = useParams<{ id: string }>();
@@ -23,6 +25,12 @@ export default function ProjectDetail() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
+
+    // Upload progress modal state
+    const [showProgressModal, setShowProgressModal] = useState(false);
+    const [uploadState, setUploadState] = useState<UploadState>('uploading');
+    const [uploadPercent, setUploadPercent] = useState(0);
+    const [currentFileName, setCurrentFileName] = useState('');
 
     // Knowledge profile sidebar state
     const [selectedProfile, setSelectedProfile] = useState<any>(null);
@@ -53,24 +61,59 @@ export default function ProjectDetail() {
     }, [loadProject]);
 
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
-        if (!id) return;
+        if (!id || acceptedFiles.length === 0) return;
 
         setIsUploading(true);
+        setShowProgressModal(true);
+        setUploadState('uploading');
+        setUploadPercent(0);
+
         let shouldNavigateToProposal = false;
         let totalSectionsCreated = 0;
 
+        const totalFiles = acceptedFiles.length;
+
+        // Each file gets an equal share of the 0-95% progress
+        // Final 5% is reserved for completion
+        const progressPerFile = 95 / totalFiles;
+
+        // Helper to calculate progress for a file at a specific phase
+        // Phases within a file: uploading(0-20%), parsing(20-40%), analyzing(40-70%), extracting(70-90%), building(90-100%)
+        const calculateProgress = (fileIndex: number, phasePercent: number) => {
+            const fileBaseProgress = fileIndex * progressPerFile;
+            const phaseProgress = (phasePercent / 100) * progressPerFile;
+            return Math.round(fileBaseProgress + phaseProgress);
+        };
+
         try {
-            // Upload all files first, then navigate at the end
-            for (const file of acceptedFiles) {
+            // Process all files
+            for (let fileIndex = 0; fileIndex < acceptedFiles.length; fileIndex++) {
+                const file = acceptedFiles[fileIndex];
+                setCurrentFileName(`${file.name} (${fileIndex + 1}/${totalFiles})`);
+
                 try {
+                    // Phase 1: Uploading (0-20% of this file's share)
+                    setUploadState('uploading');
+                    setUploadPercent(calculateProgress(fileIndex, 5));
+
                     const uploadResult = await documentsApi.upload(Number(id), file);
                     const uploadedDoc = uploadResult.data.document;
 
-                    toast.success(`Uploaded ${file.name}`);
+                    // Phase 2: Parsing (20-40% of this file's share)
+                    setUploadState('parsing');
+                    setUploadPercent(calculateProgress(fileIndex, 25));
 
                     // Auto-analyze the document after upload
                     try {
+                        // Phase 3: Analyzing (40-70% of this file's share)
+                        setUploadState('analyzing');
+                        setUploadPercent(calculateProgress(fileIndex, 50));
+
                         const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+
+                        // Phase 4: Extracting questions (70-90% of this file's share)
+                        setUploadState('extracting_questions');
+                        setUploadPercent(calculateProgress(fileIndex, 80));
 
                         if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
                             // Auto-build the proposal with suggested sections
@@ -79,32 +122,52 @@ export default function ProjectDetail() {
                                 .map((s: any) => s.section_type_id);
 
                             if (sectionIds.length > 0) {
+                                // Phase 5: Building sections (90-100% of this file's share)
+                                setUploadState('building_sections');
+                                setUploadPercent(calculateProgress(fileIndex, 95));
+
                                 await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
                                 totalSectionsCreated += sectionIds.length;
                                 shouldNavigateToProposal = true;
                             }
                         }
 
-                        toast.success(`RFP analysis complete for ${file.name}`, { duration: 3000 });
+                        // File complete - set to end of this file's progress share
+                        setUploadPercent(calculateProgress(fileIndex, 100));
+
                     } catch (analysisError) {
+                        // Analysis failed but document uploaded - continue with next file
                         toast.error(`Analysis failed for ${file.name}, but document uploaded successfully`);
                     }
                 } catch (uploadError) {
+                    // Upload failed - continue with next file
                     toast.error(`Failed to upload ${file.name}`);
                 }
             }
 
+            // All files complete (100%)
+            setUploadState('complete');
+            setUploadPercent(100);
+            setCurrentFileName(`${totalFiles} file${totalFiles > 1 ? 's' : ''} processed`);
+
             await loadProject();
 
-            // Navigate to proposal builder after all files are processed
-            if (shouldNavigateToProposal) {
-                toast.success(
-                    `✨ Auto-analyzed ${acceptedFiles.length} RFP(s) and created ${totalSectionsCreated} proposal sections with AI content!`,
-                    { duration: 4000 }
-                );
-                navigate(`/projects/${id}/proposal`);
-            }
+            // Wait a moment to show complete state before navigating
+            setTimeout(() => {
+                setShowProgressModal(false);
+
+                // Navigate to proposal builder after all files are processed
+                if (shouldNavigateToProposal) {
+                    toast.success(
+                        `✨ Auto-analyzed ${acceptedFiles.length} RFP(s) and created ${totalSectionsCreated} proposal sections with AI content!`,
+                        { duration: 4000 }
+                    );
+                    navigate(`/projects/${id}/proposal`);
+                }
+            }, 1500);
+
         } catch {
+            setUploadState('error');
             toast.error('Failed to upload documents');
         } finally {
             setIsUploading(false);
@@ -117,6 +180,8 @@ export default function ProjectDetail() {
             'application/pdf': ['.pdf'],
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+            'application/vnd.ms-powerpoint': ['.ppt'],
         },
         maxSize: 50 * 1024 * 1024,
     });
@@ -126,23 +191,25 @@ export default function ProjectDetail() {
 
     // Calculate current workflow step
     const getCurrentStep = useMemo(() => {
+        // Knowledge profile and knowledge base are prerequisites (shown as complete for project context)
+        // Project creation is complete since we're in the project
         if (documents.length === 0) return 'upload';
         if (questions.length === 0) return 'analyze';
+        if (questions.length > 0 && answeredQueries === 0) return 'sections';
         if (answeredQueries < questions.length) return 'answer';
-        if (project?.status === 'review') return 'review';
         if (project?.status === 'completed') return 'export';
         return 'answer';
     }, [documents.length, questions.length, answeredQueries, project?.status]);
 
     const getCompletedSteps = useMemo(() => {
         const steps: string[] = [];
+        // Prerequisites are always complete when in a project
+        steps.push('knowledge-profile', 'knowledge-base', 'create-project');
         if (documents.length > 0) steps.push('upload');
-        if (questions.length > 0) steps.push('analyze');
+        if (questions.length > 0) steps.push('analyze', 'sections');
         if (answeredQueries === questions.length && questions.length > 0) steps.push('answer');
         if (project?.status === 'completed') {
-            steps.push('review', 'export');
-        } else if (project?.status === 'review') {
-            steps.push('review');
+            steps.push('export');
         }
         return steps;
     }, [documents.length, questions.length, answeredQueries, project?.status]);
@@ -166,11 +233,13 @@ export default function ProjectDetail() {
                 <div className="card">
                     <h3 className="text-sm font-medium text-text-secondary mb-4">Workflow Progress</h3>
                     <WorkflowStepper
-                        currentStep={getCurrentStep as 'upload' | 'analyze' | 'answer' | 'review' | 'export'}
+                        currentStep={getCurrentStep as 'knowledge-profile' | 'knowledge-base' | 'create-project' | 'upload' | 'analyze' | 'sections' | 'answer' | 'export'}
                         completedSteps={getCompletedSteps}
                         onStepClick={(stepId) => {
-                            if (stepId === 'answer') navigate(`/projects/${id}/workspace`);
-                            else if (stepId === 'review' || stepId === 'export') navigate(`/projects/${id}/proposal`);
+                            if (stepId === 'knowledge-profile') navigate('/settings?tab=knowledge');
+                            else if (stepId === 'knowledge-base') navigate('/knowledge');
+                            else if (stepId === 'answer' || stepId === 'sections') navigate(`/projects/${id}/workspace`);
+                            else if (stepId === 'export') navigate(`/projects/${id}/proposal`);
                         }}
                     />
                 </div>
@@ -289,7 +358,7 @@ export default function ProjectDetail() {
                             {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
                         </p>
                         <p className="text-sm text-text-secondary mt-1">
-                            PDF, DOCX, XLSX up to 50MB
+                            PDF, DOCX, XLSX, PPTX up to 50MB
                         </p>
                         {isUploading && (
                             <p className="text-sm text-primary mt-3">Uploading...</p>
@@ -319,6 +388,16 @@ export default function ProjectDetail() {
                                         }`}>
                                         {doc.status}
                                     </span>
+                                    <DocumentActions
+                                        documentId={doc.id}
+                                        fileName={doc.original_filename}
+                                        fileType={doc.file_type || 'pdf'}
+                                        onDelete={loadProject}
+                                        onReparse={loadProject}
+                                        showDelete={true}
+                                        showReparse={true}
+                                        compact={true}
+                                    />
                                 </div>
                             ))}
                         </div>
@@ -356,6 +435,20 @@ export default function ProjectDetail() {
                 isOpen={isProfileSidebarOpen}
                 profile={selectedProfile}
                 onClose={() => setIsProfileSidebarOpen(false)}
+            />
+
+            {/* Upload Progress Modal */}
+            <UploadProgressModal
+                isOpen={showProgressModal}
+                state={uploadState}
+                percentage={uploadPercent}
+                fileName={currentFileName}
+                onClose={() => {
+                    setShowProgressModal(false);
+                    if (uploadState === 'complete') {
+                        navigate(`/projects/${id}/proposal`);
+                    }
+                }}
             />
         </>
     );

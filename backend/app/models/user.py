@@ -11,6 +11,7 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(255), nullable=False)
+    profile_photo = db.Column(db.Text, nullable=True)  # Base64 encoded photo
     role = db.Column(db.String(50), nullable=False, default='viewer')  # admin, editor, reviewer, viewer
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
@@ -36,6 +37,7 @@ class User(db.Model):
             'id': self.id,
             'email': self.email,
             'name': self.name,
+            'profile_photo': self.profile_photo,
             'role': self.role,
             'organization_id': self.organization_id,
             'is_active': self.is_active,

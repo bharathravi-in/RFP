@@ -7,6 +7,8 @@ import {
     PlusIcon,
     TrashIcon,
     CloudArrowUpIcon,
+    EyeIcon,
+    ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
@@ -20,11 +22,13 @@ interface Folder {
     children?: Folder[];
 }
 
-interface KnowledgeItem {
+export interface KnowledgeItem {
     id: number;
     title: string;
+    content: string;
     source_type: string;
     file_type?: string;
+    folder_id?: number;
     created_at: string;
 }
 
@@ -205,14 +209,30 @@ function FolderNode({
 interface KnowledgeItemListProps {
     items: KnowledgeItem[];
     onSelect: (item: KnowledgeItem) => void;
+    onPreview?: (item: KnowledgeItem) => void;
+    onDownload?: (item: KnowledgeItem) => void;
     onDelete?: (item: KnowledgeItem) => void;
 }
 
-export function KnowledgeItemList({ items, onSelect, onDelete }: KnowledgeItemListProps) {
-    const getFileIcon = (type?: string) => {
+export function KnowledgeItemList({ items, onSelect, onPreview, onDownload, onDelete }: KnowledgeItemListProps) {
+    const getFileIcon = (type?: string, sourceType?: string) => {
+        // For document uploads, show document icon
+        if (sourceType === 'upload' || sourceType === 'document') {
+            return DocumentIcon;
+        }
         if (!type) return DocumentIcon;
         if (type.includes('pdf')) return DocumentIcon;
         return DocumentIcon;
+    };
+
+    const getFileTypeLabel = (type?: string) => {
+        if (!type) return '';
+        if (type.includes('pdf')) return 'PDF';
+        if (type.includes('word') || type.includes('docx')) return 'DOCX';
+        if (type.includes('ppt') || type.includes('presentation')) return 'PPT';
+        if (type.includes('excel') || type.includes('spreadsheet')) return 'XLS';
+        if (type.includes('text')) return 'TXT';
+        return '';
     };
 
     return (
@@ -225,14 +245,24 @@ export function KnowledgeItemList({ items, onSelect, onDelete }: KnowledgeItemLi
                 </div>
             ) : (
                 items.map((item) => {
-                    const Icon = getFileIcon(item.file_type);
+                    const Icon = getFileIcon(item.file_type, item.source_type);
+                    const fileTypeLabel = getFileTypeLabel(item.file_type);
+                    const isDocument = item.source_type === 'upload' || item.source_type === 'document' || item.file_type;
+
                     return (
                         <div
                             key={item.id}
                             className="flex items-center gap-3 px-4 py-3 hover:bg-background cursor-pointer group"
                             onClick={() => onSelect(item)}
                         >
-                            <Icon className="h-5 w-5 text-text-muted flex-shrink-0" />
+                            <div className="relative">
+                                <Icon className="h-5 w-5 text-text-muted flex-shrink-0" />
+                                {fileTypeLabel && (
+                                    <span className="absolute -bottom-1 -right-1 text-[8px] font-bold text-primary bg-primary-light px-1 rounded">
+                                        {fileTypeLabel}
+                                    </span>
+                                )}
+                            </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-text-primary truncate">
                                     {item.title}
@@ -241,17 +271,51 @@ export function KnowledgeItemList({ items, onSelect, onDelete }: KnowledgeItemLi
                                     {item.source_type} • {new Date(item.created_at).toLocaleDateString()}
                                 </p>
                             </div>
-                            {onDelete && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete(item);
-                                    }}
-                                    className="hidden group-hover:block p-1 text-text-muted hover:text-error"
-                                >
-                                    <TrashIcon className="h-4 w-4" />
-                                </button>
-                            )}
+
+                            {/* Action buttons - appear on hover */}
+                            <div className="hidden group-hover:flex items-center gap-1">
+                                {/* Preview button */}
+                                {onPreview && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onPreview(item);
+                                        }}
+                                        className="p-1.5 text-text-muted hover:text-primary hover:bg-primary-light rounded-lg transition-colors"
+                                        title="Preview"
+                                    >
+                                        <EyeIcon className="h-4 w-4" />
+                                    </button>
+                                )}
+
+                                {/* Download button - only for documents */}
+                                {onDownload && isDocument && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDownload(item);
+                                        }}
+                                        className="p-1.5 text-text-muted hover:text-success hover:bg-success/10 rounded-lg transition-colors"
+                                        title="Download"
+                                    >
+                                        <ArrowDownTrayIcon className="h-4 w-4" />
+                                    </button>
+                                )}
+
+                                {/* Delete button */}
+                                {onDelete && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete(item);
+                                        }}
+                                        className="p-1.5 text-text-muted hover:text-error hover:bg-error/10 rounded-lg transition-colors"
+                                        title="Delete"
+                                    >
+                                        <TrashIcon className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     );
                 })

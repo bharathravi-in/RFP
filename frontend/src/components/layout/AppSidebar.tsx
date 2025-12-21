@@ -7,8 +7,9 @@ import {
     DocumentDuplicateIcon,
     Cog6ToothIcon,
     ArrowRightOnRectangleIcon,
-    SparklesIcon,
+    XMarkIcon,
 } from '@heroicons/react/24/outline';
+import { SparklesIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 
 const navigation = [
@@ -19,7 +20,12 @@ const navigation = [
     { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ];
 
-export default function AppSidebar() {
+interface AppSidebarProps {
+    isOpen?: boolean;
+    onClose?: () => void;
+}
+
+export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
     const { user, logout } = useAuthStore();
     const navigate = useNavigate();
 
@@ -28,42 +34,89 @@ export default function AppSidebar() {
         navigate('/login');
     };
 
+    const handleNavClick = () => {
+        // Close sidebar on mobile after navigation
+        if (onClose) onClose();
+    };
+
     return (
-        <aside className="fixed left-0 top-0 h-full w-sidebar bg-surface border-r border-border flex flex-col">
-            {/* Logo */}
-            <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
-                    <SparklesIcon className="h-5 w-5 text-white" />
+        <aside
+            className={clsx(
+                "sidebar",
+                // Mobile: slide in from left
+                "fixed inset-y-0 left-0 z-40",
+                "w-[280px] lg:w-sidebar",
+                "transform transition-transform duration-normal ease-in-out",
+                // Mobile visibility
+                isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+            )}
+        >
+            {/* Logo Header */}
+            <div className="h-16 flex items-center justify-between px-5 border-b border-border flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <img
+                        src="/logo.svg"
+                        alt="RFP Pro"
+                        className="h-10 w-10"
+                    />
+                    <div>
+                        <span className="font-display font-bold text-lg text-text-primary">RFP Pro</span>
+                        <p className="text-xs text-text-muted">AI-Powered Proposals</p>
+                    </div>
                 </div>
-                <span className="font-semibold text-lg text-text-primary">RFP War Room</span>
+                {/* Mobile close button */}
+                <button
+                    onClick={onClose}
+                    className="lg:hidden p-2 -mr-2 rounded-button hover:bg-surface-elevated transition-colors"
+                >
+                    <XMarkIcon className="h-5 w-5 text-text-secondary" />
+                </button>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+            <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto custom-scrollbar">
                 {navigation.map((item) => (
                     <NavLink
                         key={item.name}
                         to={item.href}
+                        onClick={handleNavClick}
                         className={({ isActive }) =>
                             clsx(
-                                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-fast',
+                                'flex items-center gap-3 px-4 py-3 rounded-button text-sm font-medium transition-all duration-fast',
                                 isActive
-                                    ? 'bg-primary-light text-primary'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-background'
+                                    ? 'bg-gradient-to-r from-primary-100 to-primary-50 text-primary-700 shadow-sm'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
                             )
                         }
                     >
-                        <item.icon className="h-5 w-5" />
-                        {item.name}
+                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                        <span>{item.name}</span>
                     </NavLink>
                 ))}
             </nav>
 
             {/* User section */}
-            <div className="p-4 border-t border-border">
-                <div className="flex items-center gap-3 px-3 py-2">
-                    <div className="h-8 w-8 rounded-full bg-primary-light flex items-center justify-center">
-                        <span className="text-sm font-medium text-primary">
+            <div className="p-4 border-t border-border flex-shrink-0">
+                <div className="flex items-center gap-3 p-3 rounded-button bg-surface-elevated">
+                    {user?.profile_photo ? (
+                        <img
+                            src={user.profile_photo}
+                            alt={user.name}
+                            className="h-10 w-10 rounded-full object-cover flex-shrink-0"
+                            onError={(e) => {
+                                // Fallback to initials if image fails to load
+                                const target = e.currentTarget;
+                                target.style.display = 'none';
+                                const fallback = target.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                            }}
+                        />
+                    ) : null}
+                    <div
+                        className="h-10 w-10 rounded-full bg-gradient-brand flex items-center justify-center flex-shrink-0"
+                        style={{ display: user?.profile_photo ? 'none' : 'flex' }}
+                    >
+                        <span className="text-sm font-semibold text-white">
                             {user?.name?.charAt(0).toUpperCase() || 'U'}
                         </span>
                     </div>
@@ -72,12 +125,12 @@ export default function AppSidebar() {
                             {user?.name || 'User'}
                         </p>
                         <p className="text-xs text-text-muted truncate">
-                            {user?.email}
+                            {user?.role === 'admin' ? 'Administrator' : 'Team Member'}
                         </p>
                     </div>
                     <button
                         onClick={handleLogout}
-                        className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error-light transition-colors"
+                        className="p-2 rounded-button text-text-muted hover:text-error hover:bg-error-light transition-colors flex-shrink-0"
                         title="Logout"
                     >
                         <ArrowRightOnRectangleIcon className="h-5 w-5" />

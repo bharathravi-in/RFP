@@ -8,7 +8,7 @@ import {
 import FolderTree, { KnowledgeItemList } from '../components/knowledge/FolderTree';
 import CreateFolderModal from '../components/knowledge/CreateFolderModal';
 import FileUploadModal from '../components/knowledge/FileUploadModal';
-import DocumentPreviewSidebar from '../components/knowledge/DocumentPreviewSidebar';
+import KnowledgePreviewModal from '../components/knowledge/KnowledgePreviewModal';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 
@@ -33,15 +33,6 @@ interface KnowledgeItem {
     created_at: string;
 }
 
-interface PreviewData {
-    type: 'text' | 'document';
-    title: string;
-    content: string;
-    file_type?: string;
-    file_name?: string;
-    can_download?: boolean;
-}
-
 export default function KnowledgeBasePage() {
     const [folders, setFolders] = useState<Folder[]>([]);
     const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
@@ -55,11 +46,9 @@ export default function KnowledgeBasePage() {
     const [createFolderParentId, setCreateFolderParentId] = useState<number | null>(null);
     const [uploadFolderId, setUploadFolderId] = useState<number | null>(null);
 
-    // Sidebar preview state
-    const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-    const [previewItemId, setPreviewItemId] = useState<number | null>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    // Preview modal state
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [previewItem, setPreviewItem] = useState<KnowledgeItem | null>(null);
 
     // Reindex and count state
     const [isReindexing, setIsReindexing] = useState(false);
@@ -154,69 +143,62 @@ export default function KnowledgeBasePage() {
         await loadItems();
     };
 
-    const handleSelectItem = async (item: KnowledgeItem) => {
-        try {
-            setPreviewItemId(item.id);
-
-            // Get preview metadata
-            const response = await api.get(`/preview/${item.id}`);
-            setPreviewData(response.data);
-
-            // If it's a PDF, fetch the file as blob for iframe
-            if (response.data.file_type?.includes('pdf') && response.data.can_download !== false) {
-                const fileResponse = await api.get(`/preview/${item.id}/file`, {
-                    responseType: 'blob',
-                });
-                const blobUrl = window.URL.createObjectURL(fileResponse.data);
-                setPdfUrl(blobUrl);
-            } else {
-                setPdfUrl(null);
-            }
-
-            setIsSidebarOpen(true);
-        } catch (error) {
-            console.error('Failed to load preview:', error);
-        }
+    // Open preview modal
+    const handleSelectItem = (item: KnowledgeItem) => {
+        setPreviewItem(item);
+        setIsPreviewOpen(true);
     };
 
-    const handleCloseSidebar = () => {
-        setIsSidebarOpen(false);
-        setPreviewData(null);
-        setPreviewItemId(null);
-        // Cleanup blob URL
-        if (pdfUrl) {
-            window.URL.revokeObjectURL(pdfUrl);
-            setPdfUrl(null);
-        }
+    // Close preview modal
+    const handleClosePreview = () => {
+        setIsPreviewOpen(false);
+        setPreviewItem(null);
     };
 
-    const handleDownload = async () => {
-        if (!previewItemId) return;
+    // Download item
+    const handleDownload = async (item?: KnowledgeItem) => {
+        const targetItem = item || previewItem;
+        if (!targetItem) return;
         try {
-            const response = await api.get(`/preview/${previewItemId}/download`, {
+            const response = await api.get(`/preview/${targetItem.id}/download`, {
                 responseType: 'blob',
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', previewData?.file_name || previewData?.title || 'download');
+            link.setAttribute('download', targetItem.title);
             document.body.appendChild(link);
             link.click();
             link.remove();
             window.URL.revokeObjectURL(url);
+            toast.success('Download started');
         } catch (error) {
             console.error('Failed to download:', error);
+            toast.error('Failed to download file');
         }
     };
 
-    const handleDeleteItem = async () => {
-        if (!previewItemId) return;
+    // Delete item
+    const handleDeleteItem = async (item?: KnowledgeItem) => {
+        const targetItem = item || previewItem;
+        if (!targetItem) return;
+
+        // Confirm deletion (skip if coming from modal which has its own confirm)
+        if (item && !window.confirm('Are you sure you want to delete this item?')) {
+            return;
+        }
+
         try {
-            await api.delete(`/knowledge/${previewItemId}`);
-            handleCloseSidebar();
+            await api.delete(`/knowledge/${targetItem.id}`);
+            // Close preview if the deleted item was being previewed
+            if (previewItem?.id === targetItem.id) {
+                handleClosePreview();
+            }
             await loadItems();
+            toast.success('Item deleted successfully');
         } catch (error) {
             console.error('Failed to delete:', error);
+            toast.error('Failed to delete item');
         }
     };
 
@@ -298,19 +280,15 @@ export default function KnowledgeBasePage() {
                                 <div className="text-text-muted">Loading...</div>
                             </div>
                         ) : (
-                            <KnowledgeItemList items={items} onSelect={handleSelectItem} />
+                            <KnowledgeItemList
+                                items={items}
+                                onSelect={handleSelectItem}
+                                onPreview={handleSelectItem}
+                                onDownload={handleDownload}
+                                onDelete={handleDeleteItem}
+                            />
                         )}
                     </div>
-
-                    {/* Document Preview Sidebar */}
-                    <DocumentPreviewSidebar
-                        isOpen={isSidebarOpen}
-                        preview={previewData}
-                        pdfUrl={pdfUrl}
-                        onClose={handleCloseSidebar}
-                        onDownload={handleDownload}
-                        onDelete={handleDeleteItem}
-                    />
                 </div>
             </div>
 
@@ -333,6 +311,19 @@ export default function KnowledgeBasePage() {
                 folderName={selectedFolder?.name || 'Knowledge Base'}
                 onUpload={handleUpload}
             />
+
+            {/* Preview Modal */}
+            {previewItem && (
+                <KnowledgePreviewModal
+                    isOpen={isPreviewOpen}
+                    onClose={handleClosePreview}
+                    itemId={previewItem.id}
+                    itemTitle={previewItem.title}
+                    fileType={previewItem.file_type}
+                    onDownload={() => toast.success('Download started')}
+                    onDelete={() => handleDeleteItem(previewItem)}
+                />
+            )}
         </div>
     );
 }

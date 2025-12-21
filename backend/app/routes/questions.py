@@ -262,3 +262,81 @@ def delete_question(question_id):
     db.session.commit()
     
     return jsonify({'message': 'Question deleted'}), 200
+
+@bp.route('/<int:question_id>/generate-answer', methods=['POST'])
+@jwt_required()
+def generate_answer(question_id):
+    """Generate an AI answer for a question and save it."""
+    import logging
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    question = Question.query.get(question_id)
+    
+    if not question:
+        return jsonify({'error': 'Question not found'}), 404
+    
+    if question.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        from app.agents import get_answer_generator_agent
+        from app.models import Answer
+        
+        # Initialize agent with org_id
+        agent = get_answer_generator_agent()
+        
+        # Generate answer using AI - use generate_answers method
+        result = agent.generate_answers(
+            questions=[{
+                'id': question.id,
+                'text': question.text,
+                'category': question.category or 'general'
+            }]
+        )
+        
+        logging.info(f"Answer generation result: {result}")
+        
+        # Check if successful
+        if not result.get('success', False):
+            return jsonify({'error': result.get('error', 'Generation failed')}), 500
+        
+        # Get generated answer
+        answers = result.get('answers', [])
+        if answers and len(answers) > 0:
+            answer_data = answers[0]
+            answer_content = answer_data.get('answer', '')  # The 'answer' field contains the content
+            confidence = answer_data.get('confidence_score', 0.7)
+            
+            logging.info(f"Generated answer: {answer_content[:100]}...")
+            
+            # Create or update answer - use current_answer property (answers is plural)
+            existing_answer = question.current_answer
+            if existing_answer:
+                existing_answer.content = answer_content
+                existing_answer.confidence_score = confidence
+            else:
+                answer = Answer(
+                    content=answer_content,
+                    confidence_score=confidence,
+                    question_id=question.id
+                )
+                db.session.add(answer)
+            
+            # Update question status
+            question.status = 'answered'
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Answer generated',
+                'question': question.to_dict(include_answer=True)
+            }), 200
+        else:
+            return jsonify({'error': 'No answer generated'}), 500
+            
+    except Exception as e:
+        logging.error(f"Answer generation failed: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500

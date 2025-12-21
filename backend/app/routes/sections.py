@@ -813,7 +813,8 @@ def export_proposal(project_id):
         filename = f'{project.name.replace(" ", "_")}_proposal.xlsx'
         mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     else:
-        buffer = generate_proposal_docx(project, sections, include_qa, questions)
+        # Pass organization for vendor visibility section
+        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization)
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     

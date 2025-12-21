@@ -16,6 +16,7 @@ interface AuthState {
     register: (data: { email: string; password: string; name: string; organization_name?: string }) => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
+    fetchUser: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -92,6 +93,18 @@ export const useAuthStore = create<AuthState>()(
                     localStorage.removeItem('access_token');
                     localStorage.removeItem('refresh_token');
                     set({ user: null, organization: null, isAuthenticated: false, isLoading: false });
+                }
+            },
+
+            fetchUser: async () => {
+                try {
+                    const response = await authApi.me();
+                    set({
+                        user: response.data,
+                        organization: response.data.organization,
+                    });
+                } catch (error) {
+                    console.error('Failed to fetch user:', error);
                 }
             },
         }),

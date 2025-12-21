@@ -8,6 +8,7 @@ export interface User {
     id: number;
     email: string;
     name: string;
+    profile_photo: string | null;
     role: UserRole;
     organization_id: number | null;
     is_active: boolean;

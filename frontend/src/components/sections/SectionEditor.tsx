@@ -49,6 +49,27 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [showCreateQuestion, setShowCreateQuestion] = useState(false);
     const [newQuestionText, setNewQuestionText] = useState('');
     const [isCreating, setIsCreating] = useState(false);
+    const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<number>>(new Set());
+    const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
+
+    // Related Questions panel state
+    const [showRelatedQuestions, setShowRelatedQuestions] = useState(true);
+
+    // Category-to-section mapping - EXCLUSIVE matching
+    // Backend AI categories: security, compliance, technical, pricing, legal, product, support, integration, general
+    const SECTION_CATEGORY_MAPPING: Record<string, string[]> = {
+        'technical_approach': ['technical', 'integration', 'product'],
+        'project_architecture': ['technical', 'integration'],
+        'compliance_matrix': ['compliance', 'security', 'legal'],
+        'security_compliance': ['security', 'compliance'],
+        'company_profile': ['general'],
+        'company_strengths': ['general'],
+        'resource_allocation': ['support'],
+        'project_estimation': ['pricing'],
+        'pricing_cost': ['pricing'],
+        'case_studies': ['general'],
+        'support_maintenance': ['support'],
+    };
 
     // Check if this is a Q&A section
     const isQASection = section.section_type?.slug === 'qa_questionnaire' ||
@@ -61,13 +82,48 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     // Determine which editor to use based on template_type
     const templateType = section.section_type?.template_type || 'narrative';
 
+    // Check if a question matches a specific section
+    const questionMatchesSection = (q: Question, sectionSlug: string): boolean => {
+        const categoryKeywords = SECTION_CATEGORY_MAPPING[sectionSlug] || [];
+        if (categoryKeywords.length === 0) return false;
+
+        const questionCategory = (q.category || '').toLowerCase();
+        // Exact match against AI-generated categories
+        return categoryKeywords.includes(questionCategory);
+    };
+
+    // Get section-specific questions (for non-Q&A sections)
+    const getSectionQuestions = (): Question[] => {
+        if (isQASection || isClarificationsSection) return [];
+        const sectionSlug = section.section_type?.slug || '';
+        return questions.filter(q => questionMatchesSection(q, sectionSlug));
+    };
+
+    // Get unmatched questions (for Q&A section - questions that don't belong to any specific section)
+    const getUnmatchedQuestions = (): Question[] => {
+        if (!isQASection) return [];
+        return questions.filter(q => {
+            // Check if this question matches ANY section
+            for (const sectionSlug of Object.keys(SECTION_CATEGORY_MAPPING)) {
+                if (questionMatchesSection(q, sectionSlug)) {
+                    return false; // This question belongs to a specific section
+                }
+            }
+            return true; // This question doesn't match any section, show in Q&A
+        });
+    };
+
+    const sectionQuestions = getSectionQuestions();
+    const unmatchedQuestions = getUnmatchedQuestions();
+
     // Sync content when section changes
     useEffect(() => {
         setContent(section.content || '');
         setIsEditing(false);
 
-        // Load questions for Q&A sections
-        if (isQASection) {
+        // Load questions for Q&A sections and sections with category mappings
+        const sectionSlug = section.section_type?.slug || '';
+        if (isQASection || SECTION_CATEGORY_MAPPING[sectionSlug]) {
             loadQuestions();
         }
     }, [section.id, isQASection]);
@@ -345,9 +401,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
         }
     };
 
-    // Stats for Q&A section
-    const answeredCount = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
-    const approvedCount = questions.filter(q => q.status === 'approved').length;
+    // Stats for Q&A section (using unmatched questions)
+    const unmatchedAnsweredCount = unmatchedQuestions.filter(q => q.status === 'answered' || q.status === 'approved').length;
+    const unmatchedApprovedCount = unmatchedQuestions.filter(q => q.status === 'approved').length;
 
     return (
         <div className="h-full flex flex-col">
@@ -362,7 +418,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                             </h2>
                             <p className="text-sm text-text-secondary">
                                 {section.section_type?.name}
-                                {isQASection && ` • ${answeredCount}/${questions.length} answered • ${approvedCount} approved`}
+                                {isQASection && ` • ${unmatchedAnsweredCount}/${unmatchedQuestions.length} answered • ${unmatchedApprovedCount} approved`}
                             </p>
                         </div>
                     </div>
@@ -580,68 +636,212 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                     <div className="flex items-center justify-center py-12">
                                         <ArrowPathIcon className="h-8 w-8 animate-spin text-primary" />
                                     </div>
-                                ) : questions.length === 0 ? (
+                                ) : unmatchedQuestions.length === 0 ? (
                                     <div className="text-center py-12">
                                         <ChatBubbleLeftRightIcon className="h-16 w-16 mx-auto text-text-muted mb-4" />
                                         <h3 className="text-lg font-medium text-text-primary mb-2">
-                                            No Questions Yet
+                                            {questions.length > 0 ? 'All Questions Assigned to Sections' : 'No Questions Yet'}
                                         </h3>
                                         <p className="text-text-secondary max-w-md mx-auto mb-4">
-                                            Upload and analyze an RFP document to extract customer questions, or create them manually.
+                                            {questions.length > 0
+                                                ? 'All extracted questions have been assigned to their relevant proposal sections.'
+                                                : 'Upload and analyze an RFP document to extract customer questions, or create them manually.'}
                                         </p>
                                         <button
                                             onClick={() => setShowCreateQuestion(true)}
                                             className="btn-primary inline-flex items-center gap-2"
                                         >
                                             <PlusIcon className="h-4 w-4" />
-                                            Create First Question
+                                            Create Question
                                         </button>
                                     </div>
                                 ) : (
-                                    questions.map((question, index) => (
-                                        <div
-                                            key={question.id}
-                                            onClick={() => setSelectedQuestion(question)}
-                                            className="p-4 rounded-lg border border-border bg-background hover:border-primary hover:shadow-sm transition-all cursor-pointer"
-                                        >
-                                            {/* Question Header */}
-                                            <div className="flex items-start gap-3">
-                                                <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-light text-primary text-sm flex items-center justify-center font-medium">
-                                                    {index + 1}
+                                    <div className="overflow-x-auto">
+                                        {/* Table Header with Actions */}
+                                        <div className="flex items-center justify-between mb-4 px-1">
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-sm text-text-secondary">
+                                                    {unmatchedQuestions.filter(q => q.status === 'pending').length} pending • {unmatchedQuestions.filter(q => q.status === 'answered' || q.status === 'approved').length} answered
                                                 </span>
-                                                <div className="flex-1">
-                                                    <p className="text-text-primary font-medium leading-relaxed line-clamp-2">
-                                                        {question.text}
-                                                    </p>
-                                                    {question.section && (
-                                                        <p className="text-xs text-text-muted mt-1">
-                                                            From section: {question.section}
-                                                        </p>
-                                                    )}
-                                                    {question.answer && (
-                                                        <p className="text-sm text-text-secondary mt-2 line-clamp-2 bg-surface p-2 rounded">
-                                                            {question.answer.content}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <span className={clsx(
-                                                    'px-2 py-1 rounded-full text-xs font-medium',
-                                                    question.status === 'approved' && 'bg-success-light text-success',
-                                                    question.status === 'answered' && 'bg-primary-light text-primary',
-                                                    question.status === 'pending' && 'bg-gray-100 text-gray-600',
-                                                )}>
-                                                    {question.status}
-                                                </span>
+                                                {selectedQuestionIds.size > 0 && (
+                                                    <span className="text-sm text-primary font-medium">
+                                                        {selectedQuestionIds.size} selected
+                                                    </span>
+                                                )}
                                             </div>
-
-                                            {/* Quick action hint */}
-                                            <div className="mt-3 flex items-center justify-end">
-                                                <span className="text-xs text-text-muted">
-                                                    Click to {question.answer ? 'edit or regenerate' : 'generate answer'}
-                                                </span>
+                                            <div className="flex items-center gap-2">
+                                                {selectedQuestionIds.size > 0 ? (
+                                                    <button
+                                                        onClick={async () => {
+                                                            setIsGeneratingBatch(true);
+                                                            const selectedPending = unmatchedQuestions.filter(
+                                                                q => selectedQuestionIds.has(q.id) && q.status === 'pending'
+                                                            );
+                                                            if (selectedPending.length > 0) {
+                                                                toast(`Generating ${selectedPending.length} answers...`);
+                                                                // Generate answers one by one
+                                                                for (const q of selectedPending) {
+                                                                    try {
+                                                                        await questionsApi.generateAnswer(q.id);
+                                                                    } catch (e) {
+                                                                        console.error(`Failed to generate answer for ${q.id}`, e);
+                                                                    }
+                                                                }
+                                                                loadQuestions(); // Refresh
+                                                                setSelectedQuestionIds(new Set());
+                                                            }
+                                                            setIsGeneratingBatch(false);
+                                                        }}
+                                                        disabled={isGeneratingBatch}
+                                                        className="btn-primary text-sm flex items-center gap-2"
+                                                    >
+                                                        {isGeneratingBatch ? (
+                                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <SparklesIcon className="h-4 w-4" />
+                                                        )}
+                                                        Generate Selected ({selectedQuestionIds.size})
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={async () => {
+                                                            setIsGeneratingBatch(true);
+                                                            const pendingQuestions = unmatchedQuestions.filter(q => q.status === 'pending');
+                                                            if (pendingQuestions.length > 0) {
+                                                                toast(`Generating ${pendingQuestions.length} answers...`);
+                                                                for (const q of pendingQuestions) {
+                                                                    try {
+                                                                        await questionsApi.generateAnswer(q.id);
+                                                                    } catch (e) {
+                                                                        console.error(`Failed to generate answer for ${q.id}`, e);
+                                                                    }
+                                                                }
+                                                                loadQuestions(); // Refresh
+                                                            }
+                                                            setIsGeneratingBatch(false);
+                                                        }}
+                                                        disabled={isGeneratingBatch}
+                                                        className="btn-secondary text-sm flex items-center gap-2"
+                                                    >
+                                                        {isGeneratingBatch ? (
+                                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <SparklesIcon className="h-4 w-4" />
+                                                        )}
+                                                        Generate All ({unmatchedQuestions.filter(q => q.status === 'pending').length})
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
-                                    ))
+
+                                        {/* Questions Table */}
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-border">
+                                                    <th className="py-3 px-3 w-10">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedQuestionIds.size === unmatchedQuestions.length && unmatchedQuestions.length > 0}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedQuestionIds(new Set(unmatchedQuestions.map(q => q.id)));
+                                                                } else {
+                                                                    setSelectedQuestionIds(new Set());
+                                                                }
+                                                            }}
+                                                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                                                        />
+                                                    </th>
+                                                    <th className="text-left py-3 px-3 text-xs font-medium text-text-secondary uppercase tracking-wider w-12">#</th>
+                                                    <th className="text-left py-3 px-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Question</th>
+                                                    <th className="text-left py-3 px-3 text-xs font-medium text-text-secondary uppercase tracking-wider w-1/3">Answer</th>
+                                                    <th className="text-center py-3 px-3 text-xs font-medium text-text-secondary uppercase tracking-wider w-24">Status</th>
+                                                    <th className="text-right py-3 px-3 text-xs font-medium text-text-secondary uppercase tracking-wider w-32">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {unmatchedQuestions.map((question, index) => (
+                                                    <tr
+                                                        key={question.id}
+                                                        className={clsx(
+                                                            "border-b border-border hover:bg-surface transition-colors",
+                                                            selectedQuestionIds.has(question.id) && "bg-primary-light/30"
+                                                        )}
+                                                    >
+                                                        <td className="py-3 px-3">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedQuestionIds.has(question.id)}
+                                                                onChange={(e) => {
+                                                                    const newSet = new Set(selectedQuestionIds);
+                                                                    if (e.target.checked) {
+                                                                        newSet.add(question.id);
+                                                                    } else {
+                                                                        newSet.delete(question.id);
+                                                                    }
+                                                                    setSelectedQuestionIds(newSet);
+                                                                }}
+                                                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                                                            />
+                                                        </td>
+                                                        <td className="py-3 px-3 text-sm text-text-muted">{index + 1}</td>
+                                                        <td className="py-3 px-3">
+                                                            <p className="text-sm text-text-primary line-clamp-2">{question.text}</p>
+                                                            {question.category && (
+                                                                <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs bg-surface text-text-secondary">
+                                                                    {question.category}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-3">
+                                                            {question.answer ? (
+                                                                <p className="text-sm text-text-secondary line-clamp-2">{question.answer.content}</p>
+                                                            ) : (
+                                                                <span className="text-sm text-text-muted italic">No answer yet</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-3 text-center">
+                                                            <span className={clsx(
+                                                                'px-2 py-1 rounded-full text-xs font-medium',
+                                                                question.status === 'approved' && 'bg-success-light text-success',
+                                                                question.status === 'answered' && 'bg-primary-light text-primary',
+                                                                question.status === 'pending' && 'bg-gray-100 text-gray-600',
+                                                            )}>
+                                                                {question.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 px-3 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => setSelectedQuestion(question)}
+                                                                    className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-primary transition-colors"
+                                                                    title={question.answer ? "Edit Answer" : "Generate Answer"}
+                                                                >
+                                                                    {question.answer ? (
+                                                                        <PencilIcon className="h-4 w-4" />
+                                                                    ) : (
+                                                                        <SparklesIcon className="h-4 w-4" />
+                                                                    )}
+                                                                </button>
+                                                                {question.status === 'answered' && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleQuestionUpdate({ ...question, status: 'approved' as const });
+                                                                        }}
+                                                                        className="p-1.5 rounded-lg hover:bg-success-light text-text-secondary hover:text-success transition-colors"
+                                                                        title="Approve Answer"
+                                                                    >
+                                                                        <CheckCircleIcon className="h-4 w-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         ) : !section.content ? (
@@ -734,6 +934,61 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                 </div>
                             </div>
                         )}
+
+                        {/* Section-Specific Questions Panel */}
+                        {!isQASection && !isClarificationsSection && sectionQuestions.length > 0 && (
+                            <div className="mt-6 border-t border-border pt-4">
+                                <button
+                                    onClick={() => setShowRelatedQuestions(!showRelatedQuestions)}
+                                    className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors w-full"
+                                >
+                                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                                    Section Questions ({sectionQuestions.length})
+                                    <span className={clsx(
+                                        'ml-auto transition-transform',
+                                        showRelatedQuestions ? 'rotate-180' : ''
+                                    )}>
+                                        ▼
+                                    </span>
+                                </button>
+
+                                {showRelatedQuestions && (
+                                    <div className="mt-3 space-y-3">
+                                        {sectionQuestions.map((question, idx) => (
+                                            <div
+                                                key={question.id}
+                                                onClick={() => setSelectedQuestion(question)}
+                                                className="p-3 rounded-lg border border-border bg-background hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <span className="flex-shrink-0 h-5 w-5 rounded-full bg-primary-light text-primary text-xs flex items-center justify-center font-medium">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-text-primary line-clamp-2">
+                                                            {question.text}
+                                                        </p>
+                                                        {question.answer && (
+                                                            <p className="text-xs text-text-secondary mt-1 line-clamp-2 bg-surface p-2 rounded">
+                                                                {question.answer.content}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <span className={clsx(
+                                                        'px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0',
+                                                        question.status === 'approved' && 'bg-success-light text-success',
+                                                        question.status === 'answered' && 'bg-primary-light text-primary',
+                                                        question.status === 'pending' && 'bg-gray-100 text-gray-600',
+                                                    )}>
+                                                        {question.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -811,15 +1066,6 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                 </p>
                             )}
                         </div>
-
-                        {/* Clarification Questions inside sidebar */}
-                        {!isClarificationsSection && (
-                            <ClarificationQuestions
-                                section={section}
-                                projectId={projectId}
-                                onUpdate={onUpdate}
-                            />
-                        )}
                     </div>
                 )}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { projectsApi, questionsApi, knowledgeApi } from '@/api/client';
+import { projectsApi, questionsApi, knowledgeApi, sectionsApi } from '@/api/client';
 import { Project } from '@/types';
 import {
     FolderIcon,
@@ -17,6 +17,9 @@ import {
     LightBulbIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import RFPSummaryCard from '@/components/dashboard/RFPSummaryCard';
+import SectionCompletionWidget from '@/components/dashboard/SectionCompletionWidget';
+import VendorEligibilityPanel from '@/components/dashboard/VendorEligibilityPanel';
 
 interface DashboardStats {
     activeProjects: number;
@@ -64,9 +67,12 @@ function ProjectSkeleton() {
 }
 
 export default function Dashboard() {
-    const { user } = useAuthStore();
+    const { user, organization } = useAuthStore();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [projectsWithStats, setProjectsWithStats] = useState<any[]>([]);
+    const [sections, setSections] = useState<any[]>([]);
+    const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -141,6 +147,22 @@ export default function Dashboard() {
 
     const quickActions: QuickAction[] = [
         {
+            title: 'Setup Knowledge Profile',
+            description: 'Create profile with dimensions',
+            href: '/settings?tab=knowledge',
+            icon: BookOpenIcon,
+            color: 'text-green-600',
+            bgColor: 'bg-green-50 hover:bg-green-100',
+        },
+        {
+            title: 'Build Knowledge Base',
+            description: 'Upload reusable content',
+            href: '/knowledge',
+            icon: DocumentTextIcon,
+            color: 'text-purple-600',
+            bgColor: 'bg-purple-50 hover:bg-purple-100',
+        },
+        {
             title: 'Create New Project',
             description: 'Start a new RFP response',
             href: '/projects?action=create',
@@ -153,22 +175,6 @@ export default function Dashboard() {
             description: 'Import and analyze an RFP',
             href: '/projects',
             icon: DocumentArrowUpIcon,
-            color: 'text-purple-600',
-            bgColor: 'bg-purple-50 hover:bg-purple-100',
-        },
-        {
-            title: 'Manage Knowledge Base',
-            description: 'Add reusable content',
-            href: '/knowledge',
-            icon: BookOpenIcon,
-            color: 'text-green-600',
-            bgColor: 'bg-green-50 hover:bg-green-100',
-        },
-        {
-            title: 'Browse Templates',
-            description: 'Use pre-built templates',
-            href: '/templates',
-            icon: DocumentTextIcon,
             color: 'text-orange-600',
             bgColor: 'bg-orange-50 hover:bg-orange-100',
         },
@@ -179,28 +185,28 @@ export default function Dashboard() {
             name: 'Active Projects',
             value: stats?.activeProjects || 0,
             icon: FolderIcon,
-            color: 'bg-blue-50 text-blue-600',
+            color: 'bg-primary-100 text-primary-700',
             href: '/projects?status=active'
         },
         {
             name: 'Pending Reviews',
             value: stats?.pendingReviews || 0,
             icon: ClockIcon,
-            color: 'bg-amber-50 text-amber-600',
+            color: 'bg-warning-light text-warning-dark',
             href: '/projects?status=review'
         },
         {
             name: 'Completed',
             value: stats?.completedProjects || 0,
             icon: CheckCircleIcon,
-            color: 'bg-green-50 text-green-600',
+            color: 'bg-success-light text-success-dark',
             href: '/projects?status=completed'
         },
         {
             name: 'Knowledge Items',
             value: stats?.knowledgeItems || 0,
             icon: BookOpenIcon,
-            color: 'bg-purple-50 text-purple-600',
+            color: 'bg-accent-light text-accent-dark',
             href: '/knowledge'
         },
     ];
@@ -208,23 +214,24 @@ export default function Dashboard() {
     const isNewUser = !loading && projects.length === 0;
 
     return (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-6 md:space-y-8 animate-fade-in">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-semibold text-text-primary">
+                    <h1 className="section-title">
                         Welcome back, {user?.name?.split(' ')[0] || 'User'}
                     </h1>
-                    <p className="mt-1 text-text-secondary">
+                    <p className="section-subtitle">
                         {isNewUser
                             ? "Let's get started with your first RFP response"
                             : "Here's what's happening with your RFP responses"
                         }
                     </p>
                 </div>
-                <Link to="/projects" className="btn-primary">
+                <Link to="/projects" className="btn-primary self-start sm:self-auto">
                     <PlusIcon className="h-5 w-5" />
-                    New Project
+                    <span className="hidden xs:inline">New Project</span>
+                    <span className="xs:hidden">New</span>
                 </Link>
             </div>
 
@@ -255,14 +262,14 @@ export default function Dashboard() {
                             <p className="mt-1 text-text-secondary mb-4">
                                 Follow these steps to respond to your first RFP efficiently:
                             </p>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                                 <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
-                                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
+                                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-600 text-white flex items-center justify-center text-sm font-medium">
                                         1
                                     </div>
                                     <div>
-                                        <p className="font-medium text-sm">Create a Project</p>
-                                        <p className="text-xs text-text-secondary mt-0.5">Set up a new RFP response project</p>
+                                        <p className="font-medium text-sm">Knowledge Profile</p>
+                                        <p className="text-xs text-text-secondary mt-0.5">Set up dimensions like client type, industry</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
@@ -270,17 +277,35 @@ export default function Dashboard() {
                                         2
                                     </div>
                                     <div>
-                                        <p className="font-medium text-sm">Upload Your RFP</p>
-                                        <p className="text-xs text-text-secondary mt-0.5">AI will extract questions automatically</p>
+                                        <p className="font-medium text-sm">Knowledge Base</p>
+                                        <p className="text-xs text-text-secondary mt-0.5">Upload past proposals & content</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
-                                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-green-600 text-white flex items-center justify-center text-sm font-medium">
+                                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
                                         3
                                     </div>
                                     <div>
-                                        <p className="font-medium text-sm">Generate Answers</p>
-                                        <p className="text-xs text-text-secondary mt-0.5">Review and export your proposal</p>
+                                        <p className="font-medium text-sm">Create Project</p>
+                                        <p className="text-xs text-text-secondary mt-0.5">Start new RFP response project</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
+                                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-orange-600 text-white flex items-center justify-center text-sm font-medium">
+                                        4
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm">Upload & Analyze</p>
+                                        <p className="text-xs text-text-secondary mt-0.5">AI extracts questions & sections</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
+                                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-pink-600 text-white flex items-center justify-center text-sm font-medium">
+                                        5
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm">Generate & Export</p>
+                                        <p className="text-xs text-text-secondary mt-0.5">Generate answers, export proposal</p>
                                     </div>
                                 </div>
                             </div>
@@ -297,7 +322,7 @@ export default function Dashboard() {
             )}
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="stats-grid">
                 {loading ? (
                     <>
                         <StatSkeleton />
@@ -310,7 +335,7 @@ export default function Dashboard() {
                         <Link
                             key={stat.name}
                             to={stat.href}
-                            className="card hover:shadow-md transition-shadow cursor-pointer group"
+                            className="card-interactive group"
                         >
                             <div className="flex items-center gap-4">
                                 <div className={`p-3 rounded-xl ${stat.color}`}>
@@ -350,6 +375,43 @@ export default function Dashboard() {
                     ))}
                 </div>
             </div>
+
+            {/* RFP Summary & Vendor Eligibility Row */}
+            {!loading && projects.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* RFP Summary Cards - 2 columns */}
+                    <div className="lg:col-span-2">
+                        <h2 className="text-xl font-semibold text-text-primary mb-4">
+                            Active RFP Projects
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {projects.slice(0, 4).map((project) => (
+                                <RFPSummaryCard
+                                    key={project.id}
+                                    project={{
+                                        id: project.id,
+                                        name: project.name,
+                                        status: project.status,
+                                        client_name: project.client_name,
+                                        completion_percent: project.completion_percent,
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Vendor Eligibility Panel - 1 column */}
+                    <div>
+                        <h2 className="text-xl font-semibold text-text-primary mb-4">
+                            Vendor Profile
+                        </h2>
+                        <VendorEligibilityPanel
+                            organizationName={organization?.name || user?.name + "'s Organization"}
+                            vendorProfile={(organization?.settings as any)?.vendor_profile}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Recent Projects */}
             <div className="card">
