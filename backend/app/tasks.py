@@ -171,3 +171,47 @@ def search_knowledge_for_answer(query: str, org_id: int, limit: int = 5):
         return []
 
 
+@celery.task(bind=True)
+def check_deadlines_task(self, org_id: int = None):
+    """
+    Check all projects for upcoming deadlines and send reminders.
+    
+    This task should be scheduled to run daily (e.g., at 9 AM).
+    
+    Args:
+        org_id: If provided, only check this organization
+        
+    Returns:
+        Summary of reminders sent
+    """
+    try:
+        from flask import Flask
+        from app import create_app
+        from app.services.reminder_service import get_reminder_service
+        
+        # Create app context if needed
+        app = create_app()
+        with app.app_context():
+            reminder_service = get_reminder_service()
+            result = reminder_service.check_and_send_reminders(org_id=org_id)
+            
+            logger.info(
+                f"Deadline check complete: {result['reminders_sent']} reminders sent, "
+                f"{result['projects_checked']} projects checked"
+            )
+            return result
+            
+    except Exception as e:
+        logger.error(f"Deadline check failed: {e}")
+        return {'status': 'error', 'error': str(e)}
+
+
+# Schedule: Run deadline check daily at 9 AM UTC
+# Add to celery beat schedule in celery_worker.py:
+# celery.conf.beat_schedule = {
+#     'check-deadlines-daily': {
+#         'task': 'app.tasks.check_deadlines_task',
+#         'schedule': crontab(hour=9, minute=0),
+#     },
+# }
+

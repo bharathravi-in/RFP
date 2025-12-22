@@ -20,6 +20,8 @@ from .section_version import SectionVersion, save_section_version
 from .compliance_item import ComplianceItem
 from .answer_library import AnswerLibraryItem
 from .notification import Notification
+from .comment import Comment
+from .activity_log import ActivityLog
 
 __all__ = [
     'User',
@@ -64,6 +66,10 @@ __all__ = [
     'AnswerLibraryItem',
     # Notifications
     'Notification',
+    # Comments
+    'Comment',
+    # Activity Log
+    'ActivityLog',
 ]
 
 

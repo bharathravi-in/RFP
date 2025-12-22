@@ -1,11 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ProgressRing } from './DashboardStats';
-import {
-    DocumentTextIcon,
-    ChatBubbleLeftRightIcon,
-    CheckCircleIcon,
-    ArrowRightIcon,
-} from '@heroicons/react/24/outline';
+import { ArrowRightIcon, CalendarIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
 interface RFPSummaryCardProps {
@@ -14,19 +9,20 @@ interface RFPSummaryCardProps {
         name: string;
         status: string;
         client_name?: string;
-        question_count?: number;
-        answered_count?: number;
-        approved_count?: number;
         completion_percent?: number;
+        due_date?: string;
     };
 }
 
 export default function RFPSummaryCard({ project }: RFPSummaryCardProps) {
-    const questionCount = project.question_count || 0;
-    const answeredCount = project.answered_count || 0;
-    const approvedCount = project.approved_count || 0;
-    const completionPercent = project.completion_percent ||
-        (questionCount > 0 ? Math.round((answeredCount / questionCount) * 100) : 0);
+    const completionPercent = Math.round(project.completion_percent || 0);
+
+    // Format due date if available
+    const formatDueDate = (dateStr?: string) => {
+        if (!dateStr) return null;
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
 
     return (
         <div className="card p-5 hover:shadow-card-hover transition-shadow">
@@ -53,7 +49,7 @@ export default function RFPSummaryCard({ project }: RFPSummaryCardProps) {
                 </span>
             </div>
 
-            {/* Progress Ring + Stats */}
+            {/* Progress Ring + Info */}
             <div className="flex items-center gap-4">
                 <ProgressRing
                     percentage={completionPercent}
@@ -62,25 +58,13 @@ export default function RFPSummaryCard({ project }: RFPSummaryCardProps) {
                     label="Complete"
                 />
 
-                <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                        <ChatBubbleLeftRightIcon className="h-4 w-4 text-text-muted" />
-                        <span className="text-text-secondary">
-                            {questionCount} questions
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                        <DocumentTextIcon className="h-4 w-4 text-blue-500" />
-                        <span className="text-text-secondary">
-                            {answeredCount} answered
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                        <CheckCircleIcon className="h-4 w-4 text-green-500" />
-                        <span className="text-text-secondary">
-                            {approvedCount} approved
-                        </span>
-                    </div>
+                <div className="flex-1">
+                    {project.due_date && (
+                        <div className="flex items-center gap-2 text-sm text-text-secondary">
+                            <CalendarIcon className="h-4 w-4 text-text-muted" />
+                            <span>Due {formatDueDate(project.due_date)}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

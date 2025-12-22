@@ -92,12 +92,29 @@ def create_library_item():
     if not question_text or not answer_text:
         return jsonify({'error': 'Question and answer text required'}), 400
     
+    # Auto-generate tags if none provided
+    tags = data.get('tags', [])
+    auto_generated_tags = False
+    if not tags:
+        try:
+            from ..services.tagging_service import get_tagging_service
+            tagging_service = get_tagging_service(org_id=user.organization_id)
+            tags = tagging_service.generate_tags(
+                question=question_text,
+                answer=answer_text,
+                existing_category=data.get('category')
+            )
+            auto_generated_tags = True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-tagging failed: {e}")
+    
     item = AnswerLibraryItem(
         organization_id=user.organization_id,
         question_text=question_text,
         answer_text=answer_text,
         category=data.get('category'),
-        tags=data.get('tags', []),
+        tags=tags,
         source_project_id=data.get('source_project_id'),
         source_question_id=data.get('source_question_id'),
         source_answer_id=data.get('source_answer_id'),
@@ -110,6 +127,7 @@ def create_library_item():
     return jsonify({
         'message': 'Answer saved to library',
         'item': item.to_dict(),
+        'auto_generated_tags': auto_generated_tags,
     }), 201
 
 
@@ -146,12 +164,29 @@ def save_answer_to_library(answer_id):
     
     data = request.get_json() or {}
     
+    # Auto-generate tags if none provided
+    tags = data.get('tags', [])
+    auto_generated_tags = False
+    if not tags:
+        try:
+            from ..services.tagging_service import get_tagging_service
+            tagging_service = get_tagging_service(org_id=user.organization_id)
+            tags = tagging_service.generate_tags(
+                question=question.text,
+                answer=answer.content,
+                existing_category=question.category
+            )
+            auto_generated_tags = True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-tagging failed: {e}")
+    
     item = AnswerLibraryItem(
         organization_id=user.organization_id,
         question_text=question.text,
         answer_text=answer.content,
         category=question.category or data.get('category'),
-        tags=data.get('tags', []),
+        tags=tags,
         source_project_id=project.id,
         source_question_id=question.id,
         source_answer_id=answer.id,
@@ -164,6 +199,7 @@ def save_answer_to_library(answer_id):
     return jsonify({
         'message': 'Answer saved to library',
         'item': item.to_dict(),
+        'auto_generated_tags': auto_generated_tags,
     }), 201
 
 
@@ -317,4 +353,61 @@ def get_categories():
     
     return jsonify({
         'categories': sorted([c[0] for c in categories if c[0]])
+    })
+
+
+@bp.route('/suggested-tags', methods=['GET'])
+@jwt_required()
+def get_suggested_tags():
+    """Get tag suggestions based on partial text."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'tags': []}), 200
+    
+    partial = request.args.get('text', '').strip()
+    limit = request.args.get('limit', 10, type=int)
+    
+    try:
+        from ..services.tagging_service import get_tagging_service
+        tagging_service = get_tagging_service(org_id=user.organization_id)
+        tags = tagging_service.suggest_tags(partial, limit=limit)
+        return jsonify({'tags': tags})
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Tag suggestion failed: {e}")
+        return jsonify({'tags': []})
+
+
+@bp.route('/all-tags', methods=['GET'])
+@jwt_required()
+def get_all_tags():
+    """Get all unique tags used in the library with counts."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'tags': []}), 200
+    
+    items = AnswerLibraryItem.query.filter_by(
+        organization_id=user.organization_id,
+        is_active=True
+    ).all()
+    
+    # Count tag occurrences
+    tag_counts = {}
+    for item in items:
+        for tag in (item.tags or []):
+            tag_lower = tag.lower()
+            tag_counts[tag_lower] = tag_counts.get(tag_lower, 0) + 1
+    
+    # Sort by count descending
+    sorted_tags = sorted(
+        tag_counts.items(),
+        key=lambda x: (-x[1], x[0])
+    )
+    
+    return jsonify({
+        'tags': [{'tag': tag, 'count': count} for tag, count in sorted_tags]
     })

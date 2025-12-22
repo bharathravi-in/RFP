@@ -21,13 +21,17 @@ export default function AnswerLibrary() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [selectedTag, setSelectedTag] = useState('');
     const [categories, setCategories] = useState<string[]>([]);
+    const [allTags, setAllTags] = useState<{ tag: string; count: number }[]>([]);
+    const [showTagCloud, setShowTagCloud] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editForm, setEditForm] = useState({ question_text: '', answer_text: '', category: '', tags: '' });
 
     useEffect(() => {
         loadItems();
         loadCategories();
+        loadAllTags();
     }, []);
 
     useEffect(() => {
@@ -35,13 +39,14 @@ export default function AnswerLibrary() {
             loadItems();
         }, 300);
         return () => clearTimeout(debounce);
-    }, [search, selectedCategory]);
+    }, [search, selectedCategory, selectedTag]);
 
     const loadItems = async () => {
         try {
-            const params: { search?: string; category?: string } = {};
+            const params: { search?: string; category?: string; tag?: string } = {};
             if (search) params.search = search;
             if (selectedCategory) params.category = selectedCategory;
+            if (selectedTag) params.tag = selectedTag;
 
             const response = await answerLibraryApi.list(params);
             setItems(response.data.items || []);
@@ -56,6 +61,15 @@ export default function AnswerLibrary() {
         try {
             const response = await answerLibraryApi.getCategories();
             setCategories(response.data.categories || []);
+        } catch {
+            // Ignore
+        }
+    };
+
+    const loadAllTags = async () => {
+        try {
+            const response = await answerLibraryApi.getAllTags();
+            setAllTags(response.data.tags || []);
         } catch {
             // Ignore
         }
@@ -159,7 +173,57 @@ export default function AnswerLibrary() {
                             ))}
                         </select>
                     </div>
+                    <button
+                        onClick={() => setShowTagCloud(!showTagCloud)}
+                        className={clsx(
+                            'px-3 py-2 text-sm rounded-lg border transition-colors',
+                            showTagCloud
+                                ? 'bg-primary text-white border-primary'
+                                : 'border-border text-text-secondary hover:bg-surface'
+                        )}
+                    >
+                        🏷️ Tags {allTags.length > 0 && `(${allTags.length})`}
+                    </button>
                 </div>
+
+                {/* Tag Cloud */}
+                {showTagCloud && allTags.length > 0 && (
+                    <div className="mt-4 p-4 bg-surface border border-border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium text-text-primary">Filter by Tag</span>
+                            {selectedTag && (
+                                <button
+                                    onClick={() => setSelectedTag('')}
+                                    className="text-xs text-primary hover:underline"
+                                >
+                                    Clear filter
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {allTags.slice(0, 30).map(({ tag, count }) => (
+                                <button
+                                    key={tag}
+                                    onClick={() => setSelectedTag(selectedTag === tag ? '' : tag)}
+                                    className={clsx(
+                                        'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full transition-all',
+                                        selectedTag === tag
+                                            ? 'bg-primary text-white'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    )}
+                                >
+                                    {tag}
+                                    <span className={clsx(
+                                        'text-xs',
+                                        selectedTag === tag ? 'text-white/70' : 'text-gray-400'
+                                    )}>
+                                        {count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Content */}
@@ -257,6 +321,27 @@ export default function AnswerLibrary() {
                                                     ))}
                                                     <span>•</span>
                                                     <span>Used {item.times_used}x</span>
+                                                    {/* Freshness indicator */}
+                                                    <span>•</span>
+                                                    {(() => {
+                                                        const now = new Date();
+                                                        const updated = new Date(item.updated_at || item.created_at);
+                                                        const daysOld = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24));
+                                                        let colorClass = 'text-green-600 bg-green-100';
+                                                        let label = 'Fresh';
+                                                        if (daysOld > 90) {
+                                                            colorClass = 'text-red-600 bg-red-100';
+                                                            label = 'Stale';
+                                                        } else if (daysOld > 30) {
+                                                            colorClass = 'text-yellow-600 bg-yellow-100';
+                                                            label = 'Review';
+                                                        }
+                                                        return (
+                                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${colorClass}`}>
+                                                                {label}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                     {item.source_project_name && (
                                                         <>
                                                             <span>•</span>

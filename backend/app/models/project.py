@@ -112,8 +112,33 @@ class Project(db.Model):
         
         if include_stats:
             data['document_count'] = len(self.documents) if self.documents else 0
-            data['question_count'] = len(self.questions) if self.questions else 0
+            
+            # Prioritize RFP sections (current content model) over legacy questions
+            sections_list = list(self.sections) if hasattr(self, 'sections') else []
+            questions = self.questions or []
+            
+            if sections_list:
+                # RFP sections-based counting (primary content model)
+                data['question_count'] = len(sections_list)
+                # Sections with content = answered
+                data['answered_count'] = sum(1 for s in sections_list if s.content)
+                # Sections with status 'approved' or 'reviewed' = approved
+                data['approved_count'] = sum(1 for s in sections_list if s.status in ['approved', 'reviewed'])
+            elif questions:
+                # Legacy questions-based counting (fallback)
+                data['question_count'] = len(questions)
+                data['answered_count'] = sum(1 for q in questions if q.status in ['answered', 'approved'])
+                data['approved_count'] = sum(1 for q in questions if q.status == 'approved')
+            else:
+                data['question_count'] = 0
+                data['answered_count'] = 0
+                data['approved_count'] = 0
+            
             data['reviewer_ids'] = [r.id for r in self.reviewers] if self.reviewers else []
             data['knowledge_profiles'] = [p.to_dict() for p in self.knowledge_profiles] if self.knowledge_profiles else []
+            
+            # Update completion_percent dynamically
+            if data['question_count'] > 0:
+                data['completion_percent'] = (data['answered_count'] / data['question_count']) * 100
         
         return data

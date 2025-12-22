@@ -135,6 +135,9 @@ export const projectsApi = {
 
     assignReviewers: (id: number, reviewerIds: number[]) =>
         api.post(`/projects/${id}/reviewers`, { reviewer_ids: reviewerIds }),
+
+    getUpcomingDeadlines: (days?: number) =>
+        api.get('/projects/upcoming-deadlines', { params: days ? { days } : {} }),
 };
 
 // ===============================
@@ -642,6 +645,12 @@ export const answerLibraryApi = {
 
     getCategories: () =>
         api.get('/answer-library/categories'),
+
+    getAllTags: () =>
+        api.get('/answer-library/all-tags'),
+
+    getSuggestedTags: (text: string, limit?: number) =>
+        api.get('/answer-library/suggested-tags', { params: { text, limit } }),
 };
 
 // ===============================
@@ -721,6 +730,64 @@ export const notificationsApi = {
         api.delete(`/notifications/${notificationId}`),
 };
 
+// ===============================
+// Comments API
+// ===============================
+
+export const commentsApi = {
+    list: (params: { section_id?: number; question_id?: number; answer_id?: number; include_resolved?: boolean }) =>
+        api.get('/comments', { params }),
+
+    create: (data: {
+        content: string;
+        section_id?: number;
+        question_id?: number;
+        answer_id?: number;
+        parent_id?: number;
+    }) => api.post('/comments', data),
+
+    update: (commentId: number, data: { content: string }) =>
+        api.put(`/comments/${commentId}`, data),
+
+    resolve: (commentId: number, resolved: boolean = true) =>
+        api.put(`/comments/${commentId}/resolve`, { resolved }),
+
+    delete: (commentId: number) =>
+        api.delete(`/comments/${commentId}`),
+
+    getUsersForMention: (search?: string) =>
+        api.get('/comments/users-for-mention', { params: { search } }),
+};
+
+// ===============================
+// Search API
+// ===============================
+
+export const searchApi = {
+    smart: (query: string, options?: { categories?: string[]; limit?: number }) =>
+        api.post('/search/smart', { query, ...options }),
+};
+
+// ===============================
+// Activity API
+// ===============================
+
+export const activityApi = {
+    getProjectActivity: (projectId: number, params?: { limit?: number; offset?: number }) =>
+        api.get(`/activity/project/${projectId}`, { params }),
+
+    getRecentActivity: (params?: { limit?: number }) =>
+        api.get('/activity/recent', { params }),
+
+    log: (data: {
+        action: string;
+        entity_type: string;
+        entity_id?: number;
+        entity_name?: string;
+        project_id?: number;
+        description?: string;
+        extra_data?: Record<string, unknown>;
+    }) => api.post('/activity', data),
+};
+
 export default api;
-
-

@@ -29,7 +29,7 @@ def create_app(config_name=None):
     os.makedirs(upload_folder, exist_ok=True)
     
     # Register blueprints
-    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections, ai_config, agent_config, users, organizations, invitations, versions, compliance, answer_library, go_no_go, notifications
+    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections, ai_config, agent_config, users, organizations, invitations, versions, compliance, answer_library, go_no_go, notifications, comments, smart_search, activity
     from .routes.agents import agents_bp
     from .routes.profiles import profiles_bp
     
@@ -57,6 +57,9 @@ def create_app(config_name=None):
     app.register_blueprint(answer_library.bp, url_prefix='/api/answer-library')  # Reusable Q&A library
     app.register_blueprint(go_no_go.bp, url_prefix='/api')  # Go/No-Go analysis
     app.register_blueprint(notifications.bp, url_prefix='/api/notifications')  # User notifications
+    app.register_blueprint(comments.bp, url_prefix='/api/comments')  # Inline comments & @mentions
+    app.register_blueprint(smart_search.bp, url_prefix='/api/search')  # Smart natural language search
+    app.register_blueprint(activity.bp, url_prefix='/api/activity')  # Activity timeline
 
     
     # Health check endpoint

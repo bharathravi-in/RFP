@@ -305,3 +305,30 @@ def assign_reviewers(project_id):
         'reviewers': [r.to_dict() for r in reviewers]
     }), 200
 
+
+@bp.route('/upcoming-deadlines', methods=['GET'])
+@jwt_required()
+def get_upcoming_deadlines():
+    """Get projects with upcoming deadlines for the dashboard widget."""
+    from ..services.reminder_service import get_reminder_service
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'deadlines': []}), 200
+    
+    days_ahead = request.args.get('days', 14, type=int)
+    
+    try:
+        reminder_service = get_reminder_service()
+        deadlines = reminder_service.get_upcoming_deadlines(
+            org_id=user.organization_id,
+            days_ahead=days_ahead
+        )
+        
+        return jsonify({'deadlines': deadlines}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

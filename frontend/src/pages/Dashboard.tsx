@@ -17,9 +17,9 @@ import {
     LightBulbIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import RFPSummaryCard from '@/components/dashboard/RFPSummaryCard';
 import SectionCompletionWidget from '@/components/dashboard/SectionCompletionWidget';
 import VendorEligibilityPanel from '@/components/dashboard/VendorEligibilityPanel';
+import DeadlineWidget from '@/components/dashboard/DeadlineWidget';
 import { WinRateChart, RevenueStatsCard, TeamLeaderboard, LossReasonsChart, QuickStatsRow } from '@/components/analytics/AnalyticsCharts';
 
 interface DashboardStats {
@@ -395,39 +395,76 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* RFP Summary & Vendor Eligibility Row */}
+            {/* Active Projects & Vendor Eligibility Row */}
             {!loading && projects.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* RFP Summary Cards - 2 columns */}
+                    {/* Active Projects List - 2 columns */}
                     <div className="lg:col-span-2">
                         <h2 className="text-xl font-semibold text-text-primary mb-4">
                             Active RFP Projects
                         </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {projects.slice(0, 4).map((project) => (
-                                <RFPSummaryCard
+                        <div className="card divide-y divide-border">
+                            {projects.slice(0, 5).map((project) => (
+                                <div
                                     key={project.id}
-                                    project={{
-                                        id: project.id,
-                                        name: project.name,
-                                        status: project.status,
-                                        client_name: project.client_name,
-                                        completion_percent: project.completion_percent,
-                                    }}
-                                />
+                                    className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center flex-shrink-0">
+                                            <FolderIcon className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-medium text-text-primary truncate">
+                                                {project.name}
+                                            </p>
+                                            {project.client_name && (
+                                                <p className="text-sm text-text-secondary truncate">
+                                                    {project.client_name}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                        <span className={clsx(
+                                            'badge text-xs',
+                                            project.status === 'completed' ? 'badge-success' :
+                                                project.status === 'review' ? 'badge-warning' :
+                                                    project.status === 'in_progress' ? 'badge-primary' :
+                                                        'badge-neutral'
+                                        )}>
+                                            {project.status.replace('_', ' ')}
+                                        </span>
+                                        <Link
+                                            to={`/projects/${project.id}/proposal`}
+                                            className="text-sm text-primary hover:underline font-medium"
+                                        >
+                                            Open →
+                                        </Link>
+                                    </div>
+                                </div>
                             ))}
+                            {projects.length > 5 && (
+                                <div className="p-3 text-center">
+                                    <Link to="/projects" className="text-sm text-primary hover:underline">
+                                        View all {projects.length} projects
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Vendor Eligibility Panel - 1 column */}
-                    <div>
-                        <h2 className="text-xl font-semibold text-text-primary mb-4">
-                            Vendor Profile
-                        </h2>
-                        <VendorEligibilityPanel
-                            organizationName={organization?.name || user?.name + "'s Organization"}
-                            vendorProfile={(organization?.settings as any)?.vendor_profile}
-                        />
+                    {/* Deadlines & Vendor Eligibility - 1 column */}
+                    <div className="space-y-4">
+                        <DeadlineWidget />
+                        <div>
+                            <h2 className="text-xl font-semibold text-text-primary mb-4">
+                                Vendor Profile
+                            </h2>
+                            <VendorEligibilityPanel
+                                organizationName={organization?.name || user?.name + "'s Organization"}
+                                vendorProfile={(organization?.settings as any)?.vendor_profile}
+                            />
+                        </div>
                     </div>
                 </div>
             )}

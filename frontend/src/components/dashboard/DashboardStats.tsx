@@ -182,7 +182,7 @@ export function ProgressRing({
             </svg>
             <div className="absolute flex flex-col items-center">
                 <span className="text-2xl font-bold text-text-primary">
-                    {percentage}%
+                    {Math.round(percentage)}%
                 </span>
                 {label && (
                     <span className="text-xs text-text-muted">{label}</span>
