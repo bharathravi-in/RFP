@@ -29,6 +29,10 @@ import {
     QuestionMarkCircleIcon,
     DocumentDuplicateIcon,
     ClipboardDocumentCheckIcon,
+    FlagIcon,
+    UserIcon,
+    ExclamationCircleIcon,
+    CalendarDaysIcon,
 } from '@heroicons/react/24/outline';
 import SectionTypeSelector from '@/components/sections/SectionTypeSelector';
 import SectionEditor from '@/components/sections/SectionEditor';
@@ -139,6 +143,20 @@ const getDefaultStyle = () => ({
 const getSectionStyle = (slug: string | undefined) => {
     if (!slug) return getDefaultStyle();
     return SECTION_STYLES[slug] || getDefaultStyle();
+};
+
+// Priority badge configuration
+const PRIORITY_BADGES: Record<string, { color: string; bgColor: string; label: string }> = {
+    urgent: { color: 'text-red-700', bgColor: 'bg-red-100', label: 'Urgent' },
+    high: { color: 'text-amber-700', bgColor: 'bg-amber-100', label: 'High' },
+    normal: { color: 'text-blue-600', bgColor: 'bg-blue-50', label: 'Normal' },
+    low: { color: 'text-gray-500', bgColor: 'bg-gray-100', label: 'Low' },
+};
+
+// Check if section is overdue
+const isOverdue = (dueDate: string | null, status: string) => {
+    if (!dueDate || status === 'approved') return false;
+    return new Date(dueDate) < new Date();
 };
 
 export default function ProposalBuilder() {
@@ -479,13 +497,55 @@ export default function ProposalBuilder() {
                                                                     <IconComponent className={clsx('h-4 w-4', style.color)} />
                                                                 </div>
                                                                 {getStatusIcon(section.status)}
+
+                                                                {/* Priority Badge - show only for high/urgent */}
+                                                                {(section.priority === 'urgent' || section.priority === 'high') && (
+                                                                    <span className={clsx(
+                                                                        'text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase leading-none',
+                                                                        PRIORITY_BADGES[section.priority]?.bgColor,
+                                                                        PRIORITY_BADGES[section.priority]?.color
+                                                                    )}>
+                                                                        {section.priority === 'urgent' ? '!' : 'H'}
+                                                                    </span>
+                                                                )}
+
+                                                                {/* Overdue Indicator */}
+                                                                {isOverdue(section.due_date, section.status) && (
+                                                                    <span className="flex items-center gap-0.5 text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                                                                        <ExclamationCircleIcon className="h-3 w-3" />
+                                                                        Overdue
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <p className="text-sm font-medium text-text-primary line-clamp-1">
                                                                 {section.title}
                                                             </p>
-                                                            <p className="text-xs text-text-muted line-clamp-1 mt-0.5">
-                                                                {style.description}
-                                                            </p>
+
+                                                            {/* Workflow info row */}
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                {/* Assignee */}
+                                                                {section.assignee_name && (
+                                                                    <span className="flex items-center gap-1 text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded-full">
+                                                                        <UserIcon className="h-2.5 w-2.5" />
+                                                                        {section.assignee_name.split(' ')[0]}
+                                                                    </span>
+                                                                )}
+
+                                                                {/* Due Date */}
+                                                                {section.due_date && !isOverdue(section.due_date, section.status) && (
+                                                                    <span className="flex items-center gap-1 text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded-full">
+                                                                        <CalendarDaysIcon className="h-2.5 w-2.5" />
+                                                                        {new Date(section.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                                    </span>
+                                                                )}
+
+                                                                {/* Fallback description when no workflow info */}
+                                                                {!section.assignee_name && !section.due_date && (
+                                                                    <span className="text-xs text-text-muted line-clamp-1">
+                                                                        {style.description}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </button>
 
                                                         <button

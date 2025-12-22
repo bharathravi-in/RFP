@@ -10,6 +10,8 @@ import {
     MinusCircleIcon,
     ClockIcon,
     FunnelIcon,
+    SparklesIcon,
+    ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { complianceApi } from '@/api/client';
 import { ComplianceItem, ComplianceStats, ComplianceStatus, RFPSection } from '@/types';
@@ -78,6 +80,7 @@ export default function ComplianceMatrix({ projectId, sections }: ComplianceMatr
     const [editingId, setEditingId] = useState<number | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [filterCategory, setFilterCategory] = useState<string>('');
+    const [isExtracting, setIsExtracting] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -187,6 +190,24 @@ export default function ComplianceMatrix({ projectId, sections }: ComplianceMatr
         }
     };
 
+    const handleExtractRequirements = async () => {
+        setIsExtracting(true);
+        try {
+            const response = await complianceApi.extractFromDocuments(projectId);
+            const { extracted_count, skipped_duplicates, documents_analyzed } = response.data;
+            toast.success(
+                `Extracted ${extracted_count} requirements from ${documents_analyzed} documents` +
+                (skipped_duplicates > 0 ? ` (${skipped_duplicates} duplicates skipped)` : '')
+            );
+            loadItems();
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error || 'Failed to extract requirements';
+            toast.error(errorMsg);
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
     const startEdit = (item: ComplianceItem) => {
         setFormData({
             requirement_id: item.requirement_id || '',
@@ -242,6 +263,19 @@ export default function ComplianceMatrix({ projectId, sections }: ComplianceMatr
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleExtractRequirements}
+                        disabled={isExtracting}
+                        className="btn-secondary flex items-center gap-2"
+                        title="Extract requirements from RFP documents using AI"
+                    >
+                        {isExtracting ? (
+                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <SparklesIcon className="h-4 w-4" />
+                        )}
+                        {isExtracting ? 'Extracting...' : 'AI Extract'}
+                    </button>
                     <button
                         onClick={handleExport}
                         className="btn-secondary flex items-center gap-2"

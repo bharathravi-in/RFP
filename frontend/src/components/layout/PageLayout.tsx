@@ -5,6 +5,7 @@ import Breadcrumbs from './Breadcrumbs';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '@/store/authStore';
 import OrganizationOnboarding from '@/components/onboarding/OrganizationOnboarding';
+import NotificationDropdown from '@/components/NotificationDropdown';
 
 export default function PageLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,17 +48,21 @@ export default function PageLayout() {
             {/* Main content area */}
             <main className="lg:ml-sidebar min-h-screen transition-all duration-normal">
                 {/* Mobile Header */}
-                <header className="lg:hidden sticky top-0 z-20 bg-surface border-b border-border px-4 py-3 flex items-center gap-3">
-                    <button
-                        onClick={() => setSidebarOpen(true)}
-                        className="p-2 -ml-2 rounded-button hover:bg-surface-elevated transition-colors"
-                    >
-                        <Bars3Icon className="h-6 w-6 text-text-primary" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <img src="/logo.svg" alt="RFP Pro" className="h-8 w-8" />
-                        <span className="font-display font-bold text-lg text-text-primary">RFP Pro</span>
+                <header className="lg:hidden sticky top-0 z-20 bg-surface border-b border-border px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setSidebarOpen(true)}
+                            className="p-2 -ml-2 rounded-button hover:bg-surface-elevated transition-colors"
+                        >
+                            <Bars3Icon className="h-6 w-6 text-text-primary" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <img src="/logo.svg" alt="RFP Pro" className="h-8 w-8" />
+                            <span className="font-display font-bold text-lg text-text-primary">RFP Pro</span>
+                        </div>
                     </div>
+                    {/* Notification Bell */}
+                    <NotificationDropdown />
                 </header>
 
                 {/* Page content */}
@@ -69,4 +74,5 @@ export default function PageLayout() {
         </div>
     );
 }
+
 

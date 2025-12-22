@@ -20,6 +20,7 @@ import clsx from 'clsx';
 import RFPSummaryCard from '@/components/dashboard/RFPSummaryCard';
 import SectionCompletionWidget from '@/components/dashboard/SectionCompletionWidget';
 import VendorEligibilityPanel from '@/components/dashboard/VendorEligibilityPanel';
+import { WinRateChart, RevenueStatsCard, TeamLeaderboard, LossReasonsChart, QuickStatsRow } from '@/components/analytics/AnalyticsCharts';
 
 interface DashboardStats {
     activeProjects: number;
@@ -375,6 +376,24 @@ export default function Dashboard() {
                     ))}
                 </div>
             </div>
+
+            {/* Analytics Section - Win/Loss Tracking */}
+            {!loading && projects.length > 0 && (
+                <div>
+                    <h2 className="text-xl font-semibold text-text-primary mb-4">📊 Analytics</h2>
+
+                    {/* Quick Stats Row */}
+                    <QuickStatsRow />
+
+                    {/* Charts Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                        <WinRateChart />
+                        <RevenueStatsCard />
+                        <TeamLeaderboard />
+                        <LossReasonsChart />
+                    </div>
+                </div>
+            )}
 
             {/* RFP Summary & Vendor Eligibility Row */}
             {!loading && projects.length > 0 && (

@@ -33,6 +33,19 @@ class Project(db.Model):
     client_name = db.Column(db.String(255), nullable=True)  # Name of the client
     project_value = db.Column(db.Float, nullable=True)  # Project/contract value
     
+    # Go/No-Go Analysis fields
+    go_no_go_status = db.Column(db.String(20), default='pending')  # pending, go, no_go
+    go_no_go_score = db.Column(db.Float, nullable=True)  # 0-100 win probability
+    go_no_go_analysis = db.Column(db.JSON, default=dict)  # Full breakdown and AI recommendation
+    go_no_go_completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Project Outcome Tracking (for analytics)
+    outcome = db.Column(db.String(20), default='pending')  # pending, won, lost, abandoned
+    outcome_date = db.Column(db.DateTime, nullable=True)  # When outcome was recorded
+    outcome_notes = db.Column(db.Text, nullable=True)  # Additional notes about outcome
+    contract_value = db.Column(db.Float, nullable=True)  # Actual contract value if won
+    loss_reason = db.Column(db.String(100), nullable=True)  # Reason for loss (price, features, timing, other)
+    
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -78,6 +91,17 @@ class Project(db.Model):
             'language': self.language,
             'client_name': self.client_name,
             'project_value': self.project_value,
+            # Go/No-Go Analysis
+            'go_no_go_status': self.go_no_go_status,
+            'go_no_go_score': self.go_no_go_score,
+            'go_no_go_analysis': self.go_no_go_analysis or {},
+            'go_no_go_completed_at': self.go_no_go_completed_at.isoformat() if self.go_no_go_completed_at else None,
+            # Project Outcome
+            'outcome': self.outcome,
+            'outcome_date': self.outcome_date.isoformat() if self.outcome_date else None,
+            'outcome_notes': self.outcome_notes,
+            'contract_value': self.contract_value,
+            'loss_reason': self.loss_reason,
             # Knowledge profiles
             'knowledge_profile_ids': [p.id for p in self.knowledge_profiles] if self.knowledge_profiles else [],
             'organization_id': self.organization_id,

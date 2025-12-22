@@ -340,3 +340,149 @@ def generate_answer(question_id):
     except Exception as e:
         logging.error(f"Answer generation failed: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/auto-match', methods=['POST'])
+@jwt_required()
+def auto_match_questions():
+    """
+    Auto-match questions with similar previously approved answers.
+    
+    Used during question import to suggest/apply existing answers.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    data = request.get_json()
+    project_id = data.get('project_id')
+    question_ids = data.get('question_ids', [])
+    
+    if not project_id:
+        return jsonify({'error': 'Project ID required'}), 400
+    
+    project = Project.query.get(project_id)
+    if not project or project.organization_id != user.organization_id:
+        return jsonify({'error': 'Project not found or access denied'}), 404
+    
+    # Get questions to match
+    if question_ids:
+        questions = Question.query.filter(
+            Question.id.in_(question_ids),
+            Question.project_id == project_id
+        ).all()
+    else:
+        # Match all questions in project
+        questions = Question.query.filter_by(project_id=project_id).all()
+    
+    if not questions:
+        return jsonify({'error': 'No questions found'}), 404
+    
+    # Prepare question data for batch matching
+    question_data = [
+        {'id': q.id, 'text': q.text, 'category': q.category}
+        for q in questions
+    ]
+    
+    # Perform batch matching
+    from ..services.answer_reuse_service import answer_reuse_service
+    
+    matches = answer_reuse_service.batch_find_similar(
+        questions=question_data,
+        org_id=user.organization_id
+    )
+    
+    # Count match types
+    auto_apply_count = sum(1 for m in matches if m['match_type'] == 'auto_apply')
+    suggest_count = sum(1 for m in matches if m['match_type'] == 'suggest')
+    no_match_count = sum(1 for m in matches if m['match_type'] == 'none')
+    
+    return jsonify({
+        'matches': matches,
+        'summary': {
+            'total_questions': len(questions),
+            'auto_apply': auto_apply_count,
+            'suggestions': suggest_count,
+            'no_match': no_match_count
+        }
+    }), 200
+
+
+@bp.route('/<int:question_id>/apply-suggestion', methods=['POST'])
+@jwt_required()
+def apply_suggested_answer(question_id):
+    """
+    Apply a suggested answer from the answer library to a question.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    question = Question.query.get(question_id)
+    
+    if not question:
+        return jsonify({'error': 'Question not found'}), 404
+    
+    if question.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    source_answer_id = data.get('source_answer_id')
+    
+    if not source_answer_id:
+        return jsonify({'error': 'source_answer_id required'}), 400
+    
+    from ..services.answer_reuse_service import answer_reuse_service
+    
+    result = answer_reuse_service.apply_suggested_answer(
+        question_id=question_id,
+        source_answer_id=source_answer_id,
+        user_id=user_id
+    )
+    
+    if result:
+        # Refresh question data
+        question = Question.query.get(question_id)
+        return jsonify({
+            'message': 'Suggested answer applied',
+            'question': question.to_dict(include_answer=True)
+        }), 200
+    else:
+        return jsonify({'error': 'Failed to apply suggestion'}), 500
+
+
+@bp.route('/<int:question_id>/suggestions', methods=['GET'])
+@jwt_required()
+def get_question_suggestions(question_id):
+    """
+    Get similar answer suggestions for a specific question.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    question = Question.query.get(question_id)
+    
+    if not question:
+        return jsonify({'error': 'Question not found'}), 404
+    
+    if question.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    from ..services.answer_reuse_service import answer_reuse_service
+    
+    suggestions = answer_reuse_service.find_similar_answers(
+        question_text=question.text,
+        org_id=user.organization_id,
+        category=question.category,
+        limit=5
+    )
+    
+    return jsonify({
+        'question_id': question_id,
+        'suggestions': suggestions
+    }), 200
+

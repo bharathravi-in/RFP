@@ -1,16 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '@/api/client';
-import { Project } from '@/types';
+import { Project, ProjectOutcome } from '@/types';
 import toast from 'react-hot-toast';
 import {
     PlusIcon,
     FolderIcon,
     MagnifyingGlassIcon,
     EllipsisHorizontalIcon,
+    TrophyIcon,
+    XCircleIcon,
+    ClockIcon,
+    FlagIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import EditProjectModal from '@/components/modals/EditProjectModal';
+import ProjectOutcomeModal from '@/components/ProjectOutcomeModal';
 
 const statusFilters = [
     { value: 'all', label: 'All' },
@@ -20,13 +25,29 @@ const statusFilters = [
     { value: 'completed', label: 'Completed' },
 ];
 
+const outcomeFilters = [
+    { value: 'all', label: 'All Outcomes' },
+    { value: 'won', label: '🏆 Won' },
+    { value: 'lost', label: '❌ Lost' },
+    { value: 'pending', label: '⏳ Pending' },
+];
+
+const OUTCOME_BADGE_CONFIG: Record<ProjectOutcome, { label: string; icon: typeof TrophyIcon; bgColor: string; textColor: string }> = {
+    won: { label: 'Won', icon: TrophyIcon, bgColor: 'bg-green-100', textColor: 'text-green-700' },
+    lost: { label: 'Lost', icon: XCircleIcon, bgColor: 'bg-red-100', textColor: 'text-red-700' },
+    pending: { label: 'Pending', icon: ClockIcon, bgColor: 'bg-blue-100', textColor: 'text-blue-700' },
+    abandoned: { label: 'Abandoned', icon: FlagIcon, bgColor: 'bg-gray-100', textColor: 'text-gray-700' },
+};
+
 export default function Projects() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [outcomeFilter, setOutcomeFilter] = useState('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingProject, setEditingProject] = useState<Project | null>(null);
+    const [outcomeProject, setOutcomeProject] = useState<Project | null>(null);
 
     const loadProjects = useCallback(async () => {
         try {
@@ -46,7 +67,8 @@ export default function Projects() {
     const filteredProjects = projects.filter((project) => {
         const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        const matchesOutcome = outcomeFilter === 'all' || project.outcome === outcomeFilter;
+        return matchesSearch && matchesStatus && matchesOutcome;
     });
 
     const getStatusBadge = (status: string) => {
@@ -100,6 +122,22 @@ export default function Projects() {
                                 'px-3 py-1.5 rounded-badge text-sm font-medium transition-all whitespace-nowrap',
                                 statusFilter === filter.value
                                     ? 'bg-primary text-white'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+                            )}
+                        >
+                            {filter.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-1 bg-surface border border-border rounded-button p-1">
+                    {outcomeFilters.map((filter) => (
+                        <button
+                            key={filter.value}
+                            onClick={() => setOutcomeFilter(filter.value)}
+                            className={clsx(
+                                'px-3 py-1.5 rounded-badge text-sm font-medium transition-all whitespace-nowrap',
+                                outcomeFilter === filter.value
+                                    ? 'bg-amber-500 text-white'
                                     : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
                             )}
                         >
@@ -189,14 +227,31 @@ export default function Projects() {
                                     </div>
                                 </div>
 
-                                {/* Footer with Status */}
+                                {/* Footer with Status and Outcome */}
                                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                                    <span className={`badge ${getStatusBadge(project.status)} text-xs`}>
-                                        {project.status.replace('_', ' ')}
-                                    </span>
-                                    <span className="text-xs text-text-muted">
-                                        Updated recently
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`badge ${getStatusBadge(project.status)} text-xs`}>
+                                            {project.status.replace('_', ' ')}
+                                        </span>
+                                        {project.outcome && project.outcome !== 'pending' && (
+                                            <span className={clsx(
+                                                'px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1',
+                                                OUTCOME_BADGE_CONFIG[project.outcome]?.bgColor,
+                                                OUTCOME_BADGE_CONFIG[project.outcome]?.textColor
+                                            )}>
+                                                {OUTCOME_BADGE_CONFIG[project.outcome]?.label}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setOutcomeProject(project);
+                                        }}
+                                        className="text-xs text-text-muted hover:text-primary transition-colors"
+                                    >
+                                        {project.outcome === 'pending' || !project.outcome ? 'Mark Outcome' : 'Update'}
+                                    </button>
                                 </div>
                             </Link>
 
@@ -239,6 +294,23 @@ export default function Projects() {
                             )
                         );
                         setEditingProject(null);
+                    }}
+                />
+            )}
+
+            {/* Project Outcome Modal */}
+            {outcomeProject && (
+                <ProjectOutcomeModal
+                    project={outcomeProject}
+                    isOpen={!!outcomeProject}
+                    onClose={() => setOutcomeProject(null)}
+                    onUpdate={(updatedProject) => {
+                        setProjects(
+                            projects.map((p) =>
+                                p.id === updatedProject.id ? updatedProject : p
+                            )
+                        );
+                        setOutcomeProject(null);
                     }}
                 />
             )}

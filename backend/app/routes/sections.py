@@ -283,6 +283,15 @@ def update_section(project_id, section_id):
     if 'flags' in data:
         section.flags = data['flags']
     
+    # Workflow fields
+    if 'assigned_to' in data:
+        section.assigned_to = data['assigned_to']
+    if 'due_date' in data:
+        from datetime import datetime as dt
+        section.due_date = dt.fromisoformat(data['due_date']) if data['due_date'] else None
+    if 'priority' in data:
+        section.priority = data['priority']
+    
     section.updated_at = datetime.utcnow()
     db.session.commit()
     
@@ -321,6 +330,83 @@ def reorder_sections(project_id):
     db.session.commit()
     
     return jsonify({'message': 'Sections reordered'})
+
+
+@bp.route('/sections/<int:section_id>/comments', methods=['POST'])
+@jwt_required()
+def add_section_comment(section_id):
+    """Add a comment to a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    text = data.get('text', '').strip()
+    
+    if not text:
+        return jsonify({'error': 'Comment text is required'}), 400
+    
+    # Create comment object
+    comment = {
+        'id': len(section.comments or []) + 1,
+        'user_id': user_id,
+        'user_name': user.name,
+        'text': text,
+        'created_at': datetime.utcnow().isoformat(),
+    }
+    
+    # Add to comments array
+    comments = section.comments or []
+    comments.append(comment)
+    section.comments = comments
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment added',
+        'comment': comment,
+        'comments': section.comments,
+    }), 201
+
+
+@bp.route('/sections/<int:section_id>/comments/<int:comment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_section_comment(section_id, comment_id):
+    """Delete a comment from a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Find and remove comment
+    comments = section.comments or []
+    original_len = len(comments)
+    comments = [c for c in comments if c.get('id') != comment_id]
+    
+    if len(comments) == original_len:
+        return jsonify({'error': 'Comment not found'}), 404
+    
+    section.comments = comments
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment deleted',
+        'comments': section.comments,
+    })
 
 
 # ============================================================

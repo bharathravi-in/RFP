@@ -263,3 +263,31 @@ Example response:
         except:
             pass
 
+
+@bp.route('/members', methods=['GET'])
+@jwt_required()
+def get_members():
+    """Get all members of the current user's organization."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if not user.organization_id:
+        return jsonify({'members': []}), 200
+    
+    # Get all users in the organization
+    members = User.query.filter_by(organization_id=user.organization_id).all()
+    
+    return jsonify({
+        'members': [{
+            'id': m.id,
+            'name': m.name,
+            'email': m.email,
+            'role': m.role,
+            'profile_photo': m.profile_photo,
+            'created_at': m.created_at.isoformat() if m.created_at else None,
+            'is_current_user': m.id == user_id
+        } for m in members]
+    }), 200

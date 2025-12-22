@@ -30,6 +30,7 @@ export interface Organization {
 // ===============================
 
 export type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'completed';
+export type ProjectOutcome = 'pending' | 'won' | 'lost' | 'abandoned';
 
 export interface Project {
     id: number;
@@ -53,6 +54,12 @@ export interface Project {
     industry?: string;
     compliance_requirements?: string[];
     knowledge_profiles?: { id: number; name: string }[];
+    // Project Outcome (for analytics)
+    outcome?: ProjectOutcome;
+    outcome_date?: string;
+    outcome_notes?: string;
+    contract_value?: number;
+    loss_reason?: string;
 }
 
 // ===============================
@@ -288,6 +295,16 @@ export interface RFPSectionType {
     recommended_word_count?: number;
 }
 
+export interface SectionComment {
+    id: number;
+    user_id: number;
+    user_name: string;
+    text: string;
+    created_at: string;
+}
+
+export type SectionPriority = 'low' | 'normal' | 'high' | 'urgent';
+
 export interface RFPSection {
     id: number;
     project_id: number;
@@ -307,6 +324,12 @@ export interface RFPSection {
     reviewed_at: string | null;
     created_at: string;
     updated_at: string;
+    // Workflow fields
+    assigned_to: number | null;
+    assignee_name: string | null;
+    due_date: string | null;
+    priority: SectionPriority;
+    comments: SectionComment[];
 }
 
 export interface SectionTemplate {
@@ -444,3 +467,72 @@ export interface ComplianceStats {
     not_applicable: number;
     pending: number;
 }
+
+// ===============================
+// Answer Library Types
+// ===============================
+
+export interface AnswerLibraryItem {
+    id: number;
+    organization_id: number;
+    question_text: string;
+    answer_text: string;
+    category: string | null;
+    tags: string[];
+    source_project_id: number | null;
+    source_project_name: string | null;
+    source_question_id: number | null;
+    source_answer_id: number | null;
+    times_used: number;
+    times_helpful: number;
+    created_by: number;
+    creator_name: string | null;
+    updated_by: number | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+// ===============================
+// Go/No-Go Analysis Types
+// ===============================
+
+export type GoNoGoStatus = 'pending' | 'go' | 'no_go';
+
+export interface GoNoGoCriteria {
+    team_available: number;
+    required_team_size: number;
+    key_skills_available: number;
+    typical_response_days: number;
+    incumbent_advantage: boolean;
+    relationship_score: number;
+    pricing_competitiveness: number;
+    unique_capabilities: number;
+}
+
+export interface GoNoGoDimensionScore {
+    score: number;
+    details: string;
+    breakdown: Record<string, any>;
+}
+
+export interface GoNoGoAnalysis {
+    status: GoNoGoStatus;
+    win_probability: number;
+    breakdown: {
+        resources: GoNoGoDimensionScore;
+        timeline: GoNoGoDimensionScore;
+        experience: GoNoGoDimensionScore;
+        competition: GoNoGoDimensionScore;
+    };
+    ai_recommendation: string;
+    completed_at: string | null;
+}
+
+export interface GoNoGoWeights {
+    resources: number;
+    timeline: number;
+    experience: number;
+    competition: number;
+}
+

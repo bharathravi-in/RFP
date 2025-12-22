@@ -18,6 +18,8 @@ from .invitation import Invitation
 from .proposal_version import ProposalVersion
 from .section_version import SectionVersion, save_section_version
 from .compliance_item import ComplianceItem
+from .answer_library import AnswerLibraryItem
+from .notification import Notification
 
 __all__ = [
     'User',
@@ -58,5 +60,10 @@ __all__ = [
     'save_section_version',
     # Compliance
     'ComplianceItem',
+    # Answer Library
+    'AnswerLibraryItem',
+    # Notifications
+    'Notification',
 ]
+
 

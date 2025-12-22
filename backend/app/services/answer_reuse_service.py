@@ -102,6 +102,170 @@ class AnswerReuseService:
             logger.error(f"Similar answer search failed: {e}")
             return []
     
+    def batch_find_similar(
+        self,
+        questions: List[Dict],
+        org_id: int,
+        auto_apply_threshold: float = 0.90,
+        suggest_threshold: float = 0.75
+    ) -> List[Dict]:
+        """
+        Find similar answers for multiple questions at once (for import).
+        
+        This is the key method for auto-answer matching feature.
+        
+        Args:
+            questions: List of dicts with 'id', 'text', and optional 'category'
+            org_id: Organization ID
+            auto_apply_threshold: Score above which to auto-apply (default 0.90)
+            suggest_threshold: Score above which to suggest (default 0.75)
+        
+        Returns:
+            List of dicts with:
+            - question_id: ID of the question being matched
+            - question_text: Original question text
+            - match_type: 'auto_apply', 'suggest', or 'none'
+            - suggested_answer: The matched answer content (if any)
+            - source_answer_id: ID of the source answer (if any)
+            - similarity_score: Match confidence
+            - source_question_text: Original question that answer was for
+        """
+        results = []
+        
+        for q in questions:
+            question_id = q.get('id')
+            question_text = q.get('text', '')
+            category = q.get('category')
+            
+            if not question_text:
+                results.append({
+                    'question_id': question_id,
+                    'question_text': question_text,
+                    'match_type': 'none',
+                    'suggested_answer': None,
+                    'source_answer_id': None,
+                    'similarity_score': 0,
+                    'source_question_text': None
+                })
+                continue
+            
+            # Find similar answers for this question
+            similar = self.find_similar_answers(question_text, org_id, category, limit=1)
+            
+            if similar and similar[0]['similarity_score'] >= auto_apply_threshold:
+                match = similar[0]
+                results.append({
+                    'question_id': question_id,
+                    'question_text': question_text,
+                    'match_type': 'auto_apply',
+                    'suggested_answer': match['answer_content'],
+                    'source_answer_id': match['answer_id'],
+                    'similarity_score': match['similarity_score'],
+                    'source_question_text': match['question_text'],
+                    'confidence': 'high'
+                })
+            elif similar and similar[0]['similarity_score'] >= suggest_threshold:
+                match = similar[0]
+                results.append({
+                    'question_id': question_id,
+                    'question_text': question_text,
+                    'match_type': 'suggest',
+                    'suggested_answer': match['answer_content'],
+                    'source_answer_id': match['answer_id'],
+                    'similarity_score': match['similarity_score'],
+                    'source_question_text': match['question_text'],
+                    'confidence': 'medium'
+                })
+            else:
+                results.append({
+                    'question_id': question_id,
+                    'question_text': question_text,
+                    'match_type': 'none',
+                    'suggested_answer': None,
+                    'source_answer_id': None,
+                    'similarity_score': similar[0]['similarity_score'] if similar else 0,
+                    'source_question_text': similar[0]['question_text'] if similar else None,
+                    'confidence': 'low' if similar else None
+                })
+        
+        # Log summary
+        auto_count = sum(1 for r in results if r['match_type'] == 'auto_apply')
+        suggest_count = sum(1 for r in results if r['match_type'] == 'suggest')
+        logger.info(f"Batch match for {len(questions)} questions: {auto_count} auto-apply, {suggest_count} suggestions")
+        
+        return results
+    
+    def apply_suggested_answer(
+        self,
+        question_id: int,
+        source_answer_id: int,
+        user_id: int
+    ) -> Optional[Dict]:
+        """
+        Apply a suggested answer from the answer library to a question.
+        
+        Args:
+            question_id: Target question to apply answer to
+            source_answer_id: Source answer to copy from
+            user_id: User performing the action
+        
+        Returns:
+            Created answer dict or None
+        """
+        from ..models import Question, Answer
+        from ..extensions import db
+        
+        try:
+            question = Question.query.get(question_id)
+            source_answer = Answer.query.get(source_answer_id)
+            
+            if not question or not source_answer:
+                return None
+            
+            # Check if question already has an answer
+            existing = Answer.query.filter_by(question_id=question_id).first()
+            if existing:
+                # Update existing with suggested content
+                existing.content = source_answer.content
+                existing.status = 'draft'  # Reset to draft for review
+                existing.source_type = 'suggested'
+                existing.source_metadata = {
+                    'source_answer_id': source_answer_id,
+                    'applied_at': datetime.utcnow().isoformat(),
+                    'applied_by': user_id
+                }
+                db.session.commit()
+                
+                # Track usage
+                self.track_answer_usage(source_answer_id, question_id)
+                
+                return existing.to_dict()
+            else:
+                # Create new answer
+                new_answer = Answer(
+                    content=source_answer.content,
+                    question_id=question_id,
+                    status='draft',
+                    created_by=user_id,
+                    source_type='suggested',
+                    source_metadata={
+                        'source_answer_id': source_answer_id,
+                        'applied_at': datetime.utcnow().isoformat()
+                    }
+                )
+                db.session.add(new_answer)
+                db.session.commit()
+                
+                # Track usage
+                self.track_answer_usage(source_answer_id, question_id)
+                
+                return new_answer.to_dict()
+                
+        except Exception as e:
+            logger.error(f"Failed to apply suggested answer: {e}")
+            db.session.rollback()
+            return None
+    
     def _keyword_similar_search(
         self,
         question_text: str,

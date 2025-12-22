@@ -8,6 +8,7 @@ import {
     Cog6ToothIcon,
     ArrowRightOnRectangleIcon,
     XMarkIcon,
+    BookmarkIcon,
 } from '@heroicons/react/24/outline';
 import { SparklesIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
@@ -16,6 +17,7 @@ const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { name: 'Projects', href: '/projects', icon: FolderIcon },
     { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
+    { name: 'Answer Library', href: '/library', icon: BookmarkIcon },
     { name: 'Templates', href: '/templates', icon: DocumentDuplicateIcon },
     { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ];

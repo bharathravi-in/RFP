@@ -37,6 +37,14 @@ class Config:
     # Upload
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+    
+    # Email/SMTP Configuration (Gmail)
+    SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
+    SMTP_USER = os.getenv('GMAIL_EMAIL') or os.getenv('SMTP_USER')
+    SMTP_PASSWORD = os.getenv('GMAIL_APP_PASSWORD') or os.getenv('SMTP_PASSWORD')
+    FROM_EMAIL = os.getenv('FROM_EMAIL') or os.getenv('GMAIL_EMAIL', 'noreply@rfppro.ai')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 
 class DevelopmentConfig(Config):
