@@ -13,7 +13,9 @@ from .document_analyzer_agent import get_document_analyzer_agent
 from .question_extractor_agent import get_question_extractor_agent
 from .knowledge_base_agent import get_knowledge_base_agent
 from .answer_generator_agent import get_answer_generator_agent
-from .clarification_agent import get_clarification_agent  # NEW
+from .answer_validator_agent import get_answer_validator_agent  # NEW
+from .compliance_checker_agent import get_compliance_checker_agent  # NEW
+from .clarification_agent import get_clarification_agent
 from .quality_reviewer_agent import get_quality_reviewer_agent
 
 logger = logging.getLogger(__name__)
@@ -28,8 +30,10 @@ class OrchestratorAgent:
     2. Question Extractor → Identifies questions
     3. Knowledge Base → Retrieves context
     4. Answer Generator → Creates draft answers
-    4.5. Clarification Agent → Identifies questions needing clarification (NEW)
-    5. Quality Reviewer → Reviews and validates
+    4.5. Answer Validator → Validates answers against knowledge (NEW)
+    4.6. Compliance Checker → Validates compliance claims (NEW)
+    5. Clarification Agent → Identifies questions needing clarification
+    6. Quality Reviewer → Reviews and validates
     """
     
     def __init__(self, org_id: int = None):
@@ -41,7 +45,9 @@ class OrchestratorAgent:
         self.question_extractor = get_question_extractor_agent()
         self.knowledge_base = get_knowledge_base_agent()
         self.answer_generator = get_answer_generator_agent()
-        self.clarification_agent = get_clarification_agent()  # NEW
+        self.answer_validator = get_answer_validator_agent()  # NEW
+        self.compliance_checker = get_compliance_checker_agent(org_id=org_id)  # NEW
+        self.clarification_agent = get_clarification_agent()
         self.quality_reviewer = get_quality_reviewer_agent()
     
     def analyze_rfp(
@@ -149,9 +155,49 @@ class OrchestratorAgent:
             result["steps_completed"].append("answer_generation")
             session_state = answer_result.get("session_state", session_state)
             
-            # Step 4.5: Identify Clarifications (NEW)
+            # Step 4.5: Validate Answers (NEW - prevents hallucinations)
+            session_state[SessionKeys.CURRENT_STEP] = "validating_answers"
+            logger.info("Step 4.5: Validating answers against knowledge base...")
+            
+            validation_result = self.answer_validator.validate_answers(
+                session_state=session_state
+            )
+            
+            # Validation is optional - continue even if it fails
+            if validation_result.get("success"):
+                result["validation_stats"] = validation_result.get("stats", {})
+                result["steps_completed"].append("answer_validation")
+                # Use validated answers if available
+                validated_answers = validation_result.get("validated_answers", [])
+                if validated_answers:
+                    session_state[SessionKeys.DRAFT_ANSWERS] = validated_answers
+            else:
+                result["steps_completed"].append("answer_validation_skipped")
+            
+            session_state = validation_result.get("session_state", session_state)
+            
+            # Step 4.6: Check Compliance (NEW - validates regulatory claims)
+            session_state[SessionKeys.CURRENT_STEP] = "checking_compliance"
+            logger.info("Step 4.6: Checking compliance claims...")
+            
+            compliance_result = self.compliance_checker.check_compliance(
+                session_state=session_state
+            )
+            
+            # Compliance check is optional
+            if compliance_result.get("success"):
+                result["compliance_stats"] = compliance_result.get("stats", {})
+                result["compliance_issues"] = compliance_result.get("compliance_issues", [])
+                result["steps_completed"].append("compliance_check")
+            else:
+                result["compliance_issues"] = []
+                result["steps_completed"].append("compliance_check_skipped")
+            
+            session_state = compliance_result.get("session_state", session_state)
+            
+            # Step 5: Identify Clarifications
             session_state[SessionKeys.CURRENT_STEP] = "identifying_clarifications"
-            logger.info("Step 4.5: Identifying clarification needs...")
+            logger.info("Step 5: Identifying clarification needs...")
             
             clarification_result = self.clarification_agent.analyze_questions(
                 confidence_threshold=0.5,
@@ -168,9 +214,9 @@ class OrchestratorAgent:
             
             session_state = clarification_result.get("session_state", session_state)
             
-            # Step 5: Review Answers
+            # Step 6: Review Answers
             session_state[SessionKeys.CURRENT_STEP] = "reviewing_answers"
-            logger.info("Step 5: Reviewing answers...")
+            logger.info("Step 6: Reviewing answers...")
             
             review_result = self.quality_reviewer.review_answers(
                 session_state=session_state

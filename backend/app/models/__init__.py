@@ -14,6 +14,7 @@ from .audit_log import AuditLog, ComplianceMapping, ExportHistory
 from .rfp_section import RFPSectionType, RFPSection, SectionTemplate, seed_section_types
 from .filter_dimension import FilterDimension, seed_filter_dimensions
 from .feedback import AnswerEdit, AnswerFeedback, AgentPerformance
+from .feedback_learning import FeedbackLearning  # NEW
 from .invitation import Invitation
 from .proposal_version import ProposalVersion
 from .section_version import SectionVersion, save_section_version
@@ -70,6 +71,8 @@ __all__ = [
     'Comment',
     # Activity Log
     'ActivityLog',
+    # Feedback Learning (AI improvement)
+    'FeedbackLearning',
 ]
 
 

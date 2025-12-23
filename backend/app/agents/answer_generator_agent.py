@@ -55,30 +55,61 @@ class AnswerGeneratorAgent:
 - Reference documentation"""
     }
     
-    GENERATION_PROMPT = """You are an expert RFP response writer.
+    GENERATION_PROMPT = """You are an expert RFP response writer. Think step-by-step to generate accurate, well-sourced answers.
 
-## Question
-{question}
+## STEP 1: Understand the Question
+Analyze what is being asked:
+- Question: {question}
+- Category: {category}
+- Is it asking for: facts / capabilities / processes / compliance / pricing?
 
-## Context from Knowledge Base
+## STEP 2: Review Available Context
+Knowledge Base Items:
 {context}
 
-## Similar Approved Answers
+Similar Approved Answers:
 {similar_answers}
 
-## Instructions
-- Tone: {tone}
-- Length: {length_instruction}
-- Category: {category}
+## STEP 3: Plan Your Response
 {category_instructions}
 
-## Requirements
-- Use context to build accurate answers
-- Be specific, avoid vague statements
-- Never make unverifiable claims
-- Match the tone of approved similar answers
+Requirements:
+- Tone: {tone}
+- Length: {length_instruction}
+- **IMPORTANT: Cite your sources using [Source: Document Name] format**
+- Only make claims supported by the context above
+- If information is missing, acknowledge limitations
+- Match the style of similar approved answers
 
-Write the answer directly, no preamble."""
+## STEP 4: Citation Guidelines
+- When referencing specific facts or claims, cite the source: [Source: Knowledge Base Item Title]
+- If referring to a previous approved answer, cite: [Source: Similar Answer]
+- For claims without direct source, indicate: [Needs Verification]
+- Always prefer cited claims over uncited ones
+
+## STEP 5: Write the Answer
+Based on your analysis, write a clear, accurate response WITH inline citations.
+Do NOT include the step numbers or analysis in your final answer.
+Write the answer directly, professionally, and concisely.
+
+**OUTPUT FORMAT:**
+Your answer text here with inline citations [Source: Document Name] where appropriate.
+
+Sources Used:
+- [List each source referenced]"""
+    
+    # Structured output format for better parsing
+    STRUCTURED_OUTPUT_PROMPT = """Generate a response in the following JSON format:
+{{
+  "answer": "Your complete answer text with [Source: X] citations inline",
+  "sources_used": ["Source 1 name", "Source 2 name"],
+  "confidence_reasoning": "Why this confidence level",
+  "key_claims": [
+    {{"claim": "Specific claim text", "source": "Source name or 'Needs Verification'", "verified": true/false}}
+  ],
+  "limitations": "Any limitations or missing information"
+}}
+"""
 
     def __init__(self, org_id: int = None):
         self.config = get_agent_config(org_id=org_id, agent_type='answer_generation')

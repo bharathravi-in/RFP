@@ -820,5 +820,80 @@ export const pptApi = {
         api.get('/ppt/styles'),
 };
 
+// ===============================
+// Agents API (NEW)
+// ===============================
+
+export const agentsApi = {
+    // Health & Status
+    getHealth: () =>
+        api.get('/agents/health'),
+
+    // RFP Analysis
+    analyzeRfp: (documentId: number, options?: { tone?: string; length?: string }) =>
+        api.post('/agents/analyze-rfp', { document_id: documentId, options }),
+
+    analyzeDocument: (documentId: number) =>
+        api.post('/agents/analyze-document', { document_id: documentId }),
+
+    extractQuestions: (documentId: number) =>
+        api.post('/agents/extract-questions', { document_id: documentId }),
+
+    generateAnswers: (questions: Array<{ id: number; text: string; category?: string }>, options?: { tone?: string; length?: string }) =>
+        api.post('/agents/generate-answers', { questions, options }),
+
+    // Multi-Document Analysis
+    analyzeMultipleDocuments: (documents: Array<{ id: number; name: string; text: string }>) =>
+        api.post('/agents/analyze-multiple-documents', { documents }),
+
+    // Feedback Learning
+    analyzeFeedbackEdit: (data: {
+        original_answer: string;
+        edited_answer: string;
+        question_text: string;
+        category?: string;
+        question_id?: number;
+    }) => api.post('/agents/feedback/analyze-edit', data),
+
+    getLearnedContext: (params?: { category?: string; limit?: number }) =>
+        api.get('/agents/feedback/learned-context', { params }),
+
+    // Section Mapping
+    mapQuestionsToSections: (questions: Array<{ id: number; text: string; category?: string }>) =>
+        api.post('/agents/sections/map-questions', { questions }),
+
+    getAvailableSections: () =>
+        api.get('/agents/sections/available'),
+
+    // Metrics & Dashboard
+    getMetricsDashboard: () =>
+        api.get('/agents/metrics/dashboard'),
+
+    getAgentMetrics: (agentName: string, hoursBack: number = 24) =>
+        api.get(`/agents/metrics/agent/${agentName}`, { params: { hours_back: hoursBack } }),
+
+    // A/B Experiments
+    createExperiment: (data: {
+        experiment_id: string;
+        agent_name: string;
+        control_version: string;
+        treatment_version: string;
+        traffic_split?: number;
+    }) => api.post('/agents/experiments', data),
+
+    getExperimentResults: (experimentId: string) =>
+        api.get(`/agents/experiments/${experimentId}`),
+
+    // Async Jobs
+    analyzeRfpAsync: (documentId: number, options?: { tone?: string; length?: string }) =>
+        api.post('/agents/analyze-rfp-async', { document_id: documentId, options }),
+
+    getJobStatus: (jobId: string) =>
+        api.get(`/agents/job-status/${jobId}`),
+
+    cancelJob: (jobId: string) =>
+        api.post(`/agents/cancel-job/${jobId}`),
+};
+
 export default api;
 
