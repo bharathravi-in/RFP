@@ -135,7 +135,7 @@ class Project(db.Model):
                 data['approved_count'] = 0
             
             data['reviewer_ids'] = [r.id for r in self.reviewers] if self.reviewers else []
-            data['knowledge_profiles'] = [p.to_dict() for p in self.knowledge_profiles] if self.knowledge_profiles else []
+            data['knowledge_profiles'] = [p.to_dict(include_items_count=True) for p in self.knowledge_profiles] if self.knowledge_profiles else []
             
             # Update completion_percent dynamically
             if data['question_count'] > 0:

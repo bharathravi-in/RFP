@@ -367,6 +367,11 @@ export default function ProjectDetail() {
                                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-primary/20 text-sm hover:border-primary hover:shadow-sm transition-all cursor-pointer"
                                 >
                                     <span className="font-medium text-primary">{profile.name}</span>
+                                    {profile.items_count !== undefined && (
+                                        <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 font-medium">
+                                            {profile.items_count} {profile.items_count === 1 ? 'doc' : 'docs'}
+                                        </span>
+                                    )}
                                     {profile.geographies?.length > 0 && (
                                         <span className="text-text-muted">• {profile.geographies.slice(0, 2).join(', ')}</span>
                                     )}

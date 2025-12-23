@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { sectionsApi, projectsApi } from '@/api/client';
 import { RFPSection, RFPSectionType, Project } from '@/types';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -33,10 +32,14 @@ import {
     UserIcon,
     ExclamationCircleIcon,
     CalendarDaysIcon,
+    CubeTransparentIcon,
+    PresentationChartBarIcon,
 } from '@heroicons/react/24/outline';
 import SectionTypeSelector from '@/components/sections/SectionTypeSelector';
 import SectionEditor from '@/components/sections/SectionEditor';
 import ComplianceMatrix from '@/components/compliance/ComplianceMatrix';
+import DiagramGenerator from '@/components/diagrams/DiagramGenerator';
+import { sectionsApi, projectsApi, documentsApi, pptApi } from '@/api/client';
 
 // Section type styling configuration
 const SECTION_STYLES: Record<string, {
@@ -171,7 +174,8 @@ export default function ProposalBuilder() {
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
-    const [viewMode, setViewMode] = useState<'sections' | 'compliance'>('sections');
+    const [viewMode, setViewMode] = useState<'sections' | 'compliance' | 'diagrams'>('sections');
+    const [primaryDocumentId, setPrimaryDocumentId] = useState<number | null>(null);
 
     const loadProject = useCallback(async () => {
         if (!projectId) return;
@@ -205,6 +209,23 @@ export default function ProposalBuilder() {
         loadProject();
         loadSections();
     }, [loadProject, loadSections]);
+
+    // Load primary document ID for diagrams
+    useEffect(() => {
+        const loadDocuments = async () => {
+            if (!projectId) return;
+            try {
+                const response = await documentsApi.list(projectId);
+                const docs = response.data.documents || [];
+                if (docs.length > 0) {
+                    setPrimaryDocumentId(docs[0].id);
+                }
+            } catch {
+                // Silent fail - diagrams just won't have a document
+            }
+        };
+        loadDocuments();
+    }, [projectId]);
 
     const handleMoveSection = async (sectionId: number, direction: 'up' | 'down') => {
         const currentIndex = sections.findIndex(s => s.id === sectionId);
@@ -268,10 +289,16 @@ export default function ProposalBuilder() {
         setSelectedSection(updatedSection);
     };
 
-    const handleExport = async (format: 'docx' | 'xlsx') => {
+    const handleExport = async (format: 'docx' | 'xlsx' | 'pptx') => {
         setIsExporting(true);
         try {
-            const response = await sectionsApi.exportProposal(projectId, format, true);
+            let response;
+            if (format === 'pptx') {
+                response = await pptApi.generate(projectId, { style: 'corporate' });
+            } else {
+                response = await sectionsApi.exportProposal(projectId, format, true);
+            }
+
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -374,6 +401,18 @@ export default function ProposalBuilder() {
                         <ClipboardDocumentCheckIcon className="h-4 w-4" />
                         Compliance
                     </button>
+                    <button
+                        onClick={() => setViewMode('diagrams')}
+                        className={clsx(
+                            'px-3 py-1.5 text-sm font-medium flex items-center gap-1.5 transition-colors border-l border-gray-200',
+                            viewMode === 'diagrams'
+                                ? 'bg-primary text-white'
+                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                        )}
+                    >
+                        <CubeTransparentIcon className="h-4 w-4" />
+                        Diagrams
+                    </button>
                 </div>
 
                 {/* Export Button */}
@@ -410,6 +449,17 @@ export default function ProposalBuilder() {
                                     <p className="text-xs text-text-muted">.xlsx format</p>
                                 </div>
                             </button>
+                            <button
+                                onClick={() => handleExport('pptx')}
+                                disabled={isExporting}
+                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-background transition-colors text-left border-t border-border"
+                            >
+                                <PresentationChartBarIcon className="h-5 w-5 text-orange-500" />
+                                <div>
+                                    <p className="text-sm font-medium text-text-primary">PowerPoint</p>
+                                    <p className="text-xs text-text-muted">.pptx format</p>
+                                </div>
+                            </button>
                         </div>
                     )}
                 </div>
@@ -425,7 +475,13 @@ export default function ProposalBuilder() {
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
-                {viewMode === 'compliance' ? (
+                {viewMode === 'diagrams' ? (
+                    /* Diagrams View */
+                    <DiagramGenerator
+                        projectId={projectId}
+                        documentId={primaryDocumentId || undefined}
+                    />
+                ) : viewMode === 'compliance' ? (
                     /* Compliance Matrix View */
                     <div className="flex-1 overflow-auto p-6 bg-background">
                         <ComplianceMatrix projectId={projectId} sections={sections} />
@@ -435,6 +491,29 @@ export default function ProposalBuilder() {
                         {/* Left: Section Navigator */}
                         <div className="w-[280px] border-r border-border bg-surface overflow-y-auto custom-scrollbar">
                             <div className="p-4">
+                                {/* Knowledge Context Banner */}
+                                {project?.knowledge_profiles && project.knowledge_profiles.length > 0 && (
+                                    <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-100">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <BookOpenIcon className="h-4 w-4 text-purple-600" />
+                                            <span className="text-xs font-medium text-purple-700">Knowledge Context</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {project.knowledge_profiles.map((p: any) => (
+                                                <span
+                                                    key={p.id}
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-white text-purple-700 border border-purple-200"
+                                                >
+                                                    📁 {p.name}
+                                                    {p.items_count !== undefined && (
+                                                        <span className="text-purple-500">({p.items_count})</span>
+                                                    )}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <h2 className="text-sm font-medium text-text-secondary mb-3">
                                     Proposal Sections
                                 </h2>

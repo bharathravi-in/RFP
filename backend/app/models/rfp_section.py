@@ -417,6 +417,44 @@ Write professional content based on the above instructions.
 Use relevant knowledge from our database.''',
         'is_system': True,
     },
+    {
+        'slug': 'architecture_diagram',
+        'name': 'Architecture Diagram',
+        'icon': '📐',
+        'color': '#6366F1',
+        'template_type': 'diagram',
+        'recommended_word_count': 500,
+        'description': 'AI-generated system architecture diagram based on RFP requirements',
+        'required_inputs': [],
+        'knowledge_scopes': ['architecture_patterns', 'tech_docs'],
+        'default_prompt': '''Analyze the RFP document and generate:
+
+1. A Mermaid.js architecture diagram showing the proposed solution architecture
+2. A detailed explanation of each component and how they interact
+3. Key design decisions and rationale
+
+The diagram should visualize:
+- System components and services
+- Data flows between components
+- External integrations
+- User interaction points
+
+Format the output as:
+## Architecture Overview
+[Brief description]
+
+## System Architecture Diagram
+```mermaid
+[Mermaid diagram code]
+```
+
+## Component Descriptions
+[Detailed explanation of each component]
+
+## Key Design Decisions
+[Rationale for architectural choices]''',
+        'is_system': True,
+    },
 ]
 
 

@@ -646,6 +646,10 @@ def generate_section_content(section_id):
     inputs = {**section.inputs, **data.get('inputs', {})}
     generation_params = {**section.ai_generation_params, **data.get('generation_params', {})}
     
+    # Special handling for diagram section types
+    if section_type.template_type == 'diagram':
+        return generate_diagram_section(section, project, user)
+    
     # Retrieve context from knowledge base with project dimension filtering
     from app.services.qdrant_service import get_qdrant_service
     qdrant = get_qdrant_service(user.organization_id)
@@ -702,6 +706,95 @@ def generate_section_content(section_id):
         'message': 'Section content generated',
         'section': section.to_dict(),
         'generation_result': result,
+    })
+
+
+def generate_diagram_section(section, project, user):
+    """Generate a diagram section using DiagramGeneratorAgent"""
+    from app.agents import DiagramGeneratorAgent
+    from app.models import Document
+    
+    # Get RFP document text from project
+    documents = Document.query.filter_by(project_id=project.id).all()
+    
+    if not documents:
+        return jsonify({'error': 'No documents found for this project. Please upload an RFP document first.'}), 400
+    
+    # Combine document text
+    document_text = ""
+    for doc in documents:
+        if doc.extracted_text:
+            document_text += doc.extracted_text + "\n\n"
+    
+    if not document_text.strip():
+        return jsonify({'error': 'No text content found in project documents. Please ensure documents have been processed.'}), 400
+    
+    # Generate diagram
+    agent = DiagramGeneratorAgent(org_id=user.organization_id)
+    result = agent.generate_diagram(document_text, diagram_type='architecture')
+    
+    if not result.get('success'):
+        return jsonify({'error': result.get('error', 'Failed to generate diagram')}), 500
+    
+    diagram = result.get('diagram', {})
+    
+    # Extract values to avoid backslash in f-string
+    description = diagram.get('description', 'System architecture for the proposed solution.')
+    mermaid_code = diagram.get('mermaid_code', 'flowchart TB\n    A[System] --> B[Component]')
+    notes = diagram.get('notes', 'The architecture diagram above shows the key components of the proposed solution and how they interact with each other.')
+    
+    # Build section content with mermaid diagram and explanation
+    content = f"""## Architecture Overview
+
+{description}
+
+## System Architecture Diagram
+
+```mermaid
+{mermaid_code}
+```
+
+## Component Descriptions
+
+{notes}
+
+## Key Components
+
+"""
+    # Add components if available
+    components = diagram.get('components', [])
+    for comp in components:
+        content += f"- **{comp}**\n"
+    
+    # Update section
+    section.content = content
+    section.confidence_score = 0.85
+    section.sources = [{'type': 'ai_generated', 'title': 'DiagramGeneratorAgent'}]
+    section.flags = []
+    section.status = 'generated'
+    section.version += 1
+    section.updated_at = datetime.utcnow()
+    
+    # Store diagram metadata in inputs for later use
+    section.inputs = {
+        **section.inputs,
+        'diagram_data': {
+            'mermaid_code': diagram.get('mermaid_code', ''),
+            'title': diagram.get('title', ''),
+            'description': diagram.get('description', ''),
+        }
+    }
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Architecture diagram generated',
+        'section': section.to_dict(),
+        'generation_result': {
+            'content': content,
+            'diagram': diagram,
+            'confidence_score': 0.85,
+        },
     })
 
 

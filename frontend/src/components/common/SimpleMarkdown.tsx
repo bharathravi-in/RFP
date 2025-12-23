@@ -1,15 +1,17 @@
 import React from 'react';
+import DiagramRenderer from '@/components/diagrams/DiagramRenderer';
 
 interface SimpleMarkdownProps {
     content: string;
     className?: string;
+    renderMermaid?: boolean; // Enable mermaid diagram rendering
 }
 
 /**
  * A simple markdown renderer that handles basic formatting without external dependencies.
- * Supports: bold, italic, headers, lists, code blocks
+ * Supports: bold, italic, headers, lists, code blocks, and optionally mermaid diagrams
  */
-export default function SimpleMarkdown({ content, className = '' }: SimpleMarkdownProps) {
+export default function SimpleMarkdown({ content, className = '', renderMermaid = true }: SimpleMarkdownProps) {
     if (!content) return null;
 
     // Process the content line by line
@@ -18,6 +20,7 @@ export default function SimpleMarkdown({ content, className = '' }: SimpleMarkdo
     let currentList: string[] = [];
     let isInCodeBlock = false;
     let codeBlockContent: string[] = [];
+    let codeBlockLanguage = ''; // Track the code block language for mermaid detection
 
     const processInlineFormatting = (text: string): React.ReactNode[] => {
         const parts: React.ReactNode[] = [];
@@ -92,17 +95,42 @@ export default function SimpleMarkdown({ content, className = '' }: SimpleMarkdo
         // Code block detection
         if (line.startsWith('```')) {
             if (isInCodeBlock) {
-                // End code block
-                elements.push(
-                    <pre key={elements.length} className="p-4 rounded-lg bg-gray-900 text-gray-100 overflow-x-auto my-3">
-                        <code>{codeBlockContent.join('\n')}</code>
-                    </pre>
-                );
+                // End code block - check if it was mermaid
+                const codeContent = codeBlockContent.join('\n');
+                if (renderMermaid && codeBlockContent.length > 0 && line.startsWith('```') && elements.length > 0) {
+                    // Check if the opening was mermaid
+                    const lastElement = elements[elements.length - 1];
+                    if (lastElement && (lastElement as any).props?.['data-mermaid']) {
+                        // Already handled as mermaid
+                    }
+                }
+
+                // Check for mermaid by looking at the stored language
+                if (renderMermaid && codeBlockLanguage === 'mermaid') {
+                    elements.push(
+                        <div key={elements.length} className="my-4">
+                            <DiagramRenderer
+                                code={codeContent}
+                                title=""
+                                showControls={false}
+                            />
+                        </div>
+                    );
+                } else {
+                    elements.push(
+                        <pre key={elements.length} className="p-4 rounded-lg bg-gray-900 text-gray-100 overflow-x-auto my-3">
+                            <code>{codeContent}</code>
+                        </pre>
+                    );
+                }
                 codeBlockContent = [];
                 isInCodeBlock = false;
+                codeBlockLanguage = '';
             } else {
                 flushList();
                 isInCodeBlock = true;
+                // Extract language from opening fence (e.g., ```mermaid)
+                codeBlockLanguage = line.slice(3).trim().toLowerCase();
             }
             return;
         }

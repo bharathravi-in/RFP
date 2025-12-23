@@ -323,6 +323,129 @@ def health_check():
             "KnowledgeBaseAgent",
             "AnswerGeneratorAgent",
             "QualityReviewerAgent",
-            "OrchestratorAgent"
+            "OrchestratorAgent",
+            "DiagramGeneratorAgent"
         ]
     })
+
+
+# ===============================
+# Diagram Generation Routes
+# ===============================
+
+@agents_bp.route('/diagram-types', methods=['GET'])
+def get_diagram_types():
+    """
+    Get available diagram types.
+    
+    Returns:
+        List of diagram types with metadata
+    """
+    from app.agents import get_diagram_generator_agent
+    
+    agent = get_diagram_generator_agent()
+    return jsonify({
+        "diagram_types": agent.get_available_types()
+    })
+
+
+@agents_bp.route('/generate-diagram', methods=['POST'])
+def generate_diagram():
+    """
+    Generate a Mermaid.js diagram from RFP document.
+    
+    Request body:
+    {
+        "document_id": int,  // OR
+        "document_text": string,
+        "diagram_type": string,  // "architecture", "flowchart", "sequence", "timeline", "er", "mindmap"
+        "project_id": int (optional)
+    }
+    
+    Returns diagram with mermaid_code and metadata.
+    """
+    from app.agents import get_diagram_generator_agent
+    
+    data = request.get_json() or {}
+    
+    # Get document text
+    document_text = data.get('document_text')
+    document_id = data.get('document_id')
+    
+    if not document_text and document_id:
+        document = Document.query.get(document_id)
+        if not document:
+            return jsonify({"error": "Document not found"}), 404
+        if not document.extracted_text:
+            return jsonify({"error": "Document has no extracted text"}), 400
+        document_text = document.extracted_text
+        org_id = document.project.organization_id if document.project else None
+    else:
+        org_id = data.get('org_id')
+    
+    if not document_text:
+        return jsonify({"error": "No document text provided"}), 400
+    
+    diagram_type = data.get('diagram_type', 'architecture')
+    
+    try:
+        agent = get_diagram_generator_agent(org_id=org_id)
+        result = agent.generate_diagram(
+            document_text=document_text,
+            diagram_type=diagram_type
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Diagram generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/generate-all-diagrams', methods=['POST'])
+def generate_all_diagrams():
+    """
+    Generate multiple diagram types from RFP document.
+    
+    Request body:
+    {
+        "document_id": int,  // OR
+        "document_text": string,
+        "diagram_types": ["architecture", "flowchart", "timeline"]  // optional, defaults to these 3
+    }
+    
+    Returns list of generated diagrams.
+    """
+    from app.agents import get_diagram_generator_agent
+    
+    data = request.get_json() or {}
+    
+    # Get document text
+    document_text = data.get('document_text')
+    document_id = data.get('document_id')
+    
+    if not document_text and document_id:
+        document = Document.query.get(document_id)
+        if not document:
+            return jsonify({"error": "Document not found"}), 404
+        if not document.extracted_text:
+            return jsonify({"error": "Document has no extracted text"}), 400
+        document_text = document.extracted_text
+        org_id = document.project.organization_id if document.project else None
+    else:
+        org_id = data.get('org_id')
+    
+    if not document_text:
+        return jsonify({"error": "No document text provided"}), 400
+    
+    diagram_types = data.get('diagram_types')
+    
+    try:
+        agent = get_diagram_generator_agent(org_id=org_id)
+        result = agent.generate_all_diagrams(
+            document_text=document_text,
+            diagram_types=diagram_types
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Diagram generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+

@@ -41,6 +41,13 @@ from .orchestrator_agent import (
     OrchestratorAgent,
     get_orchestrator_agent
 )
+from .diagram_generator_agent import (
+    DiagramGeneratorAgent,
+    get_diagram_generator_agent,
+    DiagramType,
+    DIAGRAM_TYPE_INFO
+)
+from .ppt_generator_agent import PPTGeneratorAgent
 
 __all__ = [
     'get_agent_config',
@@ -59,4 +66,10 @@ __all__ = [
     'get_clarification_agent',
     'OrchestratorAgent',
     'get_orchestrator_agent',
+    'DiagramGeneratorAgent',
+    'get_diagram_generator_agent',
+    'DiagramType',
+    'DIAGRAM_TYPE_INFO',
+    'PPTGeneratorAgent',
 ]
+

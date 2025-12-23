@@ -790,4 +790,35 @@ export const activityApi = {
     }) => api.post('/activity', data),
 };
 
+// ===============================
+// Diagrams API
+// ===============================
+
+export const diagramsApi = {
+    getDiagramTypes: () =>
+        api.get('/agents/diagram-types'),
+
+    generateDiagram: (documentId: number, diagramType: string = 'architecture') =>
+        api.post('/agents/generate-diagram', { document_id: documentId, diagram_type: diagramType }),
+
+    generateAllDiagrams: (documentId: number, diagramTypes?: string[]) =>
+        api.post('/agents/generate-all-diagrams', { document_id: documentId, diagram_types: diagramTypes }),
+};
+
+// ===============================
+// PPT Generation API
+// ===============================
+
+export const pptApi = {
+    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string> }) =>
+        api.post(`/ppt/generate/${projectId}`, options, { responseType: 'blob' }),
+
+    preview: (projectId: number) =>
+        api.get(`/ppt/preview/${projectId}`),
+
+    getStyles: () =>
+        api.get('/ppt/styles'),
+};
+
 export default api;
+

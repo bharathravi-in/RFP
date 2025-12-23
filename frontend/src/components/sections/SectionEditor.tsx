@@ -63,6 +63,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     // Related Questions panel state
     const [showRelatedQuestions, setShowRelatedQuestions] = useState(true);
 
+    // Knowledge Sources panel state
+    const [showSources, setShowSources] = useState(false);
+
     // Users for assignee dropdown
     const [orgUsers, setOrgUsers] = useState<{ id: number; name: string; email: string }[]>([]);
 
@@ -1009,6 +1012,59 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                         return <SimpleMarkdown content={content} />;
                                     })()}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Knowledge Sources Panel - Show what docs were used */}
+                        {!isQASection && section.sources && section.sources.length > 0 && (
+                            <div className="mt-6 border-t border-border pt-4">
+                                <button
+                                    onClick={() => setShowSources(!showSources)}
+                                    className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors w-full"
+                                >
+                                    <BookOpenIcon className="h-4 w-4" />
+                                    Sources Used ({section.sources.length})
+                                    <span className={clsx(
+                                        'ml-auto transition-transform',
+                                        showSources ? 'rotate-180' : ''
+                                    )}>
+                                        ▼
+                                    </span>
+                                </button>
+
+                                {showSources && (
+                                    <div className="mt-3 space-y-2">
+                                        <p className="text-xs text-text-muted mb-2">
+                                            This content was generated using the following knowledge sources:
+                                        </p>
+                                        {section.sources.map((source, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="p-3 rounded-lg border border-border bg-gradient-to-r from-purple-50/50 to-violet-50/50"
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <DocumentTextIcon className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-medium text-text-primary truncate">
+                                                            {source.title}
+                                                        </p>
+                                                        {source.snippet && (
+                                                            <p className="text-xs text-text-muted mt-1 line-clamp-2">
+                                                                {source.snippet}
+                                                            </p>
+                                                        )}
+                                                        {source.relevance && (
+                                                            <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-600">
+                                                                <SparklesIcon className="h-3 w-3" />
+                                                                {Math.round(source.relevance * 100)}% relevant
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 

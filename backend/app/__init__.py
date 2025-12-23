@@ -61,6 +61,10 @@ def create_app(config_name=None):
     app.register_blueprint(smart_search.bp, url_prefix='/api/search')  # Smart natural language search
     app.register_blueprint(activity.bp, url_prefix='/api/activity')  # Activity timeline
 
+    # PPT generation
+    from .routes import ppt
+    app.register_blueprint(ppt.bp, url_prefix='/api/ppt')  # PowerPoint generation
+
     
     # Health check endpoint
     @app.route('/api/health')
