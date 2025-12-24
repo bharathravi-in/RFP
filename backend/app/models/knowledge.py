@@ -74,6 +74,7 @@ class KnowledgeItem(db.Model):
             'industry': self.industry,
             'language': self.language,
             'knowledge_profile_id': self.knowledge_profile_id,
+            'knowledge_profile_name': self.profile.name if self.profile else None,
             'is_active': self.is_active,
             'organization_id': self.organization_id,
             'created_by': self.created_by,

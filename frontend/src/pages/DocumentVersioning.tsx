@@ -15,8 +15,12 @@ import {
     ArrowPathIcon,
     ExclamationTriangleIcon,
     ArrowsRightLeftIcon,
+    PencilSquareIcon,
+    Squares2X2Icon,
+    ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import VersionComparison from '@/components/versions/VersionComparison';
+import VersionTimeline from '@/components/versions/VersionTimeline';
 
 // Create Version Modal Component
 function CreateVersionModal({
@@ -174,6 +178,72 @@ function RestoreVersionModal({
     );
 }
 
+// Branch Version Modal (Edit as Draft)
+function BranchVersionModal({
+    isOpen,
+    onClose,
+    onConfirm,
+    version,
+    isBranching,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    version: ProposalVersion | null;
+    isBranching: boolean;
+}) {
+    if (!isOpen || !version) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-fade-in">
+                <div className="bg-gradient-to-r from-primary to-indigo-600 px-6 py-4">
+                    <div className="flex items-center gap-3">
+                        <PencilSquareIcon className="h-6 w-6 text-white" />
+                        <h2 className="text-lg font-semibold text-white">Edit as Draft</h2>
+                    </div>
+                    <p className="text-white/80 text-sm mt-1">
+                        v{version.version_number}: {version.title}
+                    </p>
+                </div>
+                <div className="p-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-blue-800">
+                            <strong>This will:</strong> Replace your current proposal sections with the content from this version, allowing you to continue editing from this point.
+                        </p>
+                        <p className="text-sm text-blue-700 mt-2">
+                            All sections will be reset to "draft" status for editing.
+                        </p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onClose}
+                            className="btn-secondary flex-1"
+                            disabled={isBranching}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            className="btn-primary flex-1"
+                            disabled={isBranching}
+                        >
+                            {isBranching ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                    Creating Draft...
+                                </span>
+                            ) : (
+                                'Edit This Version'
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function DocumentVersioning() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -191,6 +261,12 @@ export default function DocumentVersioning() {
     const [compareMode, setCompareMode] = useState(false);
     const [selectedForCompare, setSelectedForCompare] = useState<ProposalVersion[]>([]);
     const [showCompareModal, setShowCompareModal] = useState(false);
+    // Branch mode state (Edit as Draft)
+    const [showBranchModal, setShowBranchModal] = useState(false);
+    const [versionToBranch, setVersionToBranch] = useState<ProposalVersion | null>(null);
+    const [isBranching, setIsBranching] = useState(false);
+    // View mode: list or timeline
+    const [viewMode, setViewMode] = useState<'list' | 'timeline'>('timeline');
 
     const loadData = useCallback(async () => {
         if (!id) return;
@@ -284,6 +360,26 @@ export default function DocumentVersioning() {
             toast.error(error.response?.data?.error || 'Failed to restore version');
         } finally {
             setIsRestoring(false);
+        }
+    };
+
+    const handleBranchVersion = async () => {
+        if (!versionToBranch || !id) return;
+
+        setIsBranching(true);
+        try {
+            const response = await versionsApi.branch(versionToBranch.id, 'replace');
+            toast.success(response.data.message || `Created editable draft from version ${versionToBranch.version_number}`);
+            setShowBranchModal(false);
+            setVersionToBranch(null);
+
+            // Navigate to proposal builder to edit the draft
+            toast.success('Redirecting to Proposal Builder...');
+            setTimeout(() => navigate(`/projects/${id}/proposal`), 1000);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to create draft from version');
+        } finally {
+            setIsBranching(false);
         }
     };
 
@@ -412,14 +508,62 @@ export default function DocumentVersioning() {
                     {/* Left Sidebar - Version List */}
                     <div className="w-80 border-r border-border bg-gray-50 overflow-y-auto">
                         <div className="p-4">
-                            <div className="flex items-center gap-2 mb-4">
-                                <DocumentDuplicateIcon className="h-5 w-5 text-text-secondary" />
-                                <h2 className="font-medium text-text-primary">
-                                    Saved Versions ({versions.length})
-                                </h2>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <DocumentDuplicateIcon className="h-5 w-5 text-text-secondary" />
+                                    <h2 className="font-medium text-text-primary">
+                                        Saved Versions ({versions.length})
+                                    </h2>
+                                </div>
+                                {/* View Toggle */}
+                                <div className="flex items-center gap-1 bg-white rounded-lg border border-border p-0.5">
+                                    <button
+                                        onClick={() => setViewMode('timeline')}
+                                        className={clsx(
+                                            'p-1.5 rounded transition-colors',
+                                            viewMode === 'timeline'
+                                                ? 'bg-primary text-white'
+                                                : 'text-text-muted hover:bg-gray-100'
+                                        )}
+                                        title="Timeline View"
+                                    >
+                                        <Squares2X2Icon className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode('list')}
+                                        className={clsx(
+                                            'p-1.5 rounded transition-colors',
+                                            viewMode === 'list'
+                                                ? 'bg-primary text-white'
+                                                : 'text-text-muted hover:bg-gray-100'
+                                        )}
+                                        title="List View"
+                                    >
+                                        <ListBulletIcon className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
 
-                            {versions.length === 0 ? (
+                            {viewMode === 'timeline' ? (
+                                <VersionTimeline
+                                    versions={versions}
+                                    selectedVersion={selectedVersion}
+                                    onSelect={(version) => {
+                                        setSelectedVersion(version);
+                                        setPreviewKey((k) => k + 1);
+                                    }}
+                                    onRestore={(version) => {
+                                        setVersionToRestore(version);
+                                        setShowRestoreModal(true);
+                                    }}
+                                    onBranch={(version) => {
+                                        setVersionToBranch(version);
+                                        setShowBranchModal(true);
+                                    }}
+                                    onDownload={handleDownload}
+                                    onDelete={(version) => handleDeleteVersion(version.id)}
+                                />
+                            ) : versions.length === 0 ? (
                                 <div className="text-center py-12">
                                     <DocumentTextIcon className="h-12 w-12 text-text-muted mx-auto mb-3" />
                                     <p className="text-text-secondary text-sm">
@@ -508,6 +652,19 @@ export default function DocumentVersioning() {
                                                             <ArrowPathIcon className="h-4 w-4 text-amber-600" />
                                                         </button>
                                                     )}
+                                                    {version.can_restore && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setVersionToBranch(version);
+                                                                setShowBranchModal(true);
+                                                            }}
+                                                            className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                                                            title="Edit as Draft"
+                                                        >
+                                                            <PencilSquareIcon className="h-4 w-4 text-primary" />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -581,6 +738,18 @@ export default function DocumentVersioning() {
                 onConfirm={handleRestoreVersion}
                 version={versionToRestore}
                 isRestoring={isRestoring}
+            />
+
+            {/* Branch Version Modal (Edit as Draft) */}
+            <BranchVersionModal
+                isOpen={showBranchModal}
+                onClose={() => {
+                    setShowBranchModal(false);
+                    setVersionToBranch(null);
+                }}
+                onConfirm={handleBranchVersion}
+                version={versionToBranch}
+                isBranching={isBranching}
             />
 
             {/* Version Comparison Modal */}

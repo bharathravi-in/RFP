@@ -62,6 +62,7 @@ export default function Settings() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [invitations, setInvitations] = useState<any[]>([]);
     const [loadingInvitations, setLoadingInvitations] = useState(false);
+    const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
     // Password state
     const [currentPassword, setCurrentPassword] = useState('');
@@ -106,8 +107,19 @@ export default function Settings() {
         if (activeTab === 'organization') {
             fetchOrganization();
             fetchInvitations();
+            fetchTeamMembers();
         }
     }, [activeTab, setOrganization]);
+
+    // Fetch team members
+    const fetchTeamMembers = async () => {
+        try {
+            const response = await organizationsApi.getMembers();
+            setTeamMembers(response.data.members || []);
+        } catch (error) {
+            console.error('Failed to fetch team members:', error);
+        }
+    };
 
     // Fetch invitations
     const fetchInvitations = async () => {
@@ -599,27 +611,37 @@ export default function Settings() {
                                 </div>
                                 <div className="p-6">
                                     <div className="space-y-3">
-                                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10">
-                                            <div className="flex items-center gap-3">
-                                                {user?.profile_photo ? (
-                                                    <img src={user.profile_photo} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-medium">
-                                                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                        {teamMembers.map((member) => (
+                                            <div key={member.id} className={clsx(
+                                                "flex items-center justify-between p-4 rounded-xl border",
+                                                member.is_current_user
+                                                    ? "bg-gradient-to-r from-primary/5 to-blue-50 border-primary/10"
+                                                    : "bg-gray-50 border-gray-100"
+                                            )}>
+                                                <div className="flex items-center gap-3">
+                                                    {member.profile_photo ? (
+                                                        <img src={member.profile_photo} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-medium">
+                                                            {member.name?.charAt(0)?.toUpperCase() || 'U'}
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <p className="font-medium text-text-primary">{member.name}</p>
+                                                        <p className="text-sm text-text-secondary">{member.email}</p>
                                                     </div>
-                                                )}
-                                                <div>
-                                                    <p className="font-medium text-text-primary">{user?.name}</p>
-                                                    <p className="text-sm text-text-secondary">{user?.email}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={clsx(
+                                                        "px-3 py-1 rounded-full text-xs font-medium",
+                                                        member.role === 'admin' ? "bg-primary/15 text-primary" : "bg-gray-200 text-gray-600"
+                                                    )}>
+                                                        {member.role?.charAt(0).toUpperCase() + member.role?.slice(1)}
+                                                    </span>
+                                                    {member.is_current_user && <span className="text-xs text-text-muted">You</span>}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/15 text-primary">
-                                                    {user?.role === 'admin' ? 'Admin' : user?.role}
-                                                </span>
-                                                <span className="text-xs text-text-muted">You</span>
-                                            </div>
-                                        </div>
+                                        ))}
 
                                         {/* Pending Invitations */}
                                         {invitations.filter(inv => inv.status === 'pending').length > 0 && (

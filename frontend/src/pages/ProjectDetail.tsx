@@ -10,12 +10,14 @@ import {
     DocumentTextIcon,
     SparklesIcon,
     ChatBubbleLeftRightIcon,
+    ScaleIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import WorkflowStepper from '@/components/ui/WorkflowStepper';
 import KnowledgeProfileSidebar from '@/components/knowledge/KnowledgeProfileSidebar';
 import UploadProgressModal, { UploadState } from '@/components/upload/UploadProgressModal';
 import DocumentActions from '@/components/ui/DocumentActions';
+import GoNoGoWizard from '@/components/gng/GoNoGoWizard';
 
 export default function ProjectDetail() {
     const { id } = useParams<{ id: string }>();
@@ -35,6 +37,9 @@ export default function ProjectDetail() {
     // Knowledge profile sidebar state
     const [selectedProfile, setSelectedProfile] = useState<any>(null);
     const [isProfileSidebarOpen, setIsProfileSidebarOpen] = useState(false);
+
+    // Go/No-Go wizard state
+    const [showGoNoGoWizard, setShowGoNoGoWizard] = useState(false);
 
     const loadProject = useCallback(async () => {
         if (!id) return;
@@ -304,6 +309,41 @@ export default function ProjectDetail() {
                     </div>
                 </div>
 
+                {/* Go/No-Go Analysis Card */}
+                <div className="card border-2 border-dashed border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
+                                <ScaleIcon className="h-6 w-6 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-800">Go/No-Go Analysis</h3>
+                                <p className="text-sm text-gray-600">
+                                    {(project as any).go_no_go_status === 'go' ? (
+                                        <span className="text-green-600 font-medium">✓ Decision: GO ({Math.round((project as any).go_no_go_score || 0)}% win probability)</span>
+                                    ) : (project as any).go_no_go_status === 'no_go' ? (
+                                        <span className="text-red-600 font-medium">✗ Decision: NO-GO ({Math.round((project as any).go_no_go_score || 0)}% win probability)</span>
+                                    ) : (
+                                        'Pre-RFP evaluation with AI-powered win probability'
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowGoNoGoWizard(true)}
+                            className={clsx(
+                                'px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2',
+                                (project as any).go_no_go_status !== 'pending'
+                                    ? 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-100'
+                                    : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                            )}
+                        >
+                            <SparklesIcon className="h-5 w-5" />
+                            {(project as any).go_no_go_status !== 'pending' ? 'View Analysis' : 'Run Analysis'}
+                        </button>
+                    </div>
+                </div>
+
                 {/* Knowledge Context Section */}
                 {project.knowledge_profiles && project.knowledge_profiles.length > 0 && (
                     <div className="card bg-primary-light/30 border border-primary/20">
@@ -327,6 +367,11 @@ export default function ProjectDetail() {
                                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-primary/20 text-sm hover:border-primary hover:shadow-sm transition-all cursor-pointer"
                                 >
                                     <span className="font-medium text-primary">{profile.name}</span>
+                                    {profile.items_count !== undefined && (
+                                        <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 font-medium">
+                                            {profile.items_count} {profile.items_count === 1 ? 'doc' : 'docs'}
+                                        </span>
+                                    )}
                                     {profile.geographies?.length > 0 && (
                                         <span className="text-text-muted">• {profile.geographies.slice(0, 2).join(', ')}</span>
                                     )}
@@ -449,6 +494,14 @@ export default function ProjectDetail() {
                         navigate(`/projects/${id}/proposal`);
                     }
                 }}
+            />
+
+            {/* Go/No-Go Wizard */}
+            <GoNoGoWizard
+                project={project}
+                isOpen={showGoNoGoWizard}
+                onClose={() => setShowGoNoGoWizard(false)}
+                onComplete={() => loadProject()}
             />
         </>
     );

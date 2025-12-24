@@ -22,13 +22,52 @@ class AnswerImprover:
         'simplify': 'Simplify language for broader audience',
     }
     
-    def __init__(self):
-        self.ai_enabled = bool(current_app.config.get('GOOGLE_API_KEY'))
-        if self.ai_enabled:
+    def __init__(self, org_id: int = None):
+        self.org_id = org_id
+        self._provider = None
+        self._legacy_model = None
+        
+        # Check for legacy Google API key
+        self.ai_enabled = bool(current_app.config.get('GOOGLE_API_KEY')) or (org_id is not None)
+    
+    def _get_provider(self):
+        """Get the LLM provider from database configuration (always reload)."""
+        if self.org_id:
+            try:
+                from app.services.llm_service_helper import get_llm_provider
+                self._provider = get_llm_provider(self.org_id, 'answer_generation')
+            except Exception as e:
+                logger.warning(f"Could not get dynamic provider: {e}")
+                self._provider = None
+        return self._provider
+    
+    def _get_legacy_model(self):
+        """Fallback to legacy Google AI model."""
+        if self._legacy_model is None and current_app.config.get('GOOGLE_API_KEY'):
+            import google.generativeai as genai
             genai.configure(api_key=current_app.config['GOOGLE_API_KEY'])
-            self.model = genai.GenerativeModel(
+            self._legacy_model = genai.GenerativeModel(
                 current_app.config.get('GOOGLE_MODEL', 'gemini-1.5-pro')
             )
+        return self._legacy_model
+    
+    def _generate(self, prompt: str) -> str:
+        """Generate content using configured provider."""
+        # Try dynamic provider first
+        provider = self._get_provider()
+        if provider:
+            try:
+                return provider.generate_content(prompt)
+            except Exception as e:
+                logger.warning(f"Dynamic provider failed: {e}")
+        
+        # Fallback to legacy
+        model = self._get_legacy_model()
+        if model:
+            response = model.generate_content(prompt)
+            return response.text
+        
+        raise RuntimeError("No AI provider available")
     
     def auto_improve(
         self,
@@ -75,8 +114,7 @@ class AnswerImprover:
         )
         
         try:
-            response = self.model.generate_content(prompt)
-            improved_answer = response.text.strip()
+            improved_answer = self._generate(prompt).strip()
             
             # Clean up any meta-commentary
             if improved_answer.startswith('Here'):
@@ -134,9 +172,9 @@ Current Answer:
 Provide only the improved answer, with no preamble or explanation."""
 
         try:
-            response = self.model.generate_content(prompt)
+            result = self._generate(prompt)
             return {
-                'improved_answer': response.text.strip(),
+                'improved_answer': result.strip(),
                 'mode': mode,
                 'confidence': 0.8
             }
@@ -177,9 +215,9 @@ Generate a new, improved answer that:
 Provide only the answer, no preamble."""
 
         try:
-            response = self.model.generate_content(prompt)
+            result = self._generate(prompt)
             return {
-                'regenerated_answer': response.text.strip(),
+                'regenerated_answer': result.strip(),
                 'context_incorporated': True,
                 'confidence': 0.85
             }

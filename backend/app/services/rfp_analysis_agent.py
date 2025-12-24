@@ -70,14 +70,53 @@ class RFPAnalysisAgent:
     questions, and suggest optimal proposal sections.
     """
     
-    def __init__(self):
+    def __init__(self, org_id: int = None):
         """Initialize the agent with AI model."""
-        self.ai_enabled = bool(current_app.config.get('GOOGLE_API_KEY'))
-        if self.ai_enabled:
+        self.org_id = org_id
+        self._provider = None
+        self._legacy_model = None
+        
+        # Check for legacy Google API key
+        self.ai_enabled = bool(current_app.config.get('GOOGLE_API_KEY')) or (org_id is not None)
+    
+    def _get_provider(self):
+        """Get the LLM provider from database configuration (always reload)."""
+        if self.org_id:
+            try:
+                from app.services.llm_service_helper import get_llm_provider
+                self._provider = get_llm_provider(self.org_id, 'rfp_analysis')
+            except Exception as e:
+                logger.warning(f"Could not get dynamic provider: {e}")
+                self._provider = None
+        return self._provider
+    
+    def _get_legacy_model(self):
+        """Fallback to legacy Google AI model."""
+        if self._legacy_model is None and current_app.config.get('GOOGLE_API_KEY'):
+            import google.generativeai as genai
             genai.configure(api_key=current_app.config['GOOGLE_API_KEY'])
-            self.model = genai.GenerativeModel(
+            self._legacy_model = genai.GenerativeModel(
                 current_app.config.get('GOOGLE_MODEL', 'gemini-1.5-flash')
             )
+        return self._legacy_model
+    
+    def _generate(self, prompt: str) -> str:
+        """Generate content using configured provider."""
+        # Try dynamic provider first
+        provider = self._get_provider()
+        if provider:
+            try:
+                return provider.generate_content(prompt)
+            except Exception as e:
+                logger.warning(f"Dynamic provider failed: {e}")
+        
+        # Fallback to legacy
+        model = self._get_legacy_model()
+        if model:
+            response = model.generate_content(prompt)
+            return response.text
+        
+        raise RuntimeError("No AI provider available")
     
     def analyze_rfp(self, document_id: int) -> Dict:
         """
@@ -144,8 +183,7 @@ RFP Document Text:
 Return ONLY the JSON object, no markdown formatting."""
 
         try:
-            response = self.model.generate_content(prompt)
-            response_text = response.text.strip()
+            response_text = self._generate(prompt).strip()
             
             # Clean markdown code blocks if present
             if response_text.startswith('```'):
@@ -492,8 +530,7 @@ Write the content now. Be professional, compelling, and specific where possible.
 Output only the section content, no headers or labels."""
 
         try:
-            response = self.model.generate_content(prompt)
-            content = response.text.strip()
+            content = self._generate(prompt).strip()
             
             return {
                 'content': content,

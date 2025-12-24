@@ -130,7 +130,7 @@ def style_table(table):
 def add_markdown_to_doc(doc, content):
     """
     Convert markdown content to Word document formatting.
-    Handles: headers, bold, italic, lists, and paragraphs.
+    Handles: headers, bold, italic, lists, code blocks, and paragraphs.
     """
     if not content:
         return
@@ -138,6 +138,9 @@ def add_markdown_to_doc(doc, content):
     lines = content.split('\n')
     current_list_items = []
     is_in_list = False
+    is_in_code_block = False
+    code_block_content = []
+    code_block_language = ''
     
     def flush_list():
         nonlocal current_list_items, is_in_list
@@ -187,6 +190,64 @@ def add_markdown_to_doc(doc, content):
     
     for line in lines:
         stripped = line.strip()
+        
+        # Handle code blocks (including mermaid) - check both original and stripped line
+        if stripped.startswith('```') or line.lstrip().startswith('```'):
+            if is_in_code_block:
+                # End of code block
+                flush_list()
+                if code_block_language == 'mermaid':
+                    # For mermaid, render the diagram as an image
+                    mermaid_code = '\n'.join(code_block_content)
+                    try:
+                        from .mermaid_service import render_mermaid_to_bytes_io
+                        diagram_buffer = render_mermaid_to_bytes_io(mermaid_code)
+                        if diagram_buffer:
+                            # Add the diagram image to the document
+                            doc.add_picture(diagram_buffer, width=Inches(5.5))
+                            # Add caption
+                            caption_para = doc.add_paragraph()
+                            caption_run = caption_para.add_run('Figure: Architecture Diagram')
+                            caption_run.italic = True
+                            caption_run.font.size = Pt(10)
+                            caption_run.font.color.rgb = RGBColor(100, 100, 100)
+                            caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        else:
+                            # Fallback: Add placeholder text if rendering failed
+                            para = doc.add_paragraph()
+                            run = para.add_run('[Diagram could not be rendered - see web application]')
+                            run.italic = True
+                            run.font.size = Pt(10)
+                            run.font.color.rgb = RGBColor(100, 100, 100)
+                    except Exception as e:
+                        # Error handling: Add placeholder text
+                        para = doc.add_paragraph()
+                        run = para.add_run(f'[Diagram rendering error - see web application]')
+                        run.italic = True
+                        run.font.size = Pt(10)
+                        run.font.color.rgb = RGBColor(100, 100, 100)
+                elif code_block_content:
+                    # For other non-empty code blocks, add as monospace text
+                    para = doc.add_paragraph()
+                    code_text = '\n'.join(code_block_content)
+                    run = para.add_run(code_text)
+                    run.font.name = 'Courier New'
+                    run.font.size = Pt(9)
+                code_block_content = []
+                is_in_code_block = False
+                code_block_language = ''
+            else:
+                # Start of code block - extract language
+                flush_list()
+                is_in_code_block = True
+                # Get the part after ```
+                lang_part = stripped[3:] if stripped.startswith('```') else line.lstrip()[3:]
+                code_block_language = lang_part.strip().lower()
+            continue
+        
+        if is_in_code_block:
+            code_block_content.append(line)
+            continue
         
         # Skip empty lines
         if not stripped:

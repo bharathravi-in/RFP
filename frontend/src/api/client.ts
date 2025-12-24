@@ -113,14 +113,31 @@ export const projectsApi = {
         industry: string;
         compliance_requirements: string[];
         knowledge_profile_ids: number[];
+        // Outcome fields
+        outcome: 'pending' | 'won' | 'lost' | 'abandoned';
+        outcome_date: string;
+        outcome_notes: string;
+        contract_value: number;
+        loss_reason: string;
     }>) =>
         api.put(`/projects/${id}`, data),
+
+    updateOutcome: (id: number, data: {
+        outcome: 'pending' | 'won' | 'lost' | 'abandoned';
+        outcome_notes?: string;
+        contract_value?: number;
+        loss_reason?: string;
+    }) =>
+        api.put(`/projects/${id}/outcome`, data),
 
     delete: (id: number) =>
         api.delete(`/projects/${id}`),
 
     assignReviewers: (id: number, reviewerIds: number[]) =>
         api.post(`/projects/${id}/reviewers`, { reviewer_ids: reviewerIds }),
+
+    getUpcomingDeadlines: (days?: number) =>
+        api.get('/projects/upcoming-deadlines', { params: days ? { days } : {} }),
 };
 
 // ===============================
@@ -193,6 +210,16 @@ export const questionsApi = {
 
     delete: (id: number) =>
         api.delete(`/questions/${id}`),
+
+    // Auto-answer matching
+    autoMatch: (projectId: number, questionIds?: number[]) =>
+        api.post('/questions/auto-match', { project_id: projectId, question_ids: questionIds }),
+
+    getSuggestions: (questionId: number) =>
+        api.get(`/questions/${questionId}/suggestions`),
+
+    applySuggestion: (questionId: number, sourceAnswerId: number) =>
+        api.post(`/questions/${questionId}/apply-suggestion`, { source_answer_id: sourceAnswerId }),
 };
 
 // ===============================
@@ -205,6 +232,9 @@ export const answersApi = {
 
     regenerate: (questionId: number, feedback?: string, action: string = 'regenerate') =>
         api.post('/answers/regenerate', { question_id: questionId, feedback, action }),
+
+    create: (questionId: number, content: string) =>
+        api.post('/answers', { question_id: questionId, content }),
 
     update: (id: number, content: string) =>
         api.put(`/answers/${id}`, { content }),
@@ -321,6 +351,9 @@ export const sectionsApi = {
         order: number;
         status: string;
         flags: any[];
+        assigned_to: number | null;
+        due_date: string | null;
+        priority: 'low' | 'normal' | 'high' | 'urgent';
     }>) => api.put(`/projects/${projectId}/sections/${sectionId}`, data),
 
     deleteSection: (projectId: number, sectionId: number) =>
@@ -391,6 +424,13 @@ export const sectionsApi = {
 
     restoreVersion: (sectionId: number, versionNumber: number) =>
         api.post(`/sections/${sectionId}/restore/${versionNumber}`),
+
+    // Section Comments
+    addComment: (sectionId: number, text: string) =>
+        api.post(`/sections/${sectionId}/comments`, { text }),
+
+    deleteComment: (sectionId: number, commentId: number) =>
+        api.delete(`/sections/${sectionId}/comments/${commentId}`),
 };
 
 // ===============================
@@ -398,6 +438,9 @@ export const sectionsApi = {
 // ===============================
 
 export const usersApi = {
+    list: () =>
+        api.get('/users/list'),
+
     getProfile: () =>
         api.get('/users/profile'),
 
@@ -443,6 +486,9 @@ export const organizationsApi = {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
     },
+
+    getMembers: () =>
+        api.get('/organizations/members'),
 };
 
 // ===============================
@@ -498,6 +544,9 @@ export const versionsApi = {
 
     compare: (versionId: number, otherVersionId: number) =>
         api.get(`/versions/${versionId}/compare/${otherVersionId}`),
+
+    branch: (id: number, mode: 'replace' | 'merge' = 'replace') =>
+        api.post(`/versions/${id}/branch`, { mode }),
 };
 
 // ===============================
@@ -546,8 +595,305 @@ export const complianceApi = {
         category?: string;
     }>) => api.post(`/projects/${projectId}/compliance/bulk`, { items }),
 
+    extractFromDocuments: (projectId: number) =>
+        api.post(`/projects/${projectId}/compliance/extract`),
+
     getExportUrl: (projectId: number) =>
         `/api/projects/${projectId}/compliance/export`,
 };
 
+// ===============================
+// Answer Library API
+// ===============================
+
+export const answerLibraryApi = {
+    list: (params?: { category?: string; tag?: string; search?: string }) =>
+        api.get('/answer-library/list', { params }),
+
+    get: (id: number) =>
+        api.get(`/answer-library/${id}`),
+
+    create: (data: {
+        question_text: string;
+        answer_text: string;
+        category?: string;
+        tags?: string[];
+        source_project_id?: number;
+        source_question_id?: number;
+        source_answer_id?: number;
+    }) => api.post('/answer-library', data),
+
+    saveFromAnswer: (answerId: number, data?: { category?: string; tags?: string[] }) =>
+        api.post(`/answer-library/from-answer/${answerId}`, data || {}),
+
+    update: (id: number, data: Partial<{
+        question_text: string;
+        answer_text: string;
+        category: string;
+        tags: string[];
+        is_active: boolean;
+    }>) => api.put(`/answer-library/${id}`, data),
+
+    delete: (id: number) =>
+        api.delete(`/answer-library/${id}`),
+
+    search: (query: string, category?: string, limit: number = 5) =>
+        api.post('/answer-library/search', { query, category, limit }),
+
+    recordUsage: (id: number, helpful: boolean = true) =>
+        api.post(`/answer-library/${id}/use`, { helpful }),
+
+    getCategories: () =>
+        api.get('/answer-library/categories'),
+
+    getAllTags: () =>
+        api.get('/answer-library/all-tags'),
+
+    getSuggestedTags: (text: string, limit?: number) =>
+        api.get('/answer-library/suggested-tags', { params: { text, limit } }),
+};
+
+// ===============================
+// Go/No-Go Analysis API
+// ===============================
+
+export const goNoGoApi = {
+    analyze: (projectId: number, criteria: {
+        team_available?: number;
+        required_team_size?: number;
+        key_skills_available?: number;
+        typical_response_days?: number;
+        incumbent_advantage?: boolean;
+        relationship_score?: number;
+        pricing_competitiveness?: number;
+        unique_capabilities?: number;
+    }) => api.post(`/projects/${projectId}/go-no-go/analyze`, { criteria }),
+
+    get: (projectId: number) =>
+        api.get(`/projects/${projectId}/go-no-go`),
+
+    getCriteria: (projectId: number) =>
+        api.get(`/projects/${projectId}/go-no-go/criteria`),
+
+    updateDecision: (projectId: number, decision: 'go' | 'no_go' | 'pending', notes?: string) =>
+        api.put(`/projects/${projectId}/go-no-go/decision`, { decision, notes }),
+
+    reset: (projectId: number) =>
+        api.post(`/projects/${projectId}/go-no-go/reset`),
+};
+
+// ===============================
+// Analytics API
+// ===============================
+
+export const analyticsApi = {
+    getDashboard: () =>
+        api.get('/analytics/dashboard'),
+
+    getProjectStats: (projectId: number) =>
+        api.get(`/analytics/project/${projectId}`),
+
+    getOverview: () =>
+        api.get('/analytics/overview'),
+
+    getWinRateTrend: () =>
+        api.get('/analytics/win-rate-trend'),
+
+    getResponseTimes: () =>
+        api.get('/analytics/response-times'),
+
+    getTeamMetrics: () =>
+        api.get('/analytics/team-metrics'),
+
+    getLossReasons: () =>
+        api.get('/analytics/loss-reasons'),
+};
+
+// ===============================
+// Notifications API
+// ===============================
+
+export const notificationsApi = {
+    list: (options?: { limit?: number; offset?: number; unread_only?: boolean }) =>
+        api.get('/notifications', { params: options }),
+
+    getUnreadCount: () =>
+        api.get('/notifications/unread-count'),
+
+    markAsRead: (notificationId: number) =>
+        api.put(`/notifications/${notificationId}/read`),
+
+    markAllAsRead: () =>
+        api.put('/notifications/read-all'),
+
+    delete: (notificationId: number) =>
+        api.delete(`/notifications/${notificationId}`),
+};
+
+// ===============================
+// Comments API
+// ===============================
+
+export const commentsApi = {
+    list: (params: { section_id?: number; question_id?: number; answer_id?: number; include_resolved?: boolean }) =>
+        api.get('/comments', { params }),
+
+    create: (data: {
+        content: string;
+        section_id?: number;
+        question_id?: number;
+        answer_id?: number;
+        parent_id?: number;
+    }) => api.post('/comments', data),
+
+    update: (commentId: number, data: { content: string }) =>
+        api.put(`/comments/${commentId}`, data),
+
+    resolve: (commentId: number, resolved: boolean = true) =>
+        api.put(`/comments/${commentId}/resolve`, { resolved }),
+
+    delete: (commentId: number) =>
+        api.delete(`/comments/${commentId}`),
+
+    getUsersForMention: (search?: string) =>
+        api.get('/comments/users-for-mention', { params: { search } }),
+};
+
+// ===============================
+// Search API
+// ===============================
+
+export const searchApi = {
+    smart: (query: string, options?: { categories?: string[]; limit?: number }) =>
+        api.post('/search/smart', { query, ...options }),
+};
+
+// ===============================
+// Activity API
+// ===============================
+
+export const activityApi = {
+    getProjectActivity: (projectId: number, params?: { limit?: number; offset?: number }) =>
+        api.get(`/activity/project/${projectId}`, { params }),
+
+    getRecentActivity: (params?: { limit?: number }) =>
+        api.get('/activity/recent', { params }),
+
+    log: (data: {
+        action: string;
+        entity_type: string;
+        entity_id?: number;
+        entity_name?: string;
+        project_id?: number;
+        description?: string;
+        extra_data?: Record<string, unknown>;
+    }) => api.post('/activity', data),
+};
+
+// ===============================
+// Diagrams API
+// ===============================
+
+export const diagramsApi = {
+    getDiagramTypes: () =>
+        api.get('/agents/diagram-types'),
+
+    generateDiagram: (documentId: number, diagramType: string = 'architecture') =>
+        api.post('/agents/generate-diagram', { document_id: documentId, diagram_type: diagramType }),
+
+    generateAllDiagrams: (documentId: number, diagramTypes?: string[]) =>
+        api.post('/agents/generate-all-diagrams', { document_id: documentId, diagram_types: diagramTypes }),
+};
+
+// ===============================
+// PPT Generation API
+// ===============================
+
+export const pptApi = {
+    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string> }) =>
+        api.post(`/ppt/generate/${projectId}`, options, { responseType: 'blob' }),
+
+    preview: (projectId: number) =>
+        api.get(`/ppt/preview/${projectId}`),
+
+    getStyles: () =>
+        api.get('/ppt/styles'),
+};
+
+// ===============================
+// Agents API (NEW)
+// ===============================
+
+export const agentsApi = {
+    // Health & Status
+    getHealth: () =>
+        api.get('/agents/health'),
+
+    // RFP Analysis
+    analyzeRfp: (documentId: number, options?: { tone?: string; length?: string }) =>
+        api.post('/agents/analyze-rfp', { document_id: documentId, options }),
+
+    analyzeDocument: (documentId: number) =>
+        api.post('/agents/analyze-document', { document_id: documentId }),
+
+    extractQuestions: (documentId: number) =>
+        api.post('/agents/extract-questions', { document_id: documentId }),
+
+    generateAnswers: (questions: Array<{ id: number; text: string; category?: string }>, options?: { tone?: string; length?: string }) =>
+        api.post('/agents/generate-answers', { questions, options }),
+
+    // Multi-Document Analysis
+    analyzeMultipleDocuments: (documents: Array<{ id: number; name: string; text: string }>) =>
+        api.post('/agents/analyze-multiple-documents', { documents }),
+
+    // Feedback Learning
+    analyzeFeedbackEdit: (data: {
+        original_answer: string;
+        edited_answer: string;
+        question_text: string;
+        category?: string;
+        question_id?: number;
+    }) => api.post('/agents/feedback/analyze-edit', data),
+
+    getLearnedContext: (params?: { category?: string; limit?: number }) =>
+        api.get('/agents/feedback/learned-context', { params }),
+
+    // Section Mapping
+    mapQuestionsToSections: (questions: Array<{ id: number; text: string; category?: string }>) =>
+        api.post('/agents/sections/map-questions', { questions }),
+
+    getAvailableSections: () =>
+        api.get('/agents/sections/available'),
+
+    // Metrics & Dashboard
+    getMetricsDashboard: () =>
+        api.get('/agents/metrics/dashboard'),
+
+    getAgentMetrics: (agentName: string, hoursBack: number = 24) =>
+        api.get(`/agents/metrics/agent/${agentName}`, { params: { hours_back: hoursBack } }),
+
+    // A/B Experiments
+    createExperiment: (data: {
+        experiment_id: string;
+        agent_name: string;
+        control_version: string;
+        treatment_version: string;
+        traffic_split?: number;
+    }) => api.post('/agents/experiments', data),
+
+    getExperimentResults: (experimentId: string) =>
+        api.get(`/agents/experiments/${experimentId}`),
+
+    // Async Jobs
+    analyzeRfpAsync: (documentId: number, options?: { tone?: string; length?: string }) =>
+        api.post('/agents/analyze-rfp-async', { document_id: documentId, options }),
+
+    getJobStatus: (jobId: string) =>
+        api.get(`/agents/job-status/${jobId}`),
+
+    cancelJob: (jobId: string) =>
+        api.post(`/agents/cancel-job/${jobId}`),
+};
+
 export default api;
+

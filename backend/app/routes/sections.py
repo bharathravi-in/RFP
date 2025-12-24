@@ -283,6 +283,15 @@ def update_section(project_id, section_id):
     if 'flags' in data:
         section.flags = data['flags']
     
+    # Workflow fields
+    if 'assigned_to' in data:
+        section.assigned_to = data['assigned_to']
+    if 'due_date' in data:
+        from datetime import datetime as dt
+        section.due_date = dt.fromisoformat(data['due_date']) if data['due_date'] else None
+    if 'priority' in data:
+        section.priority = data['priority']
+    
     section.updated_at = datetime.utcnow()
     db.session.commit()
     
@@ -321,6 +330,83 @@ def reorder_sections(project_id):
     db.session.commit()
     
     return jsonify({'message': 'Sections reordered'})
+
+
+@bp.route('/sections/<int:section_id>/comments', methods=['POST'])
+@jwt_required()
+def add_section_comment(section_id):
+    """Add a comment to a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    text = data.get('text', '').strip()
+    
+    if not text:
+        return jsonify({'error': 'Comment text is required'}), 400
+    
+    # Create comment object
+    comment = {
+        'id': len(section.comments or []) + 1,
+        'user_id': user_id,
+        'user_name': user.name,
+        'text': text,
+        'created_at': datetime.utcnow().isoformat(),
+    }
+    
+    # Add to comments array
+    comments = section.comments or []
+    comments.append(comment)
+    section.comments = comments
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment added',
+        'comment': comment,
+        'comments': section.comments,
+    }), 201
+
+
+@bp.route('/sections/<int:section_id>/comments/<int:comment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_section_comment(section_id, comment_id):
+    """Delete a comment from a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Find and remove comment
+    comments = section.comments or []
+    original_len = len(comments)
+    comments = [c for c in comments if c.get('id') != comment_id]
+    
+    if len(comments) == original_len:
+        return jsonify({'error': 'Comment not found'}), 404
+    
+    section.comments = comments
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment deleted',
+        'comments': section.comments,
+    })
 
 
 # ============================================================
@@ -487,7 +573,7 @@ def chat_for_section():
         print(f"Error searching knowledge: {e}")
     
     # Build the prompt for the AI
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     
     # Build system context
     system_context = f"""You are an AI assistant helping to create proposal content.
@@ -560,6 +646,10 @@ def generate_section_content(section_id):
     inputs = {**section.inputs, **data.get('inputs', {})}
     generation_params = {**section.ai_generation_params, **data.get('generation_params', {})}
     
+    # Special handling for diagram section types
+    if section_type.template_type == 'diagram':
+        return generate_diagram_section(section, project, user)
+    
     # Retrieve context from knowledge base with project dimension filtering
     from app.services.qdrant_service import get_qdrant_service
     qdrant = get_qdrant_service(user.organization_id)
@@ -592,7 +682,7 @@ def generate_section_content(section_id):
         print(f"Error retrieving context: {e}")
     
     # Generate content
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     result = generator.generate_section_content(
         section_type_slug=section_type.slug,
         prompt_template=section_type.default_prompt or '',
@@ -619,6 +709,95 @@ def generate_section_content(section_id):
     })
 
 
+def generate_diagram_section(section, project, user):
+    """Generate a diagram section using DiagramGeneratorAgent"""
+    from app.agents import DiagramGeneratorAgent
+    from app.models import Document
+    
+    # Get RFP document text from project
+    documents = Document.query.filter_by(project_id=project.id).all()
+    
+    if not documents:
+        return jsonify({'error': 'No documents found for this project. Please upload an RFP document first.'}), 400
+    
+    # Combine document text
+    document_text = ""
+    for doc in documents:
+        if doc.extracted_text:
+            document_text += doc.extracted_text + "\n\n"
+    
+    if not document_text.strip():
+        return jsonify({'error': 'No text content found in project documents. Please ensure documents have been processed.'}), 400
+    
+    # Generate diagram
+    agent = DiagramGeneratorAgent(org_id=user.organization_id)
+    result = agent.generate_diagram(document_text, diagram_type='architecture')
+    
+    if not result.get('success'):
+        return jsonify({'error': result.get('error', 'Failed to generate diagram')}), 500
+    
+    diagram = result.get('diagram', {})
+    
+    # Extract values to avoid backslash in f-string
+    description = diagram.get('description', 'System architecture for the proposed solution.')
+    mermaid_code = diagram.get('mermaid_code', 'flowchart TB\n    A[System] --> B[Component]')
+    notes = diagram.get('notes', 'The architecture diagram above shows the key components of the proposed solution and how they interact with each other.')
+    
+    # Build section content with mermaid diagram and explanation
+    content = f"""## Architecture Overview
+
+{description}
+
+## System Architecture Diagram
+
+```mermaid
+{mermaid_code}
+```
+
+## Component Descriptions
+
+{notes}
+
+## Key Components
+
+"""
+    # Add components if available
+    components = diagram.get('components', [])
+    for comp in components:
+        content += f"- **{comp}**\n"
+    
+    # Update section
+    section.content = content
+    section.confidence_score = 0.85
+    section.sources = [{'type': 'ai_generated', 'title': 'DiagramGeneratorAgent'}]
+    section.flags = []
+    section.status = 'generated'
+    section.version += 1
+    section.updated_at = datetime.utcnow()
+    
+    # Store diagram metadata in inputs for later use
+    section.inputs = {
+        **section.inputs,
+        'diagram_data': {
+            'mermaid_code': diagram.get('mermaid_code', ''),
+            'title': diagram.get('title', ''),
+            'description': diagram.get('description', ''),
+        }
+    }
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Architecture diagram generated',
+        'section': section.to_dict(),
+        'generation_result': {
+            'content': content,
+            'diagram': diagram,
+            'confidence_score': 0.85,
+        },
+    })
+
+
 @bp.route('/sections/<int:section_id>/regenerate', methods=['POST'])
 @jwt_required()
 def regenerate_section(section_id):
@@ -634,7 +813,7 @@ def regenerate_section(section_id):
     feedback = data.get('feedback', '')
     
     # Use regenerate with feedback
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     from app.services.qdrant_service import get_qdrant_service
     qdrant = get_qdrant_service(user.organization_id)
     project = section.project

@@ -77,10 +77,17 @@ class RFPSection(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Workflow/task management fields
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    due_date = db.Column(db.DateTime, nullable=True)
+    priority = db.Column(db.String(20), default='normal')  # low, normal, high, urgent
+    comments = db.Column(db.JSON, default=list)  # List of {user_id, text, created_at}
+    
     # Relationships
     project = db.relationship('Project', backref=db.backref('sections', lazy='dynamic', order_by='RFPSection.order'))
     section_type = db.relationship('RFPSectionType', back_populates='sections')
     reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+    assignee = db.relationship('User', foreign_keys=[assigned_to])
     
     def to_dict(self, include_content=True):
         result = {
@@ -101,6 +108,12 @@ class RFPSection(db.Model):
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            # Workflow fields
+            'assigned_to': self.assigned_to,
+            'assignee_name': self.assignee.name if self.assignee else None,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
+            'priority': self.priority or 'normal',
+            'comments': self.comments or [],
         }
         if include_content:
             result['content'] = self.content
@@ -293,7 +306,7 @@ Include:
         'name': 'Project Estimation',
         'icon': '📊',
         'color': '#3B82F6',
-        'template_type': 'table',
+        'template_type': 'timeline',
         'recommended_word_count': 250,
         'description': 'Timeline, milestones, and effort estimates',
         'required_inputs': ['scope_summary', 'budget_range'],
@@ -337,7 +350,7 @@ For each case study include:
         'name': 'Compliance Matrix',
         'icon': '✅',
         'color': '#8B5CF6',
-        'template_type': 'table',
+        'template_type': 'compliance_matrix',
         'recommended_word_count': 400,
         'description': 'Requirements compliance mapping table',
         'required_inputs': ['requirements_list'],
@@ -392,6 +405,9 @@ Format each item with:
         'slug': 'custom',
         'name': 'Custom Section',
         'icon': '✏️',
+        'color': '#9333EA',
+        'template_type': 'narrative',
+        'recommended_word_count': 300,
         'description': 'Free-form section with AI writing assistance',
         'required_inputs': ['section_prompt'],
         'knowledge_scopes': ['all'],
@@ -399,6 +415,44 @@ Format each item with:
 
 Write professional content based on the above instructions.
 Use relevant knowledge from our database.''',
+        'is_system': True,
+    },
+    {
+        'slug': 'architecture_diagram',
+        'name': 'Architecture Diagram',
+        'icon': '📐',
+        'color': '#6366F1',
+        'template_type': 'diagram',
+        'recommended_word_count': 500,
+        'description': 'AI-generated system architecture diagram based on RFP requirements',
+        'required_inputs': [],
+        'knowledge_scopes': ['architecture_patterns', 'tech_docs'],
+        'default_prompt': '''Analyze the RFP document and generate:
+
+1. A Mermaid.js architecture diagram showing the proposed solution architecture
+2. A detailed explanation of each component and how they interact
+3. Key design decisions and rationale
+
+The diagram should visualize:
+- System components and services
+- Data flows between components
+- External integrations
+- User interaction points
+
+Format the output as:
+## Architecture Overview
+[Brief description]
+
+## System Architecture Diagram
+```mermaid
+[Mermaid diagram code]
+```
+
+## Component Descriptions
+[Detailed explanation of each component]
+
+## Key Design Decisions
+[Rationale for architectural choices]''',
         'is_system': True,
     },
 ]

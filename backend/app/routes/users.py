@@ -10,6 +10,32 @@ import base64
 bp = Blueprint('users', __name__)
 
 
+@bp.route('/list', methods=['GET'])
+@jwt_required()
+def list_users():
+    """Get list of users in the same organization (for assignee dropdowns)."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'users': []}), 200
+    
+    # Get all users in the same organization
+    org_users = User.query.filter_by(organization_id=user.organization_id).all()
+    
+    return jsonify({
+        'users': [
+            {
+                'id': u.id,
+                'name': u.name,
+                'email': u.email,
+                'role': u.role,
+            }
+            for u in org_users
+        ]
+    }), 200
+
+
 @bp.route('/profile', methods=['GET'])
 @jwt_required()
 def get_profile():

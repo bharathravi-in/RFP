@@ -320,3 +320,196 @@ def export_compliance_matrix(project_id):
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'}
     )
+
+
+@bp.route('/projects/<int:project_id>/compliance/extract', methods=['POST'])
+@jwt_required()
+def extract_requirements_from_documents(project_id):
+    """
+    Extract requirements from project RFP documents using AI.
+    Auto-populates the compliance matrix with identified requirements.
+    """
+    import json
+    import re
+    import tempfile
+    import os
+    import logging
+    from ..models import Document
+    from ..services.document_service import DocumentService
+    
+    logger = logging.getLogger(__name__)
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get all documents for this project
+    documents = Document.query.filter_by(project_id=project_id).all()
+    if not documents:
+        return jsonify({'error': 'No documents found for this project'}), 400
+    
+    # Extract text from all documents
+    all_text = []
+    doc_sources = []
+    
+    for doc in documents:
+        try:
+            # First try to use already extracted text
+            if doc.extracted_text:
+                all_text.append(f"=== From: {doc.filename} ===\n{doc.extracted_text}")
+                doc_sources.append(doc.filename)
+                continue
+            
+            # Fall back to extracting from binary file_data
+            if not doc.file_data:
+                continue
+            
+            # Create temp file for extraction
+            temp_dir = tempfile.mkdtemp()
+            ext = doc.file_type or 'pdf'
+            temp_path = os.path.join(temp_dir, f'doc.{ext}')
+            
+            with open(temp_path, 'wb') as f:
+                f.write(doc.file_data)
+            
+            text = DocumentService.extract_text(temp_path, ext)
+            if text:
+                all_text.append(f"=== From: {doc.filename} ===\n{text}")
+                doc_sources.append(doc.filename)
+            
+            # Cleanup
+            os.remove(temp_path)
+            os.rmdir(temp_dir)
+            
+        except Exception as e:
+            logger.error(f"Failed to extract text from {doc.filename}: {e}")
+            continue
+    
+    if not all_text:
+        return jsonify({'error': 'Could not extract text from any documents'}), 400
+    
+    combined_text = "\n\n".join(all_text)
+    
+    # Limit text length for API
+    max_chars = 50000
+    if len(combined_text) > max_chars:
+        combined_text = combined_text[:max_chars] + "\n\n[Content truncated for analysis...]"
+    
+    # Use AI to extract requirements
+    try:
+        import google.generativeai as genai
+        from flask import current_app
+        
+        # Check for API key (try both common names)
+        api_key = (
+            current_app.config.get('GOOGLE_API_KEY') or 
+            current_app.config.get('GEMINI_API_KEY') or 
+            os.environ.get('GOOGLE_API_KEY') or 
+            os.environ.get('GEMINI_API_KEY')
+        )
+        if not api_key:
+            return jsonify({'error': 'AI service not configured'}), 500
+        
+        genai.configure(api_key=api_key)
+        # Use configured model from environment
+        model_name = os.environ.get('GOOGLE_MODEL', 'gemini-2.0-flash')
+        model = genai.GenerativeModel(model_name)
+        
+        prompt = f"""Analyze this RFP (Request for Proposal) document and extract ALL specific requirements that a vendor must comply with.
+
+For each requirement, provide:
+1. requirement_id: A unique identifier (e.g., "REQ-001", "REQ-002")
+2. requirement_text: The exact requirement text or a clear summary
+3. category: One of: technical, security, compliance, legal, pricing, operational, support
+4. priority: high, normal, or low based on language used (must, shall = high; should = normal; may = low)
+5. source: The section or page where this requirement appears
+
+Focus on:
+- Mandatory requirements (must, shall, required)
+- Compliance criteria
+- Technical specifications
+- Security requirements
+- Pricing/commercial terms
+- Deliverable requirements
+- Timeline requirements
+
+Return ONLY a valid JSON array with objects having these fields. No markdown, no explanations.
+Example format:
+[
+  {{"requirement_id": "REQ-001", "requirement_text": "Vendor must provide 24/7 support", "category": "support", "priority": "high", "source": "Section 5.2"}}
+]
+
+RFP Document Content:
+{combined_text}"""
+
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        # Clean markdown code blocks if present
+        if response_text.startswith('```'):
+            response_text = re.sub(r'^```(?:json)?\n?', '', response_text)
+            response_text = re.sub(r'\n?```$', '', response_text)
+        
+        requirements = json.loads(response_text)
+        
+        if not isinstance(requirements, list):
+            requirements = [requirements]
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse AI response: {e}")
+        return jsonify({'error': 'Failed to parse AI analysis response'}), 500
+    except Exception as e:
+        logger.error(f"AI requirement extraction failed: {e}")
+        return jsonify({'error': f'AI analysis failed: {str(e)}'}), 500
+    
+    # Check for existing requirements to avoid duplicates
+    existing_items = ComplianceItem.query.filter_by(project_id=project_id).all()
+    existing_texts = {item.requirement_text.lower().strip() for item in existing_items}
+    
+    # Get max order
+    max_order = db.session.query(db.func.max(ComplianceItem.order))\
+        .filter_by(project_id=project_id).scalar() or 0
+    
+    # Create compliance items
+    created_items = []
+    skipped = 0
+    
+    for i, req in enumerate(requirements):
+        req_text = req.get('requirement_text', '').strip()
+        if not req_text:
+            continue
+        
+        # Check for duplicates
+        if req_text.lower().strip() in existing_texts:
+            skipped += 1
+            continue
+        
+        item = ComplianceItem(
+            project_id=project_id,
+            requirement_id=req.get('requirement_id'),
+            requirement_text=req_text,
+            source=req.get('source', ', '.join(doc_sources[:3])),
+            category=req.get('category', 'general'),
+            compliance_status='pending',
+            priority=req.get('priority', 'normal'),
+            order=max_order + i + 1,
+        )
+        db.session.add(item)
+        created_items.append(item)
+        existing_texts.add(req_text.lower().strip())
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Extracted {len(created_items)} requirements from {len(documents)} documents',
+        'extracted_count': len(created_items),
+        'skipped_duplicates': skipped,
+        'documents_analyzed': len(doc_sources),
+        'items': [item.to_dict() for item in created_items],
+    }), 201

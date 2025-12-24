@@ -165,3 +165,257 @@ def get_project_stats(project_id):
         },
         'documents': [d.to_dict() for d in documents]
     }), 200
+
+
+@bp.route('/overview', methods=['GET'])
+@jwt_required()
+def get_analytics_overview():
+    """Get high-level analytics overview including win/loss stats."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    org_id = user.organization_id
+    
+    # Project outcome counts
+    outcome_counts = db.session.query(
+        Project.outcome,
+        func.count(Project.id)
+    ).filter(
+        Project.organization_id == org_id
+    ).group_by(Project.outcome).all()
+    
+    outcomes = {outcome or 'pending': count for outcome, count in outcome_counts}
+    total = sum(outcomes.values())
+    won = outcomes.get('won', 0)
+    lost = outcomes.get('lost', 0)
+    pending = outcomes.get('pending', 0)
+    abandoned = outcomes.get('abandoned', 0)
+    
+    # Calculate win rate (won / (won + lost))
+    decided = won + lost
+    win_rate = round(won / max(decided, 1) * 100, 1)
+    
+    # Total contract value from won projects
+    total_won_value = db.session.query(
+        func.sum(Project.contract_value)
+    ).filter(
+        Project.organization_id == org_id,
+        Project.outcome == 'won'
+    ).scalar() or 0
+    
+    # Average project value
+    avg_project_value = db.session.query(
+        func.avg(Project.project_value)
+    ).filter(
+        Project.organization_id == org_id,
+        Project.project_value.isnot(None)
+    ).scalar() or 0
+    
+    return jsonify({
+        'overview': {
+            'total_projects': total,
+            'won': won,
+            'lost': lost,
+            'pending': pending,
+            'abandoned': abandoned,
+            'win_rate': win_rate,
+            'total_won_value': round(total_won_value, 2),
+            'avg_project_value': round(avg_project_value, 2),
+        }
+    }), 200
+
+
+@bp.route('/win-rate-trend', methods=['GET'])
+@jwt_required()
+def get_win_rate_trend():
+    """Get win rate trend over time (monthly for last 12 months)."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    org_id = user.organization_id
+    
+    # Get monthly win/loss counts for last 12 months
+    months = []
+    for i in range(11, -1, -1):
+        month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0) - timedelta(days=i*30)
+        month_end = month_start + timedelta(days=30)
+        
+        won = Project.query.filter(
+            Project.organization_id == org_id,
+            Project.outcome == 'won',
+            Project.outcome_date.between(month_start, month_end)
+        ).count()
+        
+        lost = Project.query.filter(
+            Project.organization_id == org_id,
+            Project.outcome == 'lost',
+            Project.outcome_date.between(month_start, month_end)
+        ).count()
+        
+        decided = won + lost
+        win_rate = round(won / max(decided, 1) * 100, 1) if decided > 0 else None
+        
+        months.append({
+            'month': month_start.strftime('%b %Y'),
+            'won': won,
+            'lost': lost,
+            'win_rate': win_rate
+        })
+    
+    return jsonify({'trend': months}), 200
+
+
+@bp.route('/response-times', methods=['GET'])
+@jwt_required()
+def get_response_times():
+    """Get average response times by project status."""
+    from ..models import RFPSection
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    org_id = user.organization_id
+    
+    # Average days from creation to completion
+    completed_projects = Project.query.filter(
+        Project.organization_id == org_id,
+        Project.status == 'completed'
+    ).all()
+    
+    if completed_projects:
+        total_days = sum(
+            (p.updated_at - p.created_at).days 
+            for p in completed_projects 
+            if p.updated_at and p.created_at
+        )
+        avg_completion_days = round(total_days / len(completed_projects), 1)
+    else:
+        avg_completion_days = 0
+    
+    # Average sections per project
+    avg_sections = db.session.query(
+        func.avg(
+            db.session.query(func.count(RFPSection.id))
+            .filter(RFPSection.project_id == Project.id)
+            .correlate(Project)
+            .scalar_subquery()
+        )
+    ).filter(
+        Project.organization_id == org_id
+    ).scalar() or 0
+    
+    # Projects by status
+    status_breakdown = db.session.query(
+        Project.status,
+        func.count(Project.id)
+    ).filter(
+        Project.organization_id == org_id
+    ).group_by(Project.status).all()
+    
+    return jsonify({
+        'response_times': {
+            'avg_completion_days': avg_completion_days,
+            'avg_sections_per_project': round(float(avg_sections), 1),
+            'projects_by_status': {status: count for status, count in status_breakdown}
+        }
+    }), 200
+
+
+@bp.route('/team-metrics', methods=['GET'])
+@jwt_required()
+def get_team_metrics():
+    """Get team member contribution metrics."""
+    from ..models import RFPSection
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    org_id = user.organization_id
+    
+    # Get all users in organization
+    team_members = User.query.filter_by(organization_id=org_id).all()
+    
+    metrics = []
+    for member in team_members:
+        # Projects created
+        projects_created = Project.query.filter_by(
+            created_by=member.id,
+            organization_id=org_id
+        ).count()
+        
+        # Sections assigned and completed
+        sections_assigned = RFPSection.query.join(Project).filter(
+            Project.organization_id == org_id,
+            RFPSection.assigned_to == member.id
+        ).count()
+        
+        sections_completed = RFPSection.query.join(Project).filter(
+            Project.organization_id == org_id,
+            RFPSection.assigned_to == member.id,
+            RFPSection.status == 'approved'
+        ).count()
+        
+        # Answers reviewed (Answer model has reviewed_by, not created_by)
+        answers_reviewed = db.session.query(Answer).filter(
+            Answer.reviewed_by == member.id
+        ).count()
+        
+        metrics.append({
+            'user_id': member.id,
+            'name': member.name,
+            'email': member.email,
+            'role': member.role,
+            'projects_created': projects_created,
+            'sections_assigned': sections_assigned,
+            'sections_completed': sections_completed,
+            'answers_reviewed': answers_reviewed,
+            'completion_rate': round(sections_completed / max(sections_assigned, 1) * 100, 1)
+        })
+    
+    # Sort by sections completed
+    metrics.sort(key=lambda x: x['sections_completed'], reverse=True)
+    
+    return jsonify({'team_metrics': metrics}), 200
+
+
+@bp.route('/loss-reasons', methods=['GET'])
+@jwt_required()
+def get_loss_reasons():
+    """Get breakdown of loss reasons."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    org_id = user.organization_id
+    
+    # Get loss reason counts
+    loss_reasons = db.session.query(
+        Project.loss_reason,
+        func.count(Project.id)
+    ).filter(
+        Project.organization_id == org_id,
+        Project.outcome == 'lost',
+        Project.loss_reason.isnot(None)
+    ).group_by(Project.loss_reason).all()
+    
+    reasons = [
+        {'reason': reason or 'Unknown', 'count': count}
+        for reason, count in loss_reasons
+    ]
+    
+    return jsonify({'loss_reasons': reasons}), 200
+

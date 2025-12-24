@@ -264,6 +264,67 @@ def regenerate_answer():
     }), 201
 
 
+@bp.route('', methods=['POST'])
+@jwt_required()
+def create_answer():
+    """Create an answer with provided content (e.g., from library)."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    data = request.get_json()
+    question_id = data.get('question_id')
+    content = data.get('content')
+    
+    if not question_id:
+        return jsonify({'error': 'Question ID required'}), 400
+    if not content:
+        return jsonify({'error': 'Content required'}), 400
+    
+    question = Question.query.get(question_id)
+    if not question:
+        return jsonify({'error': 'Question not found'}), 404
+    
+    if question.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Check if answer already exists
+    existing_answer = Answer.query.filter_by(question_id=question_id).first()
+    if existing_answer:
+        # Update existing answer instead
+        existing_answer.content = content
+        existing_answer.is_ai_generated = False
+        db.session.commit()
+        question.status = 'answered'
+        db.session.commit()
+        return jsonify({
+            'message': 'Answer updated',
+            'answer': existing_answer.to_dict(),
+            'status': question.status
+        }), 200
+    
+    # Create new answer
+    answer = Answer(
+        content=content,
+        confidence_score=0.8,  # Manual/library answer
+        sources=[],
+        status='draft',
+        version=1,
+        is_ai_generated=False,
+        generation_params={'source': 'library'},
+        question_id=question_id
+    )
+    
+    db.session.add(answer)
+    question.status = 'answered'
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Answer created',
+        'answer': answer.to_dict(),
+        'status': question.status
+    }), 201
+
+
 @bp.route('/<int:answer_id>', methods=['PUT'])
 @jwt_required()
 def update_answer(answer_id):
