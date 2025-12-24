@@ -24,10 +24,14 @@ class OrganizationAIConfig(db.Model):
     embedding_dimension = db.Column(db.Integer, default=768)
     
     # LLM provider configuration (for answer generation)
-    llm_provider = db.Column(db.String(50), default='google')  # google, openai, azure, anthropic
+    llm_provider = db.Column(db.String(50), default='google')  # google, openai, azure, litellm
     llm_model = db.Column(db.String(100), nullable=True)
     llm_api_key = db.Column(db.Text, nullable=True)  # Encrypted
     llm_api_endpoint = db.Column(db.String(255), nullable=True)
+    
+    # LiteLLM proxy configuration (organization defaults)
+    litellm_base_url = db.Column(db.String(500), nullable=True)  # Default: https://litellm.tarento.dev
+    litellm_api_key = db.Column(db.Text, nullable=True)  # Encrypted
     
     # Additional provider-specific settings
     config_metadata = db.Column(db.JSON, default=dict)
@@ -76,6 +80,14 @@ class OrganizationAIConfig(db.Model):
         """Get decrypted LLM API key."""
         return self.decrypt_key(self.llm_api_key) if self.llm_api_key else None
     
+    def set_litellm_key(self, key: str):
+        """Set encrypted LiteLLM API key."""
+        self.litellm_api_key = self.encrypt_key(key) if key else None
+    
+    def get_litellm_key(self) -> str:
+        """Get decrypted LiteLLM API key."""
+        return self.decrypt_key(self.litellm_api_key) if self.litellm_api_key else None
+    
     def to_dict(self, include_keys=False):
         """Serialize to dictionary."""
         data = {
@@ -88,6 +100,7 @@ class OrganizationAIConfig(db.Model):
             'llm_provider': self.llm_provider,
             'llm_model': self.llm_model,
             'llm_api_endpoint': self.llm_api_endpoint,
+            'litellm_base_url': self.litellm_base_url,
             'config_metadata': self.config_metadata,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -98,5 +111,6 @@ class OrganizationAIConfig(db.Model):
         if include_keys:
             data['embedding_api_key'] = self.get_embedding_key()
             data['llm_api_key'] = self.get_llm_key()
+            data['litellm_api_key'] = self.get_litellm_key()
         
         return data

@@ -427,6 +427,16 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         """Fix common mermaid syntax issues in AI-generated code."""
         logger.info(f"BEFORE sanitization: {code[:200]}")
         
+        # Replace Unicode arrows with Mermaid-compatible arrows
+        code = code.replace('→', '-->')
+        code = code.replace('←', '<--')
+        code = code.replace('↔', '<-->')
+        code = code.replace('➡', '-->')
+        code = code.replace('⬅', '<--')
+        
+        # Remove other problematic Unicode characters
+        code = re.sub(r'[^\x00-\x7F]+', '', code)  # Remove non-ASCII
+        
         # Strategy: Be aggressive - remove ALL parenthetical content from the code
         # This is safer than trying to parse complex mermaid syntax
         
@@ -445,11 +455,19 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         code = re.sub(r'\[ +', '[', code)
         code = re.sub(r'\{ +', '{', code)
         
+        # Remove empty brackets
+        code = re.sub(r'\[\s*\]', '[Node]', code)
+        
+        # Fix empty subgraph names
+        code = re.sub(r'subgraph\s*\n', 'subgraph Group\n', code)
+        
         # Replace colons inside labels with dashes (except in time formats like 2024-01-01)
-        # This handles labels like "Deadline: Aug 15" -> "Deadline - Aug 15"
         lines = code.split('\n')
         fixed_lines = []
         for line in lines:
+            # Skip empty lines
+            if not line.strip():
+                continue
             # Only fix colons inside square brackets
             if '[' in line and ':' in line:
                 # Check if it's a gantt task definition (has date format)

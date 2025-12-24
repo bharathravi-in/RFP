@@ -573,7 +573,7 @@ def chat_for_section():
         print(f"Error searching knowledge: {e}")
     
     # Build the prompt for the AI
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     
     # Build system context
     system_context = f"""You are an AI assistant helping to create proposal content.
@@ -682,7 +682,7 @@ def generate_section_content(section_id):
         print(f"Error retrieving context: {e}")
     
     # Generate content
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     result = generator.generate_section_content(
         section_type_slug=section_type.slug,
         prompt_template=section_type.default_prompt or '',
@@ -813,7 +813,7 @@ def regenerate_section(section_id):
     feedback = data.get('feedback', '')
     
     # Use regenerate with feedback
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     from app.services.qdrant_service import get_qdrant_service
     qdrant = get_qdrant_service(user.organization_id)
     project = section.project

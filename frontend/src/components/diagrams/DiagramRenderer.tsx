@@ -66,8 +66,33 @@ export default function DiagramRenderer({
         cleaned = cleaned.replace(/^```\n?/i, '');
         cleaned = cleaned.replace(/\n?```$/i, '');
 
+        // Replace Unicode arrows with Mermaid-compatible arrows
+        cleaned = cleaned.replace(/→/g, '-->');
+        cleaned = cleaned.replace(/←/g, '<--');
+        cleaned = cleaned.replace(/↔/g, '<-->');
+        cleaned = cleaned.replace(/➡/g, '-->');
+        cleaned = cleaned.replace(/⬅/g, '<--');
+
+        // Fix colon issues in arrow labels (e.g., "A --> B : Label" should be "A -->|Label| B")
+        // Or remove problematic colons entirely
+        cleaned = cleaned.replace(/ : /g, ' ');  // Remove spaced colons
+
+        // Remove other problematic non-ASCII characters
+        cleaned = cleaned.replace(/[^\x00-\x7F]/g, '');
+
+        // Clean up multiple spaces
+        cleaned = cleaned.replace(/  +/g, ' ');
+
+        // Remove empty lines
+        cleaned = cleaned
+            .split('\n')
+            .filter(line => line.trim().length > 0)
+            .join('\n');
+
         // Trim whitespace
         cleaned = cleaned.trim();
+
+        console.log('Cleaned mermaid code:', cleaned.substring(0, 200));
 
         return cleaned;
     }, []);

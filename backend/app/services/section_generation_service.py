@@ -1,6 +1,7 @@
 """
 Section Generation Service
 Handles AI-powered content generation for different RFP section types.
+Now uses database-driven LiteLLM configuration.
 """
 import os
 from typing import Dict, List, Optional
@@ -10,23 +11,64 @@ from datetime import datetime
 class SectionGenerationService:
     """Generate content for different RFP section types using AI"""
     
-    def __init__(self):
-        self.model = self._init_model()
+    def __init__(self, org_id: int = None):
+        """
+        Initialize section generator.
+        
+        Args:
+            org_id: Organization ID for database config lookup
+        """
+        self.org_id = org_id
+        self._llm_provider = None
+        self._legacy_model = None
     
-    def _init_model(self):
-        """Initialize Google Generative AI model"""
-        try:
-            import google.generativeai as genai
-            api_key = os.environ.get("GOOGLE_API_KEY")
-            if not api_key:
-                print("Warning: GOOGLE_API_KEY not set")
-                return None
-            genai.configure(api_key=api_key)
-            model_name = os.environ.get("GOOGLE_MODEL", "gemini-1.5-flash")
-            return genai.GenerativeModel(model_name)
-        except Exception as e:
-            print(f"Error initializing AI model: {e}")
-            return None
+    def _get_llm_provider(self):
+        """Get LLM provider from database configuration using centralized helper.
+        
+        Note: We reload the provider each time to respect settings changes.
+        """
+        # Always reload from database to respect settings changes
+        if self.org_id:
+            try:
+                from app.services.llm_service_helper import get_llm_provider
+                self._llm_provider = get_llm_provider(self.org_id, 'answer_generation')
+                print(f"✓ SectionGenerator using provider: {self._llm_provider.provider_name}/{self._llm_provider.model}")
+            except Exception as e:
+                print(f"Warning: Could not load LLM config from database: {e}")
+                self._llm_provider = None
+        return self._llm_provider
+    
+    def _get_legacy_model(self):
+        """Fallback to legacy Google AI model."""
+        if self._legacy_model is None:
+            try:
+                import google.generativeai as genai
+                api_key = os.environ.get("GOOGLE_API_KEY")
+                if api_key:
+                    genai.configure(api_key=api_key)
+                    model_name = os.environ.get("GOOGLE_MODEL", "gemini-1.5-flash")
+                    self._legacy_model = genai.GenerativeModel(model_name)
+            except Exception as e:
+                print(f"Error initializing legacy AI model: {e}")
+        return self._legacy_model
+    
+    def _generate(self, prompt: str) -> str:
+        """Generate content using configured LLM provider."""
+        # Try dynamic provider from database first
+        provider = self._get_llm_provider()
+        if provider:
+            try:
+                return provider.generate_content(prompt)
+            except Exception as e:
+                print(f"Dynamic provider generation failed, falling back: {e}")
+        
+        # Fallback to legacy model
+        model = self._get_legacy_model()
+        if model:
+            response = model.generate_content(prompt)
+            return response.text
+        
+        return "AI model not available. Please configure LLM settings in Settings → AI Settings."
     
     def generate_section_content(
         self,
@@ -49,21 +91,12 @@ class SectionGenerationService:
         Returns:
             Dict with content, confidence_score, sources, flags
         """
-        if not self.model:
-            return {
-                'content': 'AI model not available. Please configure GOOGLE_API_KEY.',
-                'confidence_score': 0.0,
-                'sources': [],
-                'flags': ['model_unavailable'],
-            }
-        
         # Prepare the prompt
         prompt = self._prepare_prompt(prompt_template, inputs, context, generation_params)
         
         try:
             # Generate content
-            response = self.model.generate_content(prompt)
-            content = response.text
+            content = self._generate(prompt)
             
             # Calculate confidence based on context availability
             confidence_score = self._calculate_confidence(context, inputs, section_type_slug)
@@ -248,9 +281,6 @@ Please rewrite the content addressing the feedback while maintaining professiona
         Returns:
             AI response text
         """
-        if not self.model:
-            return "AI model not available. Please configure GOOGLE_API_KEY."
-        
         # Build the conversation as a single prompt
         conversation_text = ""
         for msg in messages:
@@ -266,19 +296,33 @@ Please rewrite the content addressing the feedback while maintaining professiona
         conversation_text += "Assistant: "
         
         try:
-            response = self.model.generate_content(conversation_text)
-            return response.text
+            return self._generate(conversation_text)
         except Exception as e:
             print(f"Error in chat: {e}")
             return f"Error generating response: {str(e)}"
 
 
-# Singleton instance
-_section_generator = None
+# Singleton instance cache
+_section_generators: Dict[int, SectionGenerationService] = {}
 
-def get_section_generator() -> SectionGenerationService:
-    """Get or create the section generation service singleton"""
-    global _section_generator
-    if _section_generator is None:
-        _section_generator = SectionGenerationService()
-    return _section_generator
+def get_section_generator(org_id: int = None) -> SectionGenerationService:
+    """
+    Get or create the section generation service for an organization.
+    
+    Args:
+        org_id: Organization ID for database config lookup
+        
+    Returns:
+        SectionGenerationService instance
+    """
+    global _section_generators
+    
+    if org_id is None:
+        # Return a generator without org-specific config
+        if 0 not in _section_generators:
+            _section_generators[0] = SectionGenerationService(org_id=None)
+        return _section_generators[0]
+    
+    if org_id not in _section_generators:
+        _section_generators[org_id] = SectionGenerationService(org_id=org_id)
+    return _section_generators[org_id]
