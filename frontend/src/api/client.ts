@@ -199,8 +199,8 @@ export const questionsApi = {
     update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string }>) =>
         api.put(`/questions/${id}`, data),
 
-    merge: (questionIds: number[]) =>
-        api.post('/questions/merge', { question_ids: questionIds }),
+    merge: (questionIds: number[], mergedText?: string) =>
+        api.post('/questions/merge', { question_ids: questionIds, merged_text: mergedText }),
 
     split: (questionId: number, texts: string[]) =>
         api.post('/questions/split', { question_id: questionId, texts }),
@@ -289,6 +289,9 @@ export const exportApi = {
 
     xlsx: (projectId: number) =>
         api.post('/export/xlsx', { project_id: projectId }, { responseType: 'blob' }),
+
+    pdf: (projectId: number) =>
+        api.post('/export/pdf', { project_id: projectId }, { responseType: 'blob' }),
 
     complete: (projectId: number) =>
         api.post('/export/complete', { project_id: projectId }),
@@ -643,6 +646,12 @@ export const answerLibraryApi = {
     recordUsage: (id: number, helpful: boolean = true) =>
         api.post(`/answer-library/${id}/use`, { helpful }),
 
+    approve: (id: number) =>
+        api.post(`/answer-library/${id}/approve`),
+
+    archive: (id: number) =>
+        api.post(`/answer-library/${id}/archive`),
+
     getCategories: () =>
         api.get('/answer-library/categories'),
 
@@ -707,6 +716,12 @@ export const analyticsApi = {
 
     getLossReasons: () =>
         api.get('/analytics/loss-reasons'),
+
+    getContentPerformance: () =>
+        api.get('/analytics/content-performance'),
+
+    getWinLossDeepDive: () =>
+        api.get('/analytics/win-loss-deep-dive'),
 };
 
 // ===============================
@@ -893,6 +908,38 @@ export const agentsApi = {
 
     cancelJob: (jobId: string) =>
         api.post(`/agents/cancel-job/${jobId}`),
+};
+
+// Co-Pilot AI Chat API
+export const copilotApi = {
+    // Sessions CRUD
+    getSessions: () => api.get('/copilot/sessions'),
+
+    createSession: (data?: { title?: string; mode?: string }) =>
+        api.post('/copilot/sessions', data),
+
+    getSession: (sessionId: number) =>
+        api.get(`/copilot/sessions/${sessionId}`),
+
+    updateSession: (sessionId: number, data: { title?: string }) =>
+        api.put(`/copilot/sessions/${sessionId}`, data),
+
+    deleteSession: (sessionId: number) =>
+        api.delete(`/copilot/sessions/${sessionId}`),
+
+    // Chat (send message within session)
+    chat: (sessionId: number, data: {
+        content: string;
+        mode?: 'general' | 'agents';
+        agent_id?: string;
+        use_web_search?: boolean;
+    }) => api.post(`/copilot/sessions/${sessionId}/chat`, data),
+
+    // Get available agents
+    getAgents: () => api.get('/copilot/agents'),
+
+    // Health check
+    health: () => api.get('/copilot/health'),
 };
 
 export default api;

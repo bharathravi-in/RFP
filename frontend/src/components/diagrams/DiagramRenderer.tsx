@@ -16,6 +16,7 @@ interface DiagramRendererProps {
     description?: string;
     className?: string;
     showControls?: boolean;
+    compact?: boolean;
 }
 
 // Initialize mermaid with dark mode support
@@ -45,6 +46,7 @@ export default function DiagramRenderer({
     description,
     className,
     showControls = true,
+    compact = false,
 }: DiagramRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [svgContent, setSvgContent] = useState<string>('');
@@ -257,10 +259,11 @@ export default function DiagramRenderer({
         <>
             <div className={clsx(
                 'rounded-lg border border-gray-200 bg-white shadow-sm',
+                compact && 'border-none shadow-none',
                 className
             )}>
                 {/* Header */}
-                {(title || showControls) && (
+                {!compact && (title || showControls) && (
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                         <div>
                             {title && (
@@ -331,7 +334,10 @@ export default function DiagramRenderer({
                 )}
 
                 {/* Diagram */}
-                <div className="p-4 min-h-[200px] max-h-[500px] overflow-auto">
+                <div className={clsx(
+                    'p-4 overflow-auto',
+                    compact ? 'min-h-[150px] max-h-[300px]' : 'min-h-[200px] max-h-[500px]'
+                )}>
                     {svgContent ? diagramContent : (
                         <div className="flex items-center justify-center h-40">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>

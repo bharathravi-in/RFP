@@ -23,6 +23,7 @@ from .answer_library import AnswerLibraryItem
 from .notification import Notification
 from .comment import Comment
 from .activity_log import ActivityLog
+from .copilot import CoPilotSession, CoPilotMessage
 
 __all__ = [
     'User',
@@ -73,6 +74,9 @@ __all__ = [
     'ActivityLog',
     # Feedback Learning (AI improvement)
     'FeedbackLearning',
+    # Co-Pilot Chat
+    'CoPilotSession',
+    'CoPilotMessage',
 ]
 
 

@@ -216,6 +216,36 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
 
 Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid_code uses proper escaping for newlines (\\n)."""
 
+    CONTEXTUAL_DIAGRAM_PROMPT = """You are an expert technical visualizer. Analyze the following question and its knowledge context to create a Mermaid.js diagram that best illustrates the answer.
+
+**QUESTION:**
+{question}
+
+**KNOWLEDGE CONTEXT:**
+{context}
+
+**INSTRUCTIONS:**
+1. Choose the best diagram type (architecture, flowchart, sequence, or er).
+2. Create a Mermaid.js diagram that visually answers the question.
+3. Keep labels short and comply with all Mermaid syntax rules.
+4. If an architecture diagram, focus on components mentioned in the context.
+5. If a process, use a flowchart.
+
+**CRITICAL MERMAID SYNTAX RULES:**
+- Keep node labels SHORT (max 15 characters)
+- Use ONLY alphanumeric characters and spaces in labels
+- NO parentheses, colons, or special characters in labels
+
+**RESPOND WITH VALID JSON ONLY:**
+{{
+  "title": "Diagram title",
+  "description": "Brief description",
+  "mermaid_code": "mermaid syntax here",
+  "diagram_type": "architecture|flowchart|sequence|er",
+  "notes": "Explanation of the visualization"
+}}
+"""
+
     PROMPTS = {
         DiagramType.ARCHITECTURE: ARCHITECTURE_PROMPT,
         DiagramType.FLOWCHART: FLOWCHART_PROMPT,
@@ -225,10 +255,73 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         DiagramType.MINDMAP: MINDMAP_PROMPT,
     }
 
-    def __init__(self, org_id: int = None):
-        self.config = get_agent_config(org_id=org_id, agent_type='diagram_generation')
+    def __init__(self, org_id: int = None, config=None):
+        self.org_id = org_id
+        self.config = config or get_agent_config(org_id, agent_type='diagram_generation')
         self.name = "DiagramGeneratorAgent"
     
+    def generate_for_context(
+        self,
+        question: str,
+        context: str,
+        session_state: Dict = None
+    ) -> Dict:
+        """
+        Generate a diagram specifically for a question and its knowledge context.
+        
+        Args:
+            question: The RFP question being answered
+            context: The knowledge base context retrieved for this question
+            session_state: Shared state
+            
+        Returns:
+            Dictionary with diagram code and metadata
+        """
+        client = self.config.client
+        if not client:
+            return {"success": False, "error": "AI client not configured"}
+
+        prompt = self.CONTEXTUAL_DIAGRAM_PROMPT.format(
+            question=question,
+            context=context[:15000]
+        )
+
+        try:
+            # Re-use _generate_with_ai but with the custom prompt
+            # We bypass the standard diagram_type routing here
+            if self.config.is_adk_enabled:
+                from google import genai
+                response = client.models.generate_content(
+                    model=self.config.model_name,
+                    contents=prompt
+                )
+                response_text = response.text
+            else:
+                response = client.generate_content(prompt)
+                response_text = response.text
+            
+            # Clean and parse JSON
+            response_text = response_text.strip()
+            if response_text.startswith('```'):
+                response_text = re.sub(r'^```(?:json)?\s*\n?', '', response_text)
+                response_text = re.sub(r'\n?```\s*$', '', response_text)
+            
+            result = json.loads(response_text)
+            
+            # Sanitize and clean
+            if result.get("mermaid_code"):
+                result["mermaid_code"] = self._clean_mermaid_code(result["mermaid_code"])
+            
+            result["diagram_type_info"] = DIAGRAM_TYPE_INFO.get(result.get("diagram_type", "architecture"), {})
+            
+            return {
+                "success": True,
+                "diagram": result
+            }
+        except Exception as e:
+            logger.error(f"Contextual diagram generation failed: {e}")
+            return {"success": False, "error": str(e)}
+
     def generate_diagram(
         self,
         document_text: str,

@@ -187,7 +187,7 @@ export default function QuestionAnswerModal({
     const handleApprove = async () => {
         try {
             const response = await answersApi.review(question.answer!.id, 'approve');
-            const updatedQuestion = { ...question, status: 'approved', answer: response.data.answer };
+            const updatedQuestion = { ...question, status: 'approved', answer: response.data.answer } as Question;
             onUpdate(updatedQuestion);
             toast.success('Answer approved!');
         } catch {
