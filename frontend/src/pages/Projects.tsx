@@ -223,7 +223,7 @@ export default function Projects() {
                         return (
                             <div
                                 key={project.id}
-                                className="group relative bg-surface border border-border rounded-lg overflow-hidden hover:shadow-md hover:border-primary/30 transition-all"
+                                className="group relative bg-surface border border-border rounded-lg overflow-hidden hover:shadow-md hover:border-primary/30 transition-all min-h-[140px]"
                             >
                                 {/* Progress Bar at Top */}
                                 <div className="h-1 bg-gray-100">
