@@ -62,6 +62,7 @@ export default function DiagramRenderer({
 
         // Convert escaped newlines to actual newlines
         cleaned = cleaned.replace(/\\n/g, '\n');
+        cleaned = cleaned.replace(/\\\\n/g, '\n');
 
         // Remove markdown code fences if present
         cleaned = cleaned.replace(/^```mermaid\n?/i, '');
@@ -75,12 +76,52 @@ export default function DiagramRenderer({
         cleaned = cleaned.replace(/➡/g, '-->');
         cleaned = cleaned.replace(/⬅/g, '<--');
 
-        // Fix colon issues in arrow labels (e.g., "A --> B : Label" should be "A -->|Label| B")
-        // Or remove problematic colons entirely
-        cleaned = cleaned.replace(/ : /g, ' ');  // Remove spaced colons
-
         // Remove other problematic non-ASCII characters
-        cleaned = cleaned.replace(/[^\x00-\x7F]/g, '');
+        cleaned = cleaned.replace(/[^\x20-\x7E\n\r\t]/g, '');
+
+        // Clean node labels - this is the key fix for "NODE_STRING" errors
+        // Clean labels inside square brackets [label]
+        cleaned = cleaned.replace(/\[([^\]]+)\]/g, (_match, label) => {
+            let cleanLabel = label;
+            // Remove parentheses and their content
+            cleanLabel = cleanLabel.replace(/\([^)]*\)/g, '');
+            // Replace colons with dashes (except in URLs)
+            if (!cleanLabel.toLowerCase().includes('http')) {
+                cleanLabel = cleanLabel.replace(/:/g, ' -');
+            }
+            // Remove quotes
+            cleanLabel = cleanLabel.replace(/["']/g, '');
+            // Replace ampersands
+            cleanLabel = cleanLabel.replace(/&/g, 'and');
+            // Limit length
+            cleanLabel = cleanLabel.trim();
+            if (cleanLabel.length > 30) {
+                cleanLabel = cleanLabel.substring(0, 27) + '...';
+            }
+            // Clean up multiple spaces
+            cleanLabel = cleanLabel.replace(/\s+/g, ' ');
+            return `[${cleanLabel || 'Node'}]`;
+        });
+
+        // Clean labels inside curly brackets {label}
+        cleaned = cleaned.replace(/\{([^}]+)\}/g, (_match, label) => {
+            let cleanLabel = label;
+            cleanLabel = cleanLabel.replace(/\([^)]*\)/g, '');
+            if (!cleanLabel.toLowerCase().includes('http')) {
+                cleanLabel = cleanLabel.replace(/:/g, ' -');
+            }
+            cleanLabel = cleanLabel.replace(/["']/g, '');
+            cleanLabel = cleanLabel.replace(/&/g, 'and');
+            cleanLabel = cleanLabel.trim();
+            if (cleanLabel.length > 30) {
+                cleanLabel = cleanLabel.substring(0, 27) + '...';
+            }
+            cleanLabel = cleanLabel.replace(/\s+/g, ' ');
+            return `{${cleanLabel || 'Decision'}}`;
+        });
+
+        // Fix colon issues in arrow labels (e.g., "A --> B : Label" should be "A -->|Label| B")
+        cleaned = cleaned.replace(/ : /g, ' ');
 
         // Clean up multiple spaces
         cleaned = cleaned.replace(/  +/g, ' ');

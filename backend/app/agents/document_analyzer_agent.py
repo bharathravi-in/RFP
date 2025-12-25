@@ -22,7 +22,45 @@ class DocumentAnalyzerAgent:
     - Key themes and focus areas
     - Requirements and evaluation criteria
     - Multi-document analysis with cross-references
+    - RFP type classification
+    - Submission format requirements detection
     """
+    
+    # RFP type classification
+    RFP_TYPE_CLASSIFICATION = {
+        'services': {
+            'keywords': ['consulting', 'professional services', 'advisory', 'managed services', 'outsourcing'],
+            'response_focus': 'methodology, team, experience, SLAs'
+        },
+        'product': {
+            'keywords': ['software', 'hardware', 'platform', 'solution', 'license', 'saas'],
+            'response_focus': 'features, roadmap, integration, support'
+        },
+        'construction': {
+            'keywords': ['construction', 'building', 'infrastructure', 'civil', 'facilities'],
+            'response_focus': 'qualifications, safety, schedule, bonding'
+        },
+        'it_infrastructure': {
+            'keywords': ['infrastructure', 'network', 'data center', 'cloud', 'hosting'],
+            'response_focus': 'architecture, security, scalability, uptime'
+        },
+        'staffing': {
+            'keywords': ['staffing', 'resources', 'augmentation', 'contingent', 'contractors'],
+            'response_focus': 'rates, availability, qualifications, screening'
+        }
+    }
+    
+    # Submission format requirements patterns
+    SUBMISSION_FORMAT_PATTERNS = {
+        'page_limit': r'(?:not exceed|maximum of|limit of|up to)\s+(\d+)\s+pages?',
+        'font_requirement': r'(?:font|typeface).*?(\d+)\s*(?:point|pt)',
+        'margin_requirement': r'margins?\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:inch|in|")',
+        'file_format': r'(?:submit|provide|format).*?(?:as\s+)?(\bpdf\b|\bdocx?\b|\bword\b)',
+        'copy_count': r'(\d+)\s+(?:copies|copy|hard copies)',
+        'electronic_submission': r'(?:electronic|email|portal|online)\s+submission',
+        'deadline_time': r'(?:by|before|no later than)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?)'
+    }
+
     
     ANALYSIS_PROMPT = """You are an expert RFP analyst. Carefully analyze this RFP (Request for Proposal) document and extract comprehensive information.
 
@@ -32,6 +70,9 @@ class DocumentAnalyzerAgent:
 3. Look for implicit requirements stated as expectations or preferences
 4. Note any specific formatting or response requirements
 5. Identify key stakeholders and their concerns
+6. EXTRACT ALL TABLES - look for tabular data with rows and columns
+7. EXTRACT ALL DATES - deadlines, milestones, submission dates
+8. DETECT ATTACHMENTS - look for references to appendices, exhibits, attachments
 
 **EXTRACT THE FOLLOWING:**
 
@@ -55,9 +96,13 @@ class DocumentAnalyzerAgent:
 
 5. **Deliverables**: What the vendor must provide
 
-6. **Timeline**: ALL dates and deadlines
+6. **Timeline**: ALL dates and deadlines with specific dates
 
 7. **Questions to Answer**: Explicit questions requiring vendor response
+
+8. **Tables Detected**: Any tabular data found (requirements tables, pricing tables, etc.)
+
+9. **Attachments/Appendices**: Referenced external documents
 
 **RESPOND WITH VALID JSON ONLY:**
 {{
@@ -74,6 +119,15 @@ class DocumentAnalyzerAgent:
   "questions_identified": [
     {{"text": "Question text", "section": "Section name", "requires_response": true}}
   ],
+  "tables_detected": [
+    {{"name": "Table name/purpose", "columns": ["col1", "col2"], "row_count": 0, "data_type": "requirements/pricing/compliance/other"}}
+  ],
+  "attachments": [
+    {{"name": "Attachment name", "type": "appendix/exhibit/schedule/form", "reference": "Where it was mentioned"}}
+  ],
+  "key_dates": [
+    {{"description": "What the date is for", "date": "YYYY-MM-DD or as stated", "is_deadline": true/false, "is_mandatory": true/false}}
+  ],
   "document_type": "rfp/rfq/rfi/questionnaire",
   "complexity_score": 0.0-1.0,
   "estimated_response_time_hours": 0,
@@ -84,6 +138,7 @@ class DocumentAnalyzerAgent:
 {text}
 
 Return ONLY valid JSON, no markdown formatting or code blocks."""
+
 
     MULTI_DOC_PROMPT = """Analyze multiple RFP documents and identify relationships between them.
 
@@ -413,6 +468,15 @@ Return ONLY valid JSON."""
             if any(kw in text_lower for kw in keywords):
                 themes.append(theme)
         
+        # Extract dates using fallback method
+        key_dates = self._extract_dates_fallback(text)
+        
+        # Detect attachments using fallback method  
+        attachments = self._detect_attachments_fallback(text)
+        
+        # Detect tables using fallback method
+        tables = self._detect_tables_fallback(text)
+        
         return {
             "sections": sections,
             "themes": themes,
@@ -420,9 +484,134 @@ Return ONLY valid JSON."""
             "evaluation_criteria": [],
             "deliverables": [],
             "timeline": [],
+            "key_dates": key_dates,
+            "attachments": attachments,
+            "tables_detected": tables,
             "document_type": "rfp",
             "complexity_score": 0.5
         }
+    
+    def _extract_dates_fallback(self, text: str) -> List[Dict]:
+        """Extract dates and deadlines from text using patterns."""
+        dates = []
+        
+        # Common date patterns
+        date_patterns = [
+            # YYYY-MM-DD format
+            r'(\d{4}-\d{2}-\d{2})',
+            # MM/DD/YYYY or DD/MM/YYYY
+            r'(\d{1,2}/\d{1,2}/\d{4})',
+            # Month DD, YYYY
+            r'((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})',
+            # DD Month YYYY  
+            r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})',
+        ]
+        
+        # Deadline keywords to detect context
+        deadline_keywords = ['deadline', 'due', 'submit', 'submission', 'by', 'before', 'no later than', 'must be received']
+        
+        for pattern in date_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                date_str = match.group(1)
+                # Get surrounding context (100 chars before and after)
+                start = max(0, match.start() - 100)
+                end = min(len(text), match.end() + 50)
+                context = text[start:end].lower()
+                
+                is_deadline = any(kw in context for kw in deadline_keywords)
+                
+                dates.append({
+                    "date": date_str,
+                    "description": "Date found in document",
+                    "is_deadline": is_deadline,
+                    "is_mandatory": is_deadline
+                })
+        
+        # Deduplicate by date
+        seen = set()
+        unique_dates = []
+        for d in dates:
+            if d['date'] not in seen:
+                seen.add(d['date'])
+                unique_dates.append(d)
+        
+        return unique_dates[:20]  # Limit to 20 dates
+    
+    def _detect_attachments_fallback(self, text: str) -> List[Dict]:
+        """Detect references to attachments and appendices."""
+        attachments = []
+        
+        # Patterns for attachment references
+        attachment_patterns = [
+            (r'[Aa]ppendix\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'appendix'),
+            (r'[Ee]xhibit\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'exhibit'),
+            (r'[Aa]ttachment\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'attachment'),
+            (r'[Ss]chedule\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'schedule'),
+            (r'[Ff]orm\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'form'),
+            (r'[Aa]nnex\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'annex'),
+        ]
+        
+        for pattern, att_type in attachment_patterns:
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                name = f"{att_type.title()} {match.group(1)}"
+                description = match.group(2).strip() if match.group(2) else ""
+                
+                attachments.append({
+                    "name": name,
+                    "type": att_type,
+                    "reference": description or f"Referenced in document",
+                    "description": description
+                })
+        
+        # Deduplicate by name
+        seen = set()
+        unique = []
+        for a in attachments:
+            if a['name'] not in seen:
+                seen.add(a['name'])
+                unique.append(a)
+        
+        return unique
+    
+    def _detect_tables_fallback(self, text: str) -> List[Dict]:
+        """Detect table-like structures in text."""
+        tables = []
+        
+        # Look for patterns that suggest tables
+        table_indicators = [
+            (r'[Tt]able\s+(\d+)[:\s]*([^\n]+)?', 'numbered'),
+            (r'[Rr]equirements?\s+[Tt]able', 'requirements'),
+            (r'[Pp]ricing\s+[Tt]able', 'pricing'),
+            (r'[Cc]ompliance\s+[Mm]atrix', 'compliance'),
+            (r'[Ee]valuation\s+[Cc]riteria', 'evaluation'),
+            (r'[Ss]coring\s+[Mm]atrix', 'scoring'),
+        ]
+        
+        for pattern, table_type in table_indicators:
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                name = match.group(0).strip()
+                tables.append({
+                    "name": name,
+                    "columns": [],  # Can't extract without actual parsing
+                    "row_count": 0,
+                    "data_type": table_type
+                })
+        
+        # Look for pipe-delimited content (markdown tables)
+        pipe_table_pattern = r'(\|[^\n]+\|)\n(\|[-:\s|]+\|)'
+        pipe_matches = re.findall(pipe_table_pattern, text)
+        for _ in pipe_matches:
+            tables.append({
+                "name": "Markdown Table",
+                "columns": [],
+                "row_count": 0,
+                "data_type": "other"
+            })
+        
+        return tables[:10]  # Limit to 10 tables
 
 
 def get_document_analyzer_agent(org_id: int = None) -> DocumentAnalyzerAgent:

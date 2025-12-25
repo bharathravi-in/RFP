@@ -214,17 +214,57 @@ def _parse_document_internal(document):
         extractor = QuestionExtractor()
         questions_data = extractor.extract_questions(extracted_text, use_ai=True)
         
-        # Create Question records
+        # Question category classification keywords
+        category_keywords = {
+            'security': ['security', 'encryption', 'authentication', 'password', 'access control', 
+                        'firewall', 'vulnerability', 'penetration', 'gdpr', 'hipaa', 'soc', 'iso 27001',
+                        'data protection', 'privacy', 'compliance', 'audit'],
+            'technical': ['technical', 'architecture', 'infrastructure', 'api', 'integration',
+                         'database', 'platform', 'cloud', 'mobile', 'system', 'software', 'hardware'],
+            'pricing': ['pricing', 'cost', 'fee', 'budget', 'payment', 'license', 'commercial'],
+            'implementation': ['implementation', 'timeline', 'schedule', 'phase', 'milestone', 
+                              'deployment', 'go-live', 'rollout', 'project plan'],
+            'support': ['support', 'maintenance', 'sla', 'service level', 'helpdesk', 'availability'],
+            'team': ['team', 'staff', 'resource', 'personnel', 'experience', 'qualification', 'resume'],
+            'training': ['training', 'documentation', 'manual', 'knowledge transfer', 'user guide'],
+            'references': ['reference', 'case study', 'past performance', 'similar project', 'client'],
+        }
+        
+        # Create Question records with category classification
         for q_data in questions_data:
+            # Classify question category based on content
+            q_text_lower = q_data['text'].lower()
+            detected_category = 'general'
+            detected_section = q_data.get('section', 'Q&A / Questionnaire')
+            
+            for category, keywords in category_keywords.items():
+                if any(kw in q_text_lower for kw in keywords):
+                    detected_category = category
+                    # Map category to appropriate section name  
+                    section_map = {
+                        'security': 'Security & Compliance',
+                        'technical': 'Technical Approach',
+                        'pricing': 'Pricing & Commercial',
+                        'implementation': 'Implementation Plan',
+                        'support': 'Support & Maintenance',
+                        'team': 'Team & Qualifications',
+                        'training': 'Training & Documentation',
+                        'references': 'References & Experience',
+                    }
+                    detected_section = section_map.get(category, detected_section)
+                    break
+            
             question = Question(
                 text=q_data['text'],
-                section=q_data.get('section', 'General'),
+                section=detected_section,
+                category=detected_category,
                 order=q_data.get('order', 0),
                 status='pending',
                 project_id=document.project_id,
                 document_id=document.id
             )
             db.session.add(question)
+
         
         # Update document status
         document.status = 'completed'

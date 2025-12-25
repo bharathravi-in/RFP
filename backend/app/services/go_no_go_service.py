@@ -2,7 +2,6 @@
 from datetime import datetime
 import os
 import logging
-import google.generativeai as genai
 from ..extensions import db
 from ..models import Project, KnowledgeItem, User
 
@@ -16,14 +15,36 @@ DIMENSION_WEIGHTS = {
     'competition': 0.20
 }
 
+# Cache for LLM provider
+_llm_provider_cache = {}
 
-def get_ai_client():
-    """Get configured Gemini AI client."""
-    api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
-    if api_key:
-        genai.configure(api_key=api_key)
-        model_name = os.environ.get('GOOGLE_MODEL', 'gemini-2.0-flash')
-        return genai.GenerativeModel(model_name)
+
+def get_ai_client(org_id: int = None):
+    """Get dynamic LLM client based on organization config."""
+    global _llm_provider_cache
+    
+    # Try dynamic provider first
+    if org_id:
+        try:
+            from app.services.llm_service_helper import get_llm_provider
+            provider = get_llm_provider(org_id, 'go_no_go')
+            if provider:
+                logger.info(f"GoNoGo using dynamic provider: {provider.provider_name}")
+                return provider
+        except Exception as e:
+            logger.warning(f"Could not load dynamic LLM: {e}")
+    
+    # Fallback to legacy Google
+    try:
+        import google.generativeai as genai
+        api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
+        if api_key:
+            genai.configure(api_key=api_key)
+            model_name = os.environ.get('GOOGLE_MODEL', 'gemini-2.0-flash')
+            return genai.GenerativeModel(model_name)
+    except Exception as e:
+        logger.warning(f"Legacy Google init failed: {e}")
+    
     return None
 
 
@@ -217,11 +238,11 @@ def calculate_competitive_score(criteria: dict) -> dict:
     }
 
 
-def generate_ai_recommendation(project: Project, scores: dict, criteria: dict) -> str:
+def generate_ai_recommendation(project: Project, scores: dict, criteria: dict, org_id: int = None) -> str:
     """
     Generate AI recommendation based on analysis scores.
     """
-    model = get_ai_client()
+    model = get_ai_client(org_id)
     if not model:
         # Fallback to rule-based recommendation
         overall = scores['overall']
@@ -250,8 +271,16 @@ Overall Win Probability: {scores['overall']}%
 
 Provide a clear GO or NO-GO recommendation with brief reasoning. Be direct and actionable."""
 
-        response = model.generate_content(prompt)
-        return response.text.strip()
+        # Handle both dynamic provider and legacy model
+        if hasattr(model, 'generate_content'):
+            # Could be legacy GenAI model or dynamic provider
+            response = model.generate_content(prompt)
+            if hasattr(response, 'text'):
+                return response.text.strip()
+            return str(response).strip()
+        else:
+            return str(model.generate_content(prompt)).strip()
+            
     except Exception as e:
         logger.error(f"AI recommendation failed: {e}")
         overall = scores['overall']
@@ -308,7 +337,7 @@ def run_go_no_go_analysis(project_id: int, criteria: dict, user_id: int) -> dict
     }
     
     # Generate AI recommendation
-    ai_recommendation = generate_ai_recommendation(project, scores, criteria)
+    ai_recommendation = generate_ai_recommendation(project, scores, criteria, org_id)
     
     # Determine status
     if overall_score >= 70:

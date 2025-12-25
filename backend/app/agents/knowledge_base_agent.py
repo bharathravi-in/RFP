@@ -400,6 +400,6 @@ Only return the JSON array, nothing else."""
             return []
 
 
-def get_knowledge_base_agent() -> KnowledgeBaseAgent:
+def get_knowledge_base_agent(org_id: int = None) -> KnowledgeBaseAgent:
     """Factory function to get Knowledge Base Agent."""
-    return KnowledgeBaseAgent()
+    return KnowledgeBaseAgent(org_id=org_id)

@@ -455,7 +455,302 @@ Format the output as:
 [Rationale for architectural choices]''',
         'is_system': True,
     },
+    # --- ADDITIONAL STANDARD PROPOSAL SECTIONS ---
+    {
+        'slug': 'introduction',
+        'name': 'Introduction',
+        'icon': '📖',
+        'color': '#0EA5E9',
+        'template_type': 'narrative',
+        'recommended_word_count': 200,
+        'description': 'Opening introduction to set context for the proposal',
+        'required_inputs': [],
+        'knowledge_scopes': ['company_info'],
+        'default_prompt': '''Write a professional introduction for this proposal.
+
+IMPORTANT: Use the company information and RFP context provided. Do NOT use placeholder text like [Company Name] or [Your Name] - write actual content based on the context.
+
+The introduction should:
+- Open with a formal greeting acknowledging the RFP opportunity
+- Express interest and commitment to the project
+- Briefly introduce our capabilities relevant to this RFP
+- Set a professional, confident tone for the proposal
+
+Write in formal business English. Keep it concise (2-3 paragraphs).''',
+        'is_system': True,
+    },
+
+    {
+        'slug': 'our_understanding',
+        'name': 'Our Understanding',
+        'icon': '🎯',
+        'color': '#14B8A6',
+        'template_type': 'narrative',
+        'recommended_word_count': 400,
+        'description': 'Demonstrate understanding of client needs and project objectives',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Based on the RFP, articulate our understanding of:
+- Client's business context and challenges
+- Project objectives and goals
+- Key success criteria
+- Expected outcomes and benefits
+
+Show that we truly understand what the client needs.''',
+        'is_system': True,
+    },
+    {
+        'slug': 'scope_of_work',
+        'name': 'Scope of Work',
+        'icon': '📋',
+        'color': '#F97316',
+        'template_type': 'narrative',
+        'recommended_word_count': 500,
+        'description': 'Detailed breakdown of work to be delivered',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Define the scope of work including:
+- In-scope deliverables
+- Activities and tasks
+- Exclusions (out of scope)
+- Dependencies and prerequisites
+- Acceptance criteria''',
+        'is_system': True,
+    },
+    {
+        'slug': 'functional_requirements',
+        'name': 'Functional Requirements',
+        'icon': '⚙️',
+        'color': '#8B5CF6',
+        'template_type': 'narrative',
+        'recommended_word_count': 600,
+        'description': 'Functional specifications and feature requirements',
+        'required_inputs': [],
+        'knowledge_scopes': ['tech_docs'],
+        'default_prompt': '''Address the functional requirements including:
+- Core features and capabilities
+- User workflows and use cases
+- Integration requirements
+- Reporting and analytics needs
+- Compliance with specified requirements''',
+        'is_system': True,
+    },
+    {
+        'slug': 'implementation_plan',
+        'name': 'Implementation Plan',
+        'icon': '📅',
+        'color': '#EC4899',
+        'template_type': 'timeline',
+        'recommended_word_count': 500,
+        'description': 'Project timeline, phases, and milestones',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Create an implementation plan with:
+- Project phases and activities
+- Timeline and milestones
+- Deliverables per phase
+- Resource allocation
+- Go-live preparation''',
+        'is_system': True,
+    },
+    {
+        'slug': 'technology_stack',
+        'name': 'Technology Stack',
+        'icon': '💻',
+        'color': '#06B6D4',
+        'template_type': 'technical',
+        'recommended_word_count': 400,
+        'description': 'Proposed technologies, tools, and platforms',
+        'required_inputs': [],
+        'knowledge_scopes': ['tech_docs'],
+        'default_prompt': '''Describe the proposed technology stack:
+- Frontend technologies
+- Backend/server technologies
+- Database and storage
+- Cloud infrastructure
+- Development tools
+- Third-party integrations''',
+        'is_system': True,
+    },
+    {
+        'slug': 'quality_management',
+        'name': 'Quality Management',
+        'icon': '✅',
+        'color': '#22C55E',
+        'template_type': 'narrative',
+        'recommended_word_count': 350,
+        'description': 'Quality assurance processes and standards',
+        'required_inputs': [],
+        'knowledge_scopes': ['quality_docs'],
+        'default_prompt': '''Describe our quality management approach:
+- Quality standards and certifications
+- Testing methodologies
+- Code review processes
+- Defect management
+- Continuous improvement''',
+        'is_system': True,
+    },
+    {
+        'slug': 'risk_management',
+        'name': 'Risk Management',
+        'icon': '⚠️',
+        'color': '#EF4444',
+        'template_type': 'narrative',
+        'recommended_word_count': 350,
+        'description': 'Risk identification, assessment, and mitigation',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Address risk management:
+- Key project risks identified
+- Risk assessment (likelihood/impact)
+- Mitigation strategies
+- Contingency plans
+- Escalation procedures''',
+        'is_system': True,
+    },
+    {
+        'slug': 'support_maintenance',
+        'name': 'Support & Maintenance',
+        'icon': '🛠️',
+        'color': '#A855F7',
+        'template_type': 'narrative',
+        'recommended_word_count': 400,
+        'description': 'Post-implementation support and SLA terms',
+        'required_inputs': [],
+        'knowledge_scopes': ['sla_templates'],
+        'default_prompt': '''Describe support and maintenance offerings:
+- Support tiers and availability
+- SLA commitments (response/resolution times)
+- Maintenance windows
+- Issue escalation process
+- Knowledge transfer and documentation''',
+        'is_system': True,
+    },
+    {
+        'slug': 'security_compliance',
+        'name': 'Security & Compliance',
+        'icon': '🔒',
+        'color': '#DC2626',
+        'template_type': 'narrative',
+        'recommended_word_count': 500,
+        'description': 'Security measures and regulatory compliance',
+        'required_inputs': [],
+        'knowledge_scopes': ['security_docs', 'compliance'],
+        'default_prompt': '''Address security and compliance requirements:
+- Security certifications and standards
+- Data protection measures
+- Access control and authentication
+- Compliance with regulations (GDPR, HIPAA, etc.)
+- Security audit capabilities''',
+        'is_system': True,
+    },
+    {
+        'slug': 'training_documentation',
+        'name': 'Training & Documentation',
+        'icon': '📚',
+        'color': '#0D9488',
+        'template_type': 'narrative',
+        'recommended_word_count': 300,
+        'description': 'Training programs and documentation deliverables',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Describe training and documentation:
+- Training approach and methodology
+- User training programs
+- Admin/technical training
+- Documentation deliverables
+- Knowledge transfer plan''',
+        'is_system': True,
+    },
+    {
+        'slug': 'assumptions_dependencies',
+        'name': 'Assumptions & Dependencies',
+        'icon': '📌',
+        'color': '#F59E0B',
+        'template_type': 'narrative',
+        'recommended_word_count': 250,
+        'description': 'Project assumptions and external dependencies',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Document key assumptions and dependencies:
+- Project assumptions
+- Client responsibilities
+- External dependencies
+- Constraints and limitations
+- Exclusions''',
+        'is_system': True,
+    },
+    {
+        'slug': 'pricing_commercial',
+        'name': 'Pricing & Commercial',
+        'icon': '💰',
+        'color': '#16A34A',
+        'template_type': 'narrative',
+        'recommended_word_count': 400,
+        'description': 'Pricing structure and commercial terms',
+        'required_inputs': [],
+        'knowledge_scopes': ['pricing_templates'],
+        'default_prompt': '''Present commercial proposal including:
+- Pricing model and structure
+- Cost breakdown by phase/component
+- Payment terms and schedule
+- Optional items and pricing
+- Value justification''',
+        'is_system': True,
+    },
+    {
+        'slug': 'confidentiality',
+        'name': 'Confidentiality',
+        'icon': '🤐',
+        'color': '#6B7280',
+        'template_type': 'narrative',
+        'recommended_word_count': 150,
+        'description': 'Confidentiality and NDA terms',
+        'required_inputs': [],
+        'knowledge_scopes': [],
+        'default_prompt': '''Standard confidentiality statement covering:
+- Treatment of confidential information
+- NDA acknowledgment
+- Data handling practices
+- Information security commitment''',
+        'is_system': True,
+    },
+    {
+        'slug': 'references',
+        'name': 'References & Experience',
+        'icon': '⭐',
+        'color': '#FBBF24',
+        'template_type': 'card',
+        'recommended_word_count': 400,
+        'description': 'Client references and relevant experience',
+        'required_inputs': [],
+        'knowledge_scopes': ['case_studies', 'testimonials'],
+        'default_prompt': '''Present relevant references and experience:
+- Similar projects completed
+- Client references (with permission)
+- Industry experience
+- Key achievements and outcomes''',
+        'is_system': True,
+    },
+    {
+        'slug': 'team_qualifications',
+        'name': 'Team & Qualifications',
+        'icon': '👨‍💼',
+        'color': '#7C3AED',
+        'template_type': 'card',
+        'recommended_word_count': 400,
+        'description': 'Team structure, key personnel, and qualifications',
+        'required_inputs': [],
+        'knowledge_scopes': ['team_profiles'],
+        'default_prompt': '''Present the proposed team:
+- Team structure and organization
+- Key personnel and their roles
+- Relevant experience and qualifications
+- Certifications and expertise''',
+        'is_system': True,
+    },
 ]
+
 
 
 def seed_section_types(db_session):

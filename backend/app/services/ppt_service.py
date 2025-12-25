@@ -30,9 +30,16 @@ class PPTService:
     SLIDE_WIDTH = Inches(13.333)  # 16:9 aspect ratio
     SLIDE_HEIGHT = Inches(7.5)
     
-    def __init__(self, branding: Dict[str, str] = None):
-        """Initialize PPT service with optional branding."""
+    def __init__(self, branding: Dict[str, str] = None, template_path: str = None):
+        """
+        Initialize PPT service with optional branding and template.
+        
+        Args:
+            branding: Custom color scheme
+            template_path: Path to PPTX template file to use as base
+        """
         self.colors = self.DEFAULT_COLORS.copy()
+        self.template_path = template_path
         
         if branding:
             if 'primary_color' in branding:
@@ -48,6 +55,57 @@ class PPTService:
             int(hex_color[2:4], 16),
             int(hex_color[4:6], 16)
         )
+    
+    def _extract_template_colors(self, prs: Presentation):
+        """Extract theme colors from template slide master."""
+        try:
+            # Try to get colors from the first slide master's theme
+            if prs.slide_masters and len(prs.slide_masters) > 0:
+                master = prs.slide_masters[0]
+                theme = master.slide_master.element
+                
+                # Log available theme info for debugging
+                logger.info(f"Template has {len(prs.slide_masters)} slide masters")
+                
+                # The theme colors are embedded in the XML, for now we'll just log
+                # and keep using template layouts which will inherit the styling
+                logger.info("Template colors will be inherited from slide layouts")
+        except Exception as e:
+            logger.warning(f"Could not extract template colors: {e}")
+    
+    def _get_best_layout(self, prs: Presentation, slide_type: str):
+        """
+        Get the best matching layout from template for the slide type.
+        Falls back to blank layout if no match found.
+        
+        Layout matching:
+        - cover -> Title Slide (layout 0) or first layout
+        - content -> Title and Content (layout 1) or blank
+        - agenda -> Title and Content or Section Header
+        - etc.
+        """
+        # Layout type hints mapping slide_type to typical layout indices
+        layout_hints = {
+            'cover': [0, 5],           # Title Slide, or Title Only
+            'agenda': [1, 2],          # Title and Content, Section Header  
+            'content': [1, 5, 6],      # Title and Content, Title Only, Blank
+            'two_column': [3, 4],      # Two Content, Comparison
+            'architecture': [5, 6, 1], # Title Only, Blank, Title and Content
+            'timeline': [1, 5],        # Title and Content, Title Only
+            'team': [1, 5],            # Title and Content, Title Only
+            'pricing': [1, 5],         # Title and Content, Title Only
+            'closing': [0, 5],         # Title Slide, Title Only
+        }
+        
+        hints = layout_hints.get(slide_type, [6, 5, 1])  # Default to blank-ish
+        
+        # Try each hint in order
+        for idx in hints:
+            if idx < len(prs.slide_layouts):
+                return prs.slide_layouts[idx]
+        
+        # Fallback to last layout (usually blank)
+        return prs.slide_layouts[-1] if prs.slide_layouts else prs.slide_layouts[6]
     
     def generate_pptx(
         self,
@@ -68,9 +126,43 @@ class PPTService:
         Returns:
             BytesIO buffer containing the .pptx file
         """
-        prs = Presentation()
-        prs.slide_width = self.SLIDE_WIDTH
-        prs.slide_height = self.SLIDE_HEIGHT
+        # Load from template if available, otherwise create new
+        if self.template_path:
+            try:
+                prs = Presentation(self.template_path)
+                logger.info(f"Loaded PPTX template from: {self.template_path}")
+                
+                # Get existing slide count
+                template_slide_count = len(prs.slides)
+                logger.info(f"Template has {template_slide_count} existing slides and {len(prs.slide_layouts)} layouts")
+                
+                # IMPORTANT: Remove all existing slides from template
+                # We only want to use the template's layouts/styling, not its content
+                # Delete slides in reverse order to avoid index issues
+                for i in range(template_slide_count - 1, -1, -1):
+                    rId = prs.slides._sldIdLst[i].rId
+                    prs.part.drop_rel(rId)
+                    del prs.slides._sldIdLst[i]
+                
+                logger.info(f"Cleared {template_slide_count} template slides, keeping layouts only")
+                
+                # Extract colors from template if possible
+                self._extract_template_colors(prs)
+                
+            except Exception as e:
+                logger.warning(f"Failed to load/clear template, creating new: {e}")
+                import traceback
+                traceback.print_exc()
+                prs = Presentation()
+                prs.slide_width = self.SLIDE_WIDTH
+                prs.slide_height = self.SLIDE_HEIGHT
+        else:
+            prs = Presentation()
+            prs.slide_width = self.SLIDE_WIDTH
+            prs.slide_height = self.SLIDE_HEIGHT
+        
+        # Track if we're using a template
+        self._using_template = self.template_path is not None
         
         for slide_data in slides_data:
             slide_type = slide_data.get('slide_type', 'content')
@@ -111,104 +203,161 @@ class PPTService:
         company_name: str
     ):
         """Add a cover/title slide."""
-        slide_layout = prs.slide_layouts[6]  # Blank layout
+        # Use template layout if available
+        if self._using_template:
+            slide_layout = self._get_best_layout(prs, 'cover')
+        else:
+            slide_layout = prs.slide_layouts[6]  # Blank layout
+        
         slide = prs.slides.add_slide(slide_layout)
         
-        # Background shape
-        bg_shape = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(0), Inches(0),
-            self.SLIDE_WIDTH, self.SLIDE_HEIGHT
-        )
-        bg_shape.fill.solid()
-        bg_shape.fill.fore_color.rgb = self.colors['primary']
-        bg_shape.line.fill.background()
-        
-        # Title
-        title_box = slide.shapes.add_textbox(
-            Inches(0.75), Inches(2.5),
-            Inches(11.5), Inches(1.5)
-        )
-        title_frame = title_box.text_frame
-        title_para = title_frame.paragraphs[0]
-        title_para.text = data.get('title', title)
-        title_para.font.size = Pt(44)
-        title_para.font.bold = True
-        title_para.font.color.rgb = self.colors['text_light']
-        title_para.alignment = PP_ALIGN.CENTER
-        
-        # Subtitle
-        subtitle_box = slide.shapes.add_textbox(
-            Inches(0.75), Inches(4.0),
-            Inches(11.5), Inches(0.75)
-        )
-        subtitle_frame = subtitle_box.text_frame
-        subtitle_para = subtitle_frame.paragraphs[0]
-        subtitle_para.text = f"Proposal for {client_name}"
-        subtitle_para.font.size = Pt(24)
-        subtitle_para.font.color.rgb = self.colors['text_light']
-        subtitle_para.alignment = PP_ALIGN.CENTER
-        
-        # Company name at bottom
-        company_box = slide.shapes.add_textbox(
-            Inches(0.75), Inches(6.5),
-            Inches(11.5), Inches(0.5)
-        )
-        company_frame = company_box.text_frame
-        company_para = company_frame.paragraphs[0]
-        company_para.text = f"Prepared by: {company_name}"
-        company_para.font.size = Pt(14)
-        company_para.font.color.rgb = self.colors['text_light']
-        company_para.alignment = PP_ALIGN.CENTER
+        # Try to use placeholder shapes from template layout
+        if self._using_template:
+            # Find and populate title placeholder
+            for shape in slide.shapes:
+                if shape.is_placeholder:
+                    ph_type = shape.placeholder_format.type
+                    # Title placeholder (usually type 1 or CENTER_TITLE)
+                    if ph_type in [1, 3]:  # TITLE or CENTER_TITLE
+                        shape.text = data.get('title', title)
+                    # Subtitle placeholder (usually type 2)
+                    elif ph_type == 2:  # SUBTITLE
+                        shape.text = f"Proposal for {client_name}"
+            
+            # Add company name at bottom
+            company_box = slide.shapes.add_textbox(
+                Inches(0.75), Inches(6.5),
+                Inches(11.5), Inches(0.5)
+            )
+            company_frame = company_box.text_frame
+            company_para = company_frame.paragraphs[0]
+            company_para.text = f"Prepared by: {company_name}"
+            company_para.font.size = Pt(14)
+            company_para.alignment = PP_ALIGN.CENTER
+        else:
+            # Original custom layout for non-template mode
+            # Background shape
+            bg_shape = slide.shapes.add_shape(
+                MSO_SHAPE.RECTANGLE,
+                Inches(0), Inches(0),
+                self.SLIDE_WIDTH, self.SLIDE_HEIGHT
+            )
+            bg_shape.fill.solid()
+            bg_shape.fill.fore_color.rgb = self.colors['primary']
+            bg_shape.line.fill.background()
+            
+            # Title
+            title_box = slide.shapes.add_textbox(
+                Inches(0.75), Inches(2.5),
+                Inches(11.5), Inches(1.5)
+            )
+            title_frame = title_box.text_frame
+            title_para = title_frame.paragraphs[0]
+            title_para.text = data.get('title', title)
+            title_para.font.size = Pt(44)
+            title_para.font.bold = True
+            title_para.font.color.rgb = self.colors['text_light']
+            title_para.alignment = PP_ALIGN.CENTER
+            
+            # Subtitle
+            subtitle_box = slide.shapes.add_textbox(
+                Inches(0.75), Inches(4.0),
+                Inches(11.5), Inches(0.75)
+            )
+            subtitle_frame = subtitle_box.text_frame
+            subtitle_para = subtitle_frame.paragraphs[0]
+            subtitle_para.text = f"Proposal for {client_name}"
+            subtitle_para.font.size = Pt(24)
+            subtitle_para.font.color.rgb = self.colors['text_light']
+            subtitle_para.alignment = PP_ALIGN.CENTER
+            
+            # Company name at bottom
+            company_box = slide.shapes.add_textbox(
+                Inches(0.75), Inches(6.5),
+                Inches(11.5), Inches(0.5)
+            )
+            company_frame = company_box.text_frame
+            company_para = company_frame.paragraphs[0]
+            company_para.text = f"Prepared by: {company_name}"
+            company_para.font.size = Pt(14)
+            company_para.font.color.rgb = self.colors['text_light']
+            company_para.alignment = PP_ALIGN.CENTER
     
     def _add_content_slide(self, prs: Presentation, data: Dict[str, Any]):
         """Add a standard content slide with bullets."""
-        slide_layout = prs.slide_layouts[6]  # Blank layout
+        # Use template layout if available
+        if self._using_template:
+            slide_layout = self._get_best_layout(prs, 'content')
+        else:
+            slide_layout = prs.slide_layouts[6]  # Blank layout
+        
         slide = prs.slides.add_slide(slide_layout)
         
-        # Header bar
-        header = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE,
-            Inches(0), Inches(0),
-            self.SLIDE_WIDTH, Inches(1.2)
-        )
-        header.fill.solid()
-        header.fill.fore_color.rgb = self.colors['primary']
-        header.line.fill.background()
-        
-        # Title
-        title_box = slide.shapes.add_textbox(
-            Inches(0.5), Inches(0.3),
-            Inches(12), Inches(0.7)
-        )
-        title_frame = title_box.text_frame
-        title_para = title_frame.paragraphs[0]
-        title_para.text = data.get('title', 'Content')
-        title_para.font.size = Pt(32)
-        title_para.font.bold = True
-        title_para.font.color.rgb = self.colors['text_light']
-        
-        # Bullets
         bullets = data.get('bullets', [])
-        if bullets:
-            content_box = slide.shapes.add_textbox(
-                Inches(0.75), Inches(1.6),
-                Inches(11.5), Inches(5.5)
+        
+        if self._using_template:
+            # Try to populate placeholders from template
+            for shape in slide.shapes:
+                if shape.is_placeholder:
+                    ph_type = shape.placeholder_format.type
+                    # Title placeholder
+                    if ph_type == 1:  # TITLE
+                        shape.text = data.get('title', 'Content')
+                    # Body/content placeholder  
+                    elif ph_type == 2 or ph_type == 7:  # BODY or OBJECT
+                        if hasattr(shape, 'text_frame'):
+                            tf = shape.text_frame
+                            for i, bullet in enumerate(bullets[:6]):
+                                if i == 0:
+                                    para = tf.paragraphs[0]
+                                else:
+                                    para = tf.add_paragraph()
+                                para.text = bullet
+                                para.level = 0
+        else:
+            # Original custom layout
+            # Header bar
+            header = slide.shapes.add_shape(
+                MSO_SHAPE.RECTANGLE,
+                Inches(0), Inches(0),
+                self.SLIDE_WIDTH, Inches(1.2)
             )
-            content_frame = content_box.text_frame
-            content_frame.word_wrap = True
+            header.fill.solid()
+            header.fill.fore_color.rgb = self.colors['primary']
+            header.line.fill.background()
             
-            for i, bullet in enumerate(bullets[:6]):  # Max 6 bullets
-                if i == 0:
-                    para = content_frame.paragraphs[0]
-                else:
-                    para = content_frame.add_paragraph()
+            # Title
+            title_box = slide.shapes.add_textbox(
+                Inches(0.5), Inches(0.3),
+                Inches(12), Inches(0.7)
+            )
+            title_frame = title_box.text_frame
+            title_para = title_frame.paragraphs[0]
+            title_para.text = data.get('title', 'Content')
+            title_para.font.size = Pt(32)
+            title_para.font.bold = True
+            title_para.font.color.rgb = self.colors['text_light']
+            
+            # Bullets
+            if bullets:
+                content_box = slide.shapes.add_textbox(
+                    Inches(0.75), Inches(1.6),
+                    Inches(11.5), Inches(5.5)
+                )
+                content_frame = content_box.text_frame
+                content_frame.word_wrap = True
                 
-                para.text = f"• {bullet}"
-                para.font.size = Pt(20)
-                para.font.color.rgb = self.colors['text_dark']
-                para.space_before = Pt(12)
-                para.space_after = Pt(8)
+                for i, bullet in enumerate(bullets[:6]):  # Max 6 bullets
+                    if i == 0:
+                        para = content_frame.paragraphs[0]
+                    else:
+                        para = content_frame.add_paragraph()
+                    
+                    para.text = f"• {bullet}"
+                    para.font.size = Pt(20)
+                    para.font.color.rgb = self.colors['text_dark']
+                    para.space_before = Pt(12)
+                    para.space_after = Pt(8)
     
     def _add_agenda_slide(self, prs: Presentation, data: Dict[str, Any]):
         """Add an agenda slide."""

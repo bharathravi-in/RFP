@@ -6,7 +6,6 @@ Evaluates generated answers for quality, completeness, and accuracy.
 import re
 import logging
 from typing import Dict, List, Optional, Tuple
-import google.generativeai as genai
 from flask import current_app
 
 logger = logging.getLogger(__name__)

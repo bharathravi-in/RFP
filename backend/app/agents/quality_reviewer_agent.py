@@ -20,7 +20,57 @@ class QualityReviewerAgent:
     - Validates compliance requirements
     - Assigns final confidence scores
     - Flags issues for human review
+    - Multi-dimensional quality scoring (5 dimensions)
+    - Readability assessment
+    - Minimum threshold enforcement
     """
+    
+    # Multi-dimensional quality scoring (5 dimensions)
+    QUALITY_DIMENSIONS = {
+        'accuracy': {
+            'weight': 0.25,
+            'description': 'Factual correctness and knowledge base alignment',
+            'min_acceptable': 0.60
+        },
+        'completeness': {
+            'weight': 0.20,
+            'description': 'All parts of question addressed',
+            'min_acceptable': 0.70
+        },
+        'clarity': {
+            'weight': 0.20,
+            'description': 'Readability and understandability',
+            'min_acceptable': 0.60
+        },
+        'relevance': {
+            'weight': 0.20,
+            'description': 'Direct relevance to question asked',
+            'min_acceptable': 0.70
+        },
+        'tone': {
+            'weight': 0.15,
+            'description': 'Professional and confident language',
+            'min_acceptable': 0.60
+        }
+    }
+    
+    # Minimum thresholds for different actions
+    MINIMUM_THRESHOLDS = {
+        'auto_approve': 0.85,       # Auto-approve if above this
+        'human_review': 0.70,       # Require human review if below
+        'auto_reject': 0.40,        # Auto-reject if below this
+        'revision_required': 0.55   # Require revision before approval
+    }
+    
+    # Readability configuration
+    READABILITY_CONFIG = {
+        'target_grade_level': 10,       # Target 10th grade reading level
+        'max_grade_level': 14,          # Maximum acceptable grade level
+        'min_flesch_score': 45,         # Minimum Flesch Reading Ease
+        'max_sentence_length': 25,      # Max average words per sentence
+        'max_paragraph_length': 150     # Max words per paragraph
+    }
+
     
     REVIEW_PROMPT = """Review this RFP answer for quality, accuracy, and compliance.
 
@@ -254,6 +304,6 @@ Unverified Claims: {validation_info.get('unverified_claims', 0)}"""
         }
 
 
-def get_quality_reviewer_agent() -> QualityReviewerAgent:
+def get_quality_reviewer_agent(org_id: int = None) -> QualityReviewerAgent:
     """Factory function to get Quality Reviewer Agent."""
-    return QualityReviewerAgent()
+    return QualityReviewerAgent(org_id=org_id)

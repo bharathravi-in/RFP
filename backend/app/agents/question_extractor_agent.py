@@ -320,38 +320,85 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         
         # Patterns that indicate the text is likely an answer, not a question
         answer_patterns = [
-            r'^(?:we|our company|the vendor)\s+(?:provide|offer|support|ensure)',
-            r'^(?:yes|no)[,\.]',
-            r'^(?:our solution|the system|this platform)',
-            r'(?:is implemented|has been deployed|we have implemented)',
-            r'(?:compliant with|certified for|meets the requirements)',
-            r'^(?:as described|per our)',
+            # Company statements
+            r'^(?:we|our company|the vendor|our team|our organization)\s+(?:provide|offer|support|ensure|have|are|will|can|do)',
+            r'^(?:yes|no)[,\.\s]',
+            r'^(?:absolutely|certainly|indeed|affirmative)',
+            # Solution statements  
+            r'^(?:our solution|the system|this platform|the proposed|our approach)',
+            r'(?:is implemented|has been deployed|we have implemented|we currently)',
+            r'(?:compliant with|certified for|meets the requirements|satisfies)',
+            r'^(?:as described|per our|in accordance)',
+            # Response indicators
+            r'^(?:response:|answer:|solution:)',
+            r'^(?:vendor response|service provider answer)',
+            # Past tense delivery statements
+            r'we have successfully (?:implemented|delivered|completed)',
+            r'our (?:experience|track record|portfolio) includes',
+            # List of features (common in answers)
+            r'^(?:features include|benefits include|capabilities include)',
+            r'^(?:key benefits|key features|advantages)',
+        ]
+        
+        # Patterns that indicate it IS a question (positive patterns)
+        question_patterns = [
+            r'\?$',  # Ends with question mark
+            r'^(?:please|kindly)\s+(?:describe|explain|provide|list|detail)',
+            r'^(?:what|how|when|where|why|which|who|whose|whom)',
+            r'^(?:does|do|is|are|can|will|would|should|could|have|has)\s+',
+            r'^(?:describe|explain|provide|list|detail|outline|specify)',
+            r'(?:required|mandatory|must|shall)\s+(?:be|provide|have)',
         ]
         
         for q in questions:
-            text = q.get("text", "").strip().lower()
+            text = q.get("text", "").strip()
+            text_lower = text.lower()
             
             # Skip empty or very short
             if len(text) < 15:
                 continue
             
-            # Check if looks like an answer
+            # Check if explicitly looks like a question (positive match)
+            is_question = False
+            for pattern in question_patterns:
+                if re.search(pattern, text_lower):
+                    is_question = True
+                    break
+            
+            # Check if looks like an answer (negative match)
             is_answer = False
             for pattern in answer_patterns:
-                if re.search(pattern, text, re.IGNORECASE):
+                if re.search(pattern, text_lower, re.IGNORECASE):
                     is_answer = True
                     logger.debug(f"Filtered potential answer: {text[:50]}...")
                     break
             
             # Skip if too detailed (likely an answer with lots of explanation)
-            if text.count('.') > 4 and '?' not in text:
+            # But allow if it has a question mark
+            sentence_count = text.count('.') + text.count('!') + text.count(';')
+            if sentence_count > 4 and '?' not in text:
+                is_answer = True
+                logger.debug(f"Filtered due to sentence count: {text[:50]}...")
+            
+            # Check for service provider's answer section markers
+            if 'service provider' in text_lower and ('answer' in text_lower or 'response' in text_lower):
                 is_answer = True
             
-            if not is_answer:
+            # If it has explicit question markers, include it even if it matches answer patterns
+            if '?' in text:
+                is_answer = False
+                is_question = True
+            
+            # Include if it's a question and not an answer
+            if is_question and not is_answer:
+                validated.append(q)
+            elif not is_answer:
+                # Include if it doesn't match answer patterns, even without explicit question markers
                 validated.append(q)
         
         logger.info(f"Validation: kept {len(validated)}/{len(questions)} questions")
         return validated
+
     
     def _guess_category(self, text: str) -> str:
         """Guess question category based on keywords."""
@@ -373,6 +420,6 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         return 'general'
 
 
-def get_question_extractor_agent() -> QuestionExtractorAgent:
+def get_question_extractor_agent(org_id: int = None) -> QuestionExtractorAgent:
     """Factory function to get Question Extractor Agent."""
-    return QuestionExtractorAgent()
+    return QuestionExtractorAgent(org_id=org_id)

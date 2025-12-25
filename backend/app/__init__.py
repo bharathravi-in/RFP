@@ -69,7 +69,9 @@ def create_app(config_name=None):
 
     # PPT generation
     from .routes import ppt
+    from .routes import export_templates
     app.register_blueprint(ppt.bp, url_prefix='/api/ppt')  # PowerPoint generation
+    app.register_blueprint(export_templates.bp, url_prefix='/api/export-templates')  # Export templates
 
     
     # Health check endpoint

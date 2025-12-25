@@ -61,6 +61,64 @@ def setup_document_styles(doc):
         pass
 
 
+def safe_add_heading(doc, text, level=1):
+    """
+    Safely add a heading, falling back to manual styling if style doesn't exist.
+    This handles templates that may lack standard Word heading styles.
+    """
+    try:
+        return doc.add_heading(text, level)
+    except KeyError:
+        # Fallback: create paragraph with manual heading styling
+        para = doc.add_paragraph()
+        run = para.add_run(text)
+        
+        if level == 0:  # Title
+            run.font.size = Pt(28)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(31, 73, 125)
+        elif level == 1:
+            run.font.size = Pt(18)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(31, 73, 125)
+        elif level == 2:
+            run.font.size = Pt(14)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(54, 95, 145)
+        else:
+            run.font.size = Pt(12)
+            run.font.bold = True
+        
+        run.font.name = 'Calibri'
+        return para
+
+
+def safe_add_paragraph(doc, text='', style=None):
+    """
+    Safely add a paragraph with optional style, falling back to manual styling if style doesn't exist.
+    This handles templates that may lack standard Word paragraph styles.
+    """
+    try:
+        if style:
+            para = doc.add_paragraph(text, style=style)
+        else:
+            para = doc.add_paragraph(text)
+        return para
+    except KeyError:
+        # Fallback: create paragraph without style, apply manual formatting
+        para = doc.add_paragraph()
+        if text:
+            run = para.add_run(text)
+            run.font.name = 'Calibri'
+            run.font.size = Pt(11)
+            # Add bullet character for list styles
+            if style and 'bullet' in style.lower():
+                run.text = '• ' + text
+            elif style and 'number' in style.lower():
+                run.text = text
+        return para
+
+
 def add_document_header(doc, project_name, organization_name=None):
     """
     Add professional header with company name and project to all pages.
@@ -148,7 +206,7 @@ def add_markdown_to_doc(doc, content):
             for item in current_list_items:
                 # Remove list markers
                 clean_item = re.sub(r'^[\*\-]\s*|^\d+\.\s*', '', item)
-                para = doc.add_paragraph(style='List Bullet')
+                para = safe_add_paragraph(doc, style='List Bullet')
                 add_formatted_text(para, clean_item)
             current_list_items = []
             is_in_list = False
@@ -515,7 +573,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
         certifications = ['SOC 2 Type II', 'ISO 27001', 'GDPR Compliant']
     
     for cert in certifications:
-        cert_para = doc.add_paragraph(style='List Bullet')
+        cert_para = safe_add_paragraph(doc, style='List Bullet')
         cert_run = cert_para.add_run(f'✓ {cert}')
         cert_run.font.size = Pt(10)
     
@@ -537,7 +595,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
     industries_run.font.size = Pt(10)
     
     for industry in industries:
-        ind_para = doc.add_paragraph(style='List Bullet')
+        ind_para = safe_add_paragraph(doc, style='List Bullet')
         ind_run = ind_para.add_run(industry)
         ind_run.font.size = Pt(10)
     
@@ -559,14 +617,14 @@ def add_vendor_visibility_section(doc, project, organization=None):
     geo_run.font.size = Pt(10)
     
     for geo in geographies:
-        geo_item = doc.add_paragraph(style='List Bullet')
+        geo_item = safe_add_paragraph(doc, style='List Bullet')
         geo_item_run = geo_item.add_run(geo)
         geo_item_run.font.size = Pt(10)
     
     doc.add_page_break()
 
 
-def generate_proposal_docx(project, sections, include_qa=True, questions=None, organization=None):
+def generate_proposal_docx(project, sections, include_qa=True, questions=None, organization=None, template_path=None):
     """
     Generate a full proposal DOCX with all sections.
     
@@ -576,18 +634,47 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
         include_qa: Whether to include Q&A section
         questions: List of Question model instances (if include_qa is True)
         organization: Organization model instance for vendor profile
+        template_path: Optional path to DOCX template file to use as base
     
     Returns:
         BytesIO buffer containing the DOCX file
     """
-    doc = Document()
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # ========================================
-    # ENTERPRISE FORMATTING SETUP
-    # ========================================
+    # Track if we're using a template (affects style handling)
+    using_template = False
     
-    # Apply professional styles and margins
-    setup_document_styles(doc)
+    # Load template or create new document
+    if template_path and os.path.exists(template_path):
+        try:
+            doc = Document(template_path)
+            logger.info(f"Using DOCX template: {template_path}")
+            using_template = True
+            # Clear existing content from template but keep styles and section properties
+            # We must preserve sectPr elements for table width calculations
+            from docx.oxml.ns import qn
+            for element in doc.element.body[:]:
+                # Don't remove sectPr (section properties) - needed for page layout/table widths
+                if element.tag != qn('w:sectPr'):
+                    doc.element.body.remove(element)
+            # Ensure required styles exist (some templates may lack them)
+            try:
+                setup_document_styles(doc)
+            except Exception as style_err:
+                logger.warning(f"Could not setup styles on template: {style_err}")
+        except Exception as e:
+            logger.warning(f"Failed to load template {template_path}: {e}, using blank document")
+            doc = Document()
+            setup_document_styles(doc)
+    else:
+        doc = Document()
+        # ========================================
+        # ENTERPRISE FORMATTING SETUP
+        # ========================================
+        # Apply professional styles and margins
+        setup_document_styles(doc)
     
     # Get organization name for headers
     org_name = None
@@ -618,7 +705,7 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     doc.add_paragraph()
     
     # Main Title
-    title = doc.add_heading(project.name, 0)
+    title = safe_add_heading(doc, project.name, 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     # Subtitle

@@ -206,10 +206,28 @@ def extract_vendor_profile():
             return jsonify({'error': 'Could not extract sufficient text from document'}), 400
         
         # Use AI to extract vendor profile
-        import google.generativeai as genai
+        import logging
+        logger = logging.getLogger(__name__)
+        model = None
         
-        genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # Try dynamic LLM provider first
+        try:
+            from app.services.llm_service_helper import get_llm_provider
+            model = get_llm_provider(user.organization_id, 'vendor_profile_extractor')
+            if model:
+                logger.info(f"Vendor profile extractor using dynamic provider: {model.provider_name}")
+        except Exception as e:
+            logger.warning(f"Could not load dynamic LLM: {e}")
+        
+        # Fallback to legacy Google
+        if not model:
+            import google.generativeai as genai
+            api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
+            if api_key:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel('gemini-2.0-flash')
+            else:
+                return jsonify({'error': 'AI service not configured'}), 500
         
         prompt = f"""Analyze the following company document and extract vendor profile information.
 
@@ -230,8 +248,19 @@ Example response:
 {{"registration_country": "United States", "years_in_business": 10, "employee_count": 150, "certifications": ["ISO 27001", "SOC 2"], "geographies": ["North America", "Europe"]}}
 """
         
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
+        # Call AI - handle different response types
+        use_dynamic_provider = model and hasattr(model, 'generate_content') and hasattr(model, 'provider_name')
+        
+        if use_dynamic_provider:
+            # Dynamic LLM provider returns string directly
+            response_text = model.generate_content(prompt)
+        else:
+            # Legacy Google model returns response object with .text
+            response = model.generate_content(prompt)
+            response_text = response.text
+        
+        response_text = response_text.strip()
+
         
         # Parse JSON response
         import json

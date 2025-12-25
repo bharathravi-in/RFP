@@ -5,7 +5,6 @@ Provides AI-powered suggestions and auto-improvement for answers.
 """
 import logging
 from typing import Dict, List, Optional
-import google.generativeai as genai
 from flask import current_app
 
 logger = logging.getLogger(__name__)

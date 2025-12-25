@@ -24,6 +24,7 @@ from .notification import Notification
 from .comment import Comment
 from .activity_log import ActivityLog
 from .copilot import CoPilotSession, CoPilotMessage
+from .export_template import ExportTemplate
 
 __all__ = [
     'User',
@@ -77,6 +78,8 @@ __all__ = [
     # Co-Pilot Chat
     'CoPilotSession',
     'CoPilotMessage',
+    # Export Templates
+    'ExportTemplate',
 ]
 
 

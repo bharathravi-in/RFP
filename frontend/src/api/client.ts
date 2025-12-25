@@ -942,5 +942,43 @@ export const copilotApi = {
     health: () => api.get('/copilot/health'),
 };
 
+// ===============================
+// Export Templates API
+// ===============================
+
+export const exportTemplatesApi = {
+    // List all export templates
+    list: (type?: 'docx' | 'pptx') =>
+        api.get('/export-templates', { params: type ? { type } : {} }),
+
+    // Upload new template
+    upload: (file: File, name: string, description?: string, isDefault?: boolean) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', name);
+        if (description) formData.append('description', description);
+        if (isDefault) formData.append('is_default', 'true');
+        return api.post('/export-templates/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    // Delete template
+    delete: (templateId: number) =>
+        api.delete(`/export-templates/${templateId}`),
+
+    // Set as default
+    setDefault: (templateId: number) =>
+        api.put(`/export-templates/${templateId}/set-default`),
+
+    // Download template
+    download: (templateId: number) =>
+        api.get(`/export-templates/${templateId}/download`, { responseType: 'blob' }),
+
+    // Get default template for type
+    getDefault: (type: 'docx' | 'pptx') =>
+        api.get(`/export-templates/default/${type}`),
+};
+
 export default api;
 

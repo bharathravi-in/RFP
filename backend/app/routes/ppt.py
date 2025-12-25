@@ -4,8 +4,9 @@ PPT Routes - API endpoints for PowerPoint generation
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import Project, RFPSection, Question, User
+from ..models import Project, RFPSection, Question, User, ExportTemplate
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,21 @@ def generate_ppt(project_id):
     
     logger.info(f"Generating PPT for project {project_id}: {project.name}")
     
+    # Check for default PPTX template
+    template_path = None
+    template = ExportTemplate.query.filter_by(
+        organization_id=user.organization_id,
+        template_type='pptx',
+        is_default=True
+    ).first()
+    
+    if template and os.path.exists(template.file_path):
+        template_path = template.file_path
+        logger.info(f"Using PPTX template: {template.name}")
+    else:
+        logger.info("No PPTX template found, using default styling")
+    
+    
     try:
         # Step 1: Generate slide content with AI
         agent = PPTGeneratorAgent(org_id=user.organization_id)
@@ -124,8 +140,8 @@ def generate_ppt(project_id):
                     slide['mermaid_code'] = diagram_data.get('mermaid_code', '')
                     logger.info("Injected mermaid code into architecture slide")
         
-        # Step 2: Generate PPTX file
-        ppt_service = PPTService(branding=branding)
+        # Step 2: Generate PPTX file (using template if available)
+        ppt_service = PPTService(branding=branding, template_path=template_path)
         pptx_buffer = ppt_service.generate_pptx(
             slides_data=slides,
             title=project.name,

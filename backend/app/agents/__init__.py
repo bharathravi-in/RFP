@@ -67,7 +67,14 @@ from .diagram_generator_agent import (
     DiagramType,
     DIAGRAM_TYPE_INFO
 )
-from .ppt_generator_agent import PPTGeneratorAgent
+from .ppt_generator_agent import PPTGeneratorAgent, get_ppt_generator_agent
+from .doc_generator_agent import DOCGeneratorAgent, get_doc_generator_agent
+from .proposal_writer_agent import ProposalWriterAgent, get_proposal_writer_agent
+from .proposal_quality_gate_agent import ProposalQualityGateAgent, get_proposal_quality_gate_agent
+from .executive_editor_agent import ExecutiveEditorAgent, get_executive_editor_agent
+from .similarity_validator_agent import SimilarityValidatorAgent, get_similarity_validator_agent
+from .rfp_section_alignment_agent import RFPSectionAlignmentAgent, get_rfp_section_alignment_agent
+from .rfp_section_alignment_fixer_agent import RFPSectionAlignmentFixerAgent, get_rfp_alignment_fixer
 from .metrics_service import (
     AgentMetricsService,
     get_metrics_service,
@@ -104,6 +111,21 @@ __all__ = [
     'DiagramType',
     'DIAGRAM_TYPE_INFO',
     'PPTGeneratorAgent',
+    'get_ppt_generator_agent',
+    'DOCGeneratorAgent',
+    'get_doc_generator_agent',
+    'ProposalWriterAgent',
+    'get_proposal_writer_agent',
+    # New Quality & Validation Agents
+    'ProposalQualityGateAgent',
+    'get_proposal_quality_gate_agent',
+    'ExecutiveEditorAgent',
+    'get_executive_editor_agent',
+    'SimilarityValidatorAgent',
+    'get_similarity_validator_agent',
+    # RFP Section Alignment
+    'RFPSectionAlignmentAgent',
+    'get_rfp_section_alignment_agent',
     # Metrics & Observability
     'AgentMetricsService',
     'get_metrics_service',

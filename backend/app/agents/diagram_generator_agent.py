@@ -527,48 +527,59 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         code = code.replace('➡', '-->')
         code = code.replace('⬅', '<--')
         
-        # Remove other problematic Unicode characters
-        code = re.sub(r'[^\x00-\x7F]+', '', code)  # Remove non-ASCII
+        # Remove other problematic Unicode characters (but keep basic punctuation)
+        # Keep alphanumeric, spaces, brackets, arrows, newlines, common punctuation
+        code = re.sub(r'[^\x20-\x7E\n\r\t]', '', code)
         
-        # Strategy: Be aggressive - remove ALL parenthetical content from the code
-        # This is safer than trying to parse complex mermaid syntax
+        # Fix node labels - remove or escape problematic characters inside brackets
+        def clean_node_label(match):
+            prefix = match.group(1)  # Everything before the bracket content
+            label = match.group(2)   # Content inside brackets
+            suffix = match.group(3)  # Closing bracket
+            
+            # Clean the label:
+            # 1. Remove parentheses and their content
+            label = re.sub(r'\([^)]*\)', '', label)
+            # 2. Replace colons with dashes (except in URLs)
+            if 'http' not in label.lower():
+                label = label.replace(':', ' -')
+            # 3. Remove quotes
+            label = label.replace('"', '').replace("'", '')
+            # 4. Remove ampersands
+            label = label.replace('&', 'and')
+            # 5. Limit length
+            label = label.strip()
+            if len(label) > 30:
+                label = label[:27] + '...'
+            # 6. Remove multiple spaces
+            label = re.sub(r'\s+', ' ', label)
+            
+            return f"{prefix}{label}{suffix}"
         
-        # Remove text in parentheses that appear inside square brackets (node labels)
-        # Match: [anything (parenthetical) anything] -> [anything anything]
-        code = re.sub(r'\(([^)]+)\)', '', code)  # Remove all parentheses content
+        # Clean square bracket labels: [label]
+        code = re.sub(r'(\[)([^\]]+)(\])', clean_node_label, code)
         
-        # Clean up multiple spaces left behind
-        code = re.sub(r'  +', ' ', code)
+        # Clean curly bracket labels: {label}
+        code = re.sub(r'(\{)([^\}]+)(\})', clean_node_label, code)
         
-        # Clean up spaces before closing brackets
-        code = re.sub(r' +\]', ']', code)
-        code = re.sub(r' +\}', '}', code)
+        # Clean double parentheses labels (mindmap root): ((label))
+        code = re.sub(r'(\(\()([^)]+)(\)\))', clean_node_label, code)
         
-        # Clean up spaces after opening brackets
-        code = re.sub(r'\[ +', '[', code)
-        code = re.sub(r'\{ +', '{', code)
-        
-        # Remove empty brackets
+        # Fix empty brackets
         code = re.sub(r'\[\s*\]', '[Node]', code)
+        code = re.sub(r'\{\s*\}', '{Decision}', code)
         
         # Fix empty subgraph names
         code = re.sub(r'subgraph\s*\n', 'subgraph Group\n', code)
+        code = re.sub(r'subgraph\s*$', 'subgraph Group', code)
         
-        # Replace colons inside labels with dashes (except in time formats like 2024-01-01)
+        # Remove lines with only whitespace
         lines = code.split('\n')
-        fixed_lines = []
-        for line in lines:
-            # Skip empty lines
-            if not line.strip():
-                continue
-            # Only fix colons inside square brackets
-            if '[' in line and ':' in line:
-                # Check if it's a gantt task definition (has date format)
-                if not re.search(r'\d{4}-\d{2}-\d{2}', line):
-                    # Replace colon in bracket content only
-                    line = re.sub(r'(\[[^:\]]*):([^\]]*\])', r'\1 -\2', line)
-            fixed_lines.append(line)
-        code = '\n'.join(fixed_lines)
+        lines = [line for line in lines if line.strip()]
+        
+        # Join back and clean up excessive newlines
+        code = '\n'.join(lines)
+        code = re.sub(r'\n{3,}', '\n\n', code)
         
         logger.info(f"AFTER sanitization: {code[:200]}")
         

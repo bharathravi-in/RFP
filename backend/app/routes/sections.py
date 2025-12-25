@@ -691,6 +691,83 @@ def generate_section_content(section_id):
         generation_params=generation_params,
     )
     
+    # Post-process: Replace common placeholders with actual values
+    content = result['content']
+    
+    # Get company name from organization
+    organization = user.organization
+    company_name = organization.name if organization else 'Our Company'
+    
+    # Get vendor profile for additional company info
+    vendor_profile = {}
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        if vendor_profile.get('company_name'):
+            company_name = vendor_profile['company_name']
+    
+    # Replace common placeholders
+    placeholder_replacements = {
+        # Company name variations
+        '[Company Name]': company_name,
+        '[company name]': company_name,
+        '[COMPANY NAME]': company_name,
+        '[Your Company Name]': company_name,
+        '[Your Company]': company_name,
+        '[Our Company]': company_name,
+        '[Our Company Name]': company_name,
+        '[Vendor Name]': company_name,
+        '{{company_name}}': company_name,
+        '{{Company_Name}}': company_name,
+        '{{organization_name}}': company_name,
+        # Client/Project name variations
+        '[Client Name]': project.client_name or project.name or 'the client',
+        '[CLIENT NAME]': project.client_name or project.name or 'the client',
+        '[Client Contact Name]': project.client_name or 'the client representative',
+        '[Client Contact Name/Client Name]': project.client_name or project.name or 'the client',
+        '[Project Name]': project.name or 'this project',
+        '[PROJECT NAME]': project.name or 'this project',
+        '{{project_name}}': project.name or 'this project',
+        '{{Project_Name}}': project.name or 'this project',
+        # RFP references
+        '[RFP Title/Number]': project.name or 'this RFP',
+        '[RFP Title]': project.name or 'this RFP',
+        '[RFP Number]': project.name or 'this RFP',
+        '{{rfp_title}}': project.name or 'this RFP',
+        # Vendor profile info
+        '[Your Industry/Core Expertise]': vendor_profile.get('industry', 'technology solutions'),
+        '[Your Title]': 'Proposal Manager',
+        '[Your Name]': vendor_profile.get('contact_name', 'The Proposal Team'),
+        '[Number]': str(vendor_profile.get('years_in_business', '10+')),
+        '{{years_in_business}}': str(vendor_profile.get('years_in_business', '10+')),
+        # Date placeholder
+        '{{current_date}}': datetime.utcnow().strftime('%B %d, %Y'),
+    }
+    
+    for placeholder, value in placeholder_replacements.items():
+        content = content.replace(placeholder, value)
+    
+    # Comprehensive regex-based cleanup for remaining placeholders
+    import re
+    
+    # Remove instruction-like brackets [briefly mention...], [e.g., ...]
+    content = re.sub(r'\[briefly\s+[^\]]+\]', '', content)
+    content = re.sub(r'\[mention\s+[^\]]+\]', '', content)
+    content = re.sub(r'\[e\.g\.,?\s*[^\]]+\]', '', content)
+    content = re.sub(r'\[insert\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\[add\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\[include\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    
+    # Replace remaining {{...}} template variables with empty or generic text
+    content = re.sub(r'\{\{[^}]+\}\}', '', content)
+    
+    # Replace remaining [Something Name] patterns that look like placeholders
+    content = re.sub(r'\[Your [^\]]+\]', company_name, content)
+    content = re.sub(r'\[Our [^\]]+\]', company_name, content)
+    
+    result['content'] = content
+
+
+    
     # Update section
     section.content = result['content']
     section.confidence_score = result['confidence_score']
@@ -845,6 +922,36 @@ def regenerate_section(section_id):
         section_type_slug=section.section_type.slug,
         context=context,
     )
+    
+    # Post-process: Replace common placeholders with actual values
+    content = result['content']
+    organization = user.organization
+    company_name = organization.name if organization else 'Our Company'
+    
+    # Get vendor profile for additional company info
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        if vendor_profile.get('company_name'):
+            company_name = vendor_profile['company_name']
+    
+    # Replace common placeholders
+    placeholder_replacements = {
+        '[Company Name]': company_name,
+        '[company name]': company_name,
+        '[COMPANY NAME]': company_name,
+        '{{company_name}}': company_name,
+        '[Your Company]': company_name,
+        '[Our Company]': company_name,
+        '[Vendor Name]': company_name,
+        '[Client Name]': project.client_name or 'the client',
+        '[CLIENT NAME]': project.client_name or 'the client',
+        '[Project Name]': project.name or 'this project',
+    }
+    
+    for placeholder, value in placeholder_replacements.items():
+        content = content.replace(placeholder, value)
+    
+    result['content'] = content
     
     section.content = result['content']
     section.confidence_score = result['confidence_score']
@@ -1083,8 +1190,20 @@ def export_proposal(project_id):
         filename = f'{project.name.replace(" ", "_")}_proposal.xlsx'
         mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     else:
-        # Pass organization for vendor visibility section
-        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization)
+        # Check for default DOCX template
+        import os
+        from app.models import ExportTemplate
+        template_path = None
+        template = ExportTemplate.query.filter_by(
+            organization_id=user.organization_id,
+            template_type='docx',
+            is_default=True
+        ).first()
+        if template and os.path.exists(template.file_path):
+            template_path = template.file_path
+        
+        # Pass organization and template for vendor visibility section
+        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization, template_path)
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     
