@@ -7,9 +7,15 @@ import CircularProgress from '@/components/ui/CircularProgress';
 export type UploadState =
     | 'uploading'
     | 'parsing'
-    | 'analyzing'
-    | 'extracting_questions'
-    | 'building_sections'
+    | 'document_analysis'      // Agent 1: DocumentAnalyzerAgent
+    | 'question_extraction'    // Agent 2: QuestionExtractorAgent
+    | 'knowledge_retrieval'    // Agent 3: KnowledgeBaseAgent
+    | 'answer_generation'      // Agent 4: AnswerGeneratorAgent
+    | 'answer_validation'      // Agent 5: AnswerValidatorAgent
+    | 'compliance_check'       // Agent 6: ComplianceCheckerAgent
+    | 'clarification'          // Agent 7: ClarificationAgent
+    | 'quality_review'         // Agent 8: QualityReviewerAgent
+    | 'building_sections'      // Section population
     | 'complete'
     | 'error';
 
@@ -28,35 +34,71 @@ const STATE_CONFIG: Record<UploadState, { title: string; message: string; minPer
         title: 'Uploading Document...',
         message: 'Securely transferring your file to our servers',
         minPercent: 0,
-        maxPercent: 20,
+        maxPercent: 10,
     },
     parsing: {
         title: 'Parsing Document...',
         message: 'Extracting text and content from your document',
-        minPercent: 20,
-        maxPercent: 40,
+        minPercent: 10,
+        maxPercent: 15,
     },
-    analyzing: {
-        title: 'Analyzing RFP...',
-        message: 'We are extracting RFP requirements based on the documents, please wait 2-4 mins',
-        minPercent: 40,
+    document_analysis: {
+        title: 'Analyzing Document Structure...',
+        message: 'AI is understanding your RFP structure and requirements',
+        minPercent: 15,
+        maxPercent: 25,
+    },
+    question_extraction: {
+        title: 'Extracting Questions...',
+        message: 'Identifying all questions and requirements from the RFP',
+        minPercent: 25,
+        maxPercent: 35,
+    },
+    knowledge_retrieval: {
+        title: 'Searching Knowledge Base...',
+        message: 'Finding relevant content from your knowledge base',
+        minPercent: 35,
+        maxPercent: 45,
+    },
+    answer_generation: {
+        title: 'Generating Answers...',
+        message: 'AI is crafting responses to each question',
+        minPercent: 45,
+        maxPercent: 60,
+    },
+    answer_validation: {
+        title: 'Validating Answers...',
+        message: 'Checking accuracy and completeness of responses',
+        minPercent: 60,
         maxPercent: 70,
     },
-    extracting_questions: {
-        title: 'Extracting Questions...',
-        message: 'Identifying questions and requirements from the RFP',
+    compliance_check: {
+        title: 'Checking Compliance...',
+        message: 'Verifying responses meet RFP requirements',
         minPercent: 70,
+        maxPercent: 80,
+    },
+    clarification: {
+        title: 'Identifying Clarifications...',
+        message: 'Flagging questions that need more information',
+        minPercent: 80,
+        maxPercent: 85,
+    },
+    quality_review: {
+        title: 'Quality Review...',
+        message: 'Final quality check on all responses',
+        minPercent: 85,
         maxPercent: 90,
     },
     building_sections: {
-        title: 'Building Proposal...',
+        title: 'Building Proposal Sections...',
         message: 'Creating proposal sections with AI-generated content',
         minPercent: 90,
-        maxPercent: 95,
+        maxPercent: 98,
     },
     complete: {
         title: 'Analysis Complete!',
-        message: 'Your RFP has been processed successfully',
+        message: 'Your RFP has been fully processed with AI-powered answers',
         minPercent: 100,
         maxPercent: 100,
     },
@@ -68,12 +110,15 @@ const STATE_CONFIG: Record<UploadState, { title: string; message: string; minPer
     },
 };
 
-// Step indicators
+// Step indicators - now showing full orchestrator pipeline
 const STEPS = [
     { id: 'uploading', label: 'Upload' },
     { id: 'parsing', label: 'Parse' },
-    { id: 'analyzing', label: 'Analyze' },
-    { id: 'extracting_questions', label: 'Extract' },
+    { id: 'document_analysis', label: 'Analyze' },
+    { id: 'question_extraction', label: 'Extract' },
+    { id: 'knowledge_retrieval', label: 'Knowledge' },
+    { id: 'answer_generation', label: 'Generate' },
+    { id: 'quality_review', label: 'Review' },
     { id: 'building_sections', label: 'Build' },
 ];
 
@@ -185,10 +230,10 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                                                 >
                                                     <div
                                                         className={`w-2 h-2 rounded-full transition-all duration-300 ${isPast
-                                                                ? 'bg-green-500'
-                                                                : isCurrent
-                                                                    ? 'bg-purple-500 animate-pulse'
-                                                                    : 'bg-gray-300'
+                                                            ? 'bg-green-500'
+                                                            : isCurrent
+                                                                ? 'bg-purple-500 animate-pulse'
+                                                                : 'bg-gray-300'
                                                             }`}
                                                     />
                                                     <span className={`text-xs mt-1 ${isCurrent ? 'text-purple-600 font-medium' : 'text-gray-400'

@@ -401,6 +401,19 @@ export default function AnswerWorkspace() {
                                         <CheckCircleIcon className="h-5 w-5" />
                                         Mark Project Complete
                                     </button>
+
+                                    <div className="pt-3 border-t border-border mt-3">
+                                        <p className="text-sm text-text-muted text-center mb-3">
+                                            Ready to build your full proposal?
+                                        </p>
+                                        <button
+                                            onClick={() => navigate(`/projects/${id}/proposal`)}
+                                            className="w-full bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <SparklesIcon className="h-5 w-5" />
+                                            Go to Proposal Builder
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -674,8 +687,8 @@ export default function AnswerWorkspace() {
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
 

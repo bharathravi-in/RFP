@@ -228,12 +228,19 @@ def _parse_document_internal(document):
             temp_file_path = temp_file.name
         elif document.file_path:
             temp_file_path = document.file_path
+        elif document.file_metadata and document.file_metadata.get('storage', {}).get('local_path'):
+            # Read from storage service path
+            storage_path = document.file_metadata['storage']['local_path']
+            import os as path_os
+            if path_os.path.exists(storage_path):
+                temp_file_path = storage_path
         
         if not temp_file_path:
             document.status = 'failed'
             document.error_message = 'No file data available'
             db.session.commit()
             return {'error': 'No file data available'}
+
         
         # Extract text from document
         doc_service = DocumentService()
