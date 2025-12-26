@@ -908,7 +908,69 @@ export const agentsApi = {
 
     cancelJob: (jobId: string) =>
         api.post(`/agents/cancel-job/${jobId}`),
+
+    // ========================================
+    // PRICING CALCULATOR (NEW)
+    // ========================================
+    calculatePricing: (projectId: number, options?: { complexity?: string; duration_weeks?: number }) =>
+        api.post('/agents/calculate-pricing', { project_id: projectId, ...options }),
+
+    estimateEffort: (requirements: string[], complexity: string = 'medium') =>
+        api.post('/agents/estimate-effort', { requirements, complexity }),
+
+    // ========================================
+    // LEGAL REVIEW (NEW)
+    // ========================================
+    legalReview: (projectId: number, checkMode: string = 'full') =>
+        api.post('/agents/legal-review', { project_id: projectId, check_mode: checkMode }),
+
+    legalQuickCheck: (content: string) =>
+        api.post('/agents/legal-quick-check', { content }),
+
+    // ========================================
+    // WIN THEMES (NEW)
+    // ========================================
+    generateWinThemes: (projectId: number, options?: {
+        rfp_requirements?: string[];
+        evaluation_criteria?: string[];
+    }) =>
+        api.post('/agents/generate-win-themes', { project_id: projectId, ...options }),
+
+    applyThemesToSection: (sectionContent: string, sectionName: string, winThemes: Array<{ theme_title: string; sections_to_apply: string[] }>) =>
+        api.post('/agents/apply-themes-to-section', { section_content: sectionContent, section_name: sectionName, win_themes: winThemes }),
+
+    // ========================================
+    // COMPETITIVE ANALYSIS (NEW)
+    // ========================================
+    competitiveAnalysis: (projectId: number, options?: {
+        known_competitors?: string[];
+        industry?: string;
+    }) =>
+        api.post('/agents/competitive-analysis', { project_id: projectId, ...options }),
+
+    generateCounterObjections: (objections: string[], vendorProfile?: Record<string, unknown>) =>
+        api.post('/agents/counter-objections', { objections, vendor_profile: vendorProfile }),
+
+    // ========================================
+    // STRATEGY PERSISTENCE (NEW)
+    // ========================================
+    getProjectStrategy: (projectId: number) =>
+        api.get(`/agents/strategy/${projectId}`),
+
+    saveWinThemes: (projectId: number, themesData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/win-themes`, themesData),
+
+    saveCompetitiveAnalysis: (projectId: number, analysisData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/competitive-analysis`, analysisData),
+
+    savePricing: (projectId: number, pricingData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/pricing`, pricingData),
+
+    saveLegalReview: (projectId: number, reviewData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/legal-review`, reviewData),
 };
+
+
 
 // Co-Pilot AI Chat API
 export const copilotApi = {

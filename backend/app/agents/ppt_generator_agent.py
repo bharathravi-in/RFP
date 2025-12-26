@@ -76,7 +76,17 @@ Generate a JSON response with the following structure:
 - Use executive, confident, concise tone
 - Focus on clarity, outcomes, and value
 - Suggest relevant visuals for each slide
-- Include speaker notes where helpful
+
+## Speaker Notes (MANDATORY for every slide):
+- Include detailed speaker notes in the "notes" field for EVERY slide
+- Notes should include:
+  * Key talking points to expand on bullets
+  * Data points and metrics to mention
+  * Transition phrases to next slide
+  * Potential questions to anticipate
+- Write notes as if coaching a presenter
+- Notes should be 3-5 sentences per slide
+- Example: "Emphasize that our team has successfully delivered X similar projects. Mention specific client names if audience permits. Transition to next slide by highlighting the implementation approach."
 
 ## Proposal Data:
 {proposal_data}

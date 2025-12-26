@@ -25,6 +25,7 @@ from .comment import Comment
 from .activity_log import ActivityLog
 from .copilot import CoPilotSession, CoPilotMessage
 from .export_template import ExportTemplate
+from .project_strategy import ProjectStrategy
 
 __all__ = [
     'User',
@@ -80,6 +81,6 @@ __all__ = [
     'CoPilotMessage',
     # Export Templates
     'ExportTemplate',
+    # Project Strategy
+    'ProjectStrategy',
 ]
-
-

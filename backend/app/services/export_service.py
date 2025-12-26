@@ -185,6 +185,68 @@ def style_table(table):
                 cell._tc.get_or_add_tcPr().append(shading)
 
 
+def add_revision_history_table(doc, project, organization=None):
+    """
+    Add a revision history table to the document for professional tracking.
+    
+    Args:
+        doc: Document object
+        project: Project model instance
+        organization: Organization model instance
+    """
+    # Revision History heading
+    heading = doc.add_heading('Revision History', level=2)
+    heading.runs[0].font.color.rgb = RGBColor(75, 0, 130)
+    
+    # Create revision table
+    table = doc.add_table(rows=1, cols=4)
+    table.style = 'Table Grid'
+    
+    # Header row
+    header_cells = table.rows[0].cells
+    headers = ['Version', 'Date', 'Author', 'Description']
+    for i, header in enumerate(headers):
+        header_cells[i].text = header
+        header_cells[i].paragraphs[0].runs[0].font.bold = True
+        header_cells[i].paragraphs[0].runs[0].font.size = Pt(10)
+        # Add header background
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), '4B0082')  # Indigo
+        header_cells[i]._tc.get_or_add_tcPr().append(shading)
+        header_cells[i].paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+    
+    # Get version info
+    version_number = getattr(project, 'version', 1) or 1
+    current_date = datetime.now()
+    
+    # Get author name
+    author_name = 'Proposal Team'
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        author_name = vendor_profile.get('contact_name', 'Proposal Team')
+    
+    # Add current version row
+    row = table.add_row()
+    row.cells[0].text = f'{version_number}.0'
+    row.cells[1].text = current_date.strftime('%Y-%m-%d')
+    row.cells[2].text = author_name
+    row.cells[3].text = 'Initial proposal submission'
+    
+    # Style all cells
+    for cell in row.cells:
+        cell.paragraphs[0].runs[0].font.size = Pt(10) if cell.paragraphs[0].runs else None
+    
+    # Add a previous version placeholder if version > 1
+    if version_number > 1:
+        prev_row = table.add_row()
+        prev_row.cells[0].text = f'{version_number - 1}.0'
+        prev_row.cells[1].text = (current_date.replace(day=max(1, current_date.day - 7))).strftime('%Y-%m-%d')
+        prev_row.cells[2].text = author_name
+        prev_row.cells[3].text = 'Draft revision'
+    
+    doc.add_paragraph()  # Spacing after table
+
+
 def add_markdown_to_doc(doc, content):
     """
     Convert markdown content to Word document formatting.
@@ -820,10 +882,19 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     doc.add_page_break()
     
     # ========================================
+    # REVISION HISTORY TABLE
+    # ========================================
+    
+    add_revision_history_table(doc, project, organization)
+    
+    doc.add_page_break()
+    
+    # ========================================
     # VENDOR VISIBILITY SECTION
     # ========================================
     
     add_vendor_visibility_section(doc, project, organization)
+
     
     # ========================================
     # PROPOSAL SECTIONS

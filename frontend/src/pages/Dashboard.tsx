@@ -21,6 +21,7 @@ import clsx from 'clsx';
 import VendorEligibilityPanel from '@/components/dashboard/VendorEligibilityPanel';
 import DeadlineWidget from '@/components/dashboard/DeadlineWidget';
 import { WinRateChart, RevenueStatsCard, TeamLeaderboard, LossReasonsChart, QuickStatsRow } from '@/components/analytics/AnalyticsCharts';
+import PlatformTour from '@/components/onboarding/PlatformTour';
 
 interface DashboardStats {
     activeProjects: number;
@@ -30,12 +31,32 @@ interface DashboardStats {
     knowledgeItems: number;
 }
 
+const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
+
 export default function Dashboard() {
     const { user, organization } = useAuthStore();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showTour, setShowTour] = useState(false);
+
+    // Check if user has seen the tour on first load
+    useEffect(() => {
+        const tourCompleted = localStorage.getItem(TOUR_COMPLETED_KEY);
+        if (!tourCompleted) {
+            // Show tour for first-time users after a short delay
+            const timer = setTimeout(() => {
+                setShowTour(true);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
+    const handleTourComplete = () => {
+        localStorage.setItem(TOUR_COMPLETED_KEY, 'true');
+        setShowTour(false);
+    };
 
     useEffect(() => {
         const loadDashboardData = async () => {
@@ -93,6 +114,14 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
+            {/* Platform Tour Modal */}
+            <PlatformTour
+                isOpen={showTour}
+                onClose={() => setShowTour(false)}
+                onComplete={handleTourComplete}
+            />
+
+
             {/* Header Row */}
             <div className="flex items-center justify-between">
                 <div>

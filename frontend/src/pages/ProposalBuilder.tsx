@@ -43,6 +43,7 @@ import SectionTypeSelector from '@/components/sections/SectionTypeSelector';
 import SectionEditor from '@/components/sections/SectionEditor';
 import ComplianceMatrix from '@/components/compliance/ComplianceMatrix';
 import DiagramGenerator from '@/components/diagrams/DiagramGenerator';
+import { StrategyToolsPanel } from '@/components/strategy';
 import { sectionsApi, projectsApi, documentsApi, pptApi } from '@/api/client';
 
 // Section type styling configuration
@@ -176,7 +177,7 @@ export default function ProposalBuilder() {
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
-    const [viewMode, setViewMode] = useState<'sections' | 'compliance' | 'diagrams'>('sections');
+    const [viewMode, setViewMode] = useState<'sections' | 'compliance' | 'diagrams' | 'strategy'>('sections');
     const [primaryDocumentId, setPrimaryDocumentId] = useState<number | null>(null);
     const [showKnowledgeContext, setShowKnowledgeContext] = useState(true);
 
@@ -413,6 +414,18 @@ export default function ProposalBuilder() {
                         <CubeTransparentIcon className="h-4 w-4 inline mr-1" />
                         Diagrams
                     </button>
+                    <button
+                        onClick={() => setViewMode('strategy')}
+                        className={clsx(
+                            'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                            viewMode === 'strategy'
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                        )}
+                    >
+                        <SparklesIcon className="h-4 w-4 inline mr-1" />
+                        Strategy
+                    </button>
                 </div>
 
                 {/* Export */}
@@ -465,7 +478,11 @@ export default function ProposalBuilder() {
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden bg-gray-50">
-                {viewMode === 'diagrams' ? (
+                {viewMode === 'strategy' ? (
+                    <div className="flex-1 overflow-auto bg-white">
+                        <StrategyToolsPanel projectId={projectId} />
+                    </div>
+                ) : viewMode === 'diagrams' ? (
                     <DiagramGenerator projectId={projectId} documentId={primaryDocumentId || undefined} />
                 ) : viewMode === 'compliance' ? (
                     <div className="flex-1 overflow-auto p-6">

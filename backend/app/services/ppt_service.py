@@ -358,6 +358,24 @@ class PPTService:
                     para.font.color.rgb = self.colors['text_dark']
                     para.space_before = Pt(12)
                     para.space_after = Pt(8)
+        
+        # ========================================
+        # ADD SPEAKER NOTES
+        # ========================================
+        # Check for 'notes' (from AI agent) or 'speaker_notes' (legacy)
+        speaker_notes = data.get('notes', '') or data.get('speaker_notes', '')
+        if not speaker_notes:
+            # Auto-generate speaker notes from content
+            title = data.get('title', 'Content')
+            bullet_text = '\n'.join([f"- {b}" for b in bullets[:4]])
+            speaker_notes = f"Key points for {title}:\n{bullet_text}\n\nRemember to emphasize the business value and how this addresses the client's specific needs."
+        
+        # Add notes to slide
+        notes_slide = slide.notes_slide
+        notes_frame = notes_slide.notes_text_frame
+        notes_frame.text = speaker_notes
+
+
     
     def _add_agenda_slide(self, prs: Presentation, data: Dict[str, Any]):
         """Add an agenda slide."""
