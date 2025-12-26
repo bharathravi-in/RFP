@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { projectsApi, documentsApi, questionsApi } from '@/api/client';
+import { projectsApi, documentsApi, questionsApi, agentsApi, sectionsApi } from '@/api/client';
 import { Project, Document, Question } from '@/types';
 import toast from 'react-hot-toast';
 import { useDropzone } from 'react-dropzone';
@@ -91,40 +91,148 @@ export default function ProjectDetail() {
         setUploadPercent(0);
 
         let shouldNavigateToProposal = false;
-        let totalSectionsCreated = 0;
 
-        const totalFiles = acceptedFiles.length;
-        const progressPerFile = 95 / totalFiles;
-
-        const calculateProgress = (fileIndex: number, phasePercent: number) => {
-            const fileBaseProgress = fileIndex * progressPerFile;
-            const phaseProgress = (phasePercent / 100) * progressPerFile;
-            return Math.round(fileBaseProgress + phaseProgress);
+        // Map agent progress phases to UI states
+        const AGENT_STEP_MAP: Record<string, UploadState> = {
+            'document_analysis': 'document_analysis',
+            'analyzing': 'document_analysis',
+            'question_extraction': 'question_extraction',
+            'extracting': 'question_extraction',
+            'knowledge_retrieval': 'knowledge_retrieval',
+            'retrieving': 'knowledge_retrieval',
+            'answer_generation': 'answer_generation',
+            'generating': 'answer_generation',
+            'answer_validation': 'answer_validation',
+            'validating': 'answer_validation',
+            'compliance_check': 'compliance_check',
+            'checking': 'compliance_check',
+            'clarification': 'clarification',
+            'quality_review': 'quality_review',
+            'reviewing': 'quality_review',
         };
 
         try {
             for (let fileIndex = 0; fileIndex < acceptedFiles.length; fileIndex++) {
                 const file = acceptedFiles[fileIndex];
-                setCurrentFileName(`${file.name} (${fileIndex + 1}/${totalFiles})`);
+                setCurrentFileName(`${file.name} (${fileIndex + 1}/${acceptedFiles.length})`);
 
                 try {
+                    // Step 1: Upload document
                     setUploadState('uploading');
-                    setUploadPercent(calculateProgress(fileIndex, 5));
-
+                    setUploadPercent(5);
                     const uploadResult = await documentsApi.upload(Number(id), file);
                     const uploadedDoc = uploadResult.data.document;
 
+                    // Step 2: Parse document
                     setUploadState('parsing');
-                    setUploadPercent(calculateProgress(fileIndex, 25));
+                    setUploadPercent(10);
+
+                    // Step 3: Start async orchestrator analysis (full 11-agent pipeline)
+                    setUploadState('document_analysis');
+                    setUploadPercent(15);
 
                     try {
-                        setUploadState('analyzing');
-                        setUploadPercent(calculateProgress(fileIndex, 50));
+                        // Start async job
+                        const asyncResult = await agentsApi.analyzeRfpAsync(uploadedDoc.id, {
+                            tone: 'professional',
+                            length: 'medium'
+                        });
+
+                        const jobId = asyncResult.data.job_id;
+
+                        // Poll for job status
+                        let jobComplete = false;
+                        let pollCount = 0;
+                        const maxPolls = 180; // 3 minutes max (1s intervals)
+
+                        while (!jobComplete && pollCount < maxPolls) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            pollCount++;
+
+                            try {
+                                const statusResult = await agentsApi.getJobStatus(jobId);
+                                const status = statusResult.data.status;
+
+                                if (status === 'PROGRESS' && statusResult.data.progress) {
+                                    // Update UI based on agent progress
+                                    const progress = statusResult.data.progress;
+                                    const step = progress.step || progress.current_step || '';
+                                    const percent = progress.percent || progress.progress || 0;
+
+                                    // Map step to UI state
+                                    const uiState = AGENT_STEP_MAP[step.toLowerCase()] || 'document_analysis';
+                                    setUploadState(uiState);
+                                    setUploadPercent(Math.min(15 + (percent * 0.7), 85));
+                                }
+
+                                if (status === 'SUCCESS') {
+                                    jobComplete = true;
+
+                                    // Analysis complete - now build sections
+                                    setUploadState('building_sections');
+                                    setUploadPercent(90);
+
+                                    // Auto-build proposal sections from analysis result
+                                    const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+
+                                    if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
+                                        const sectionIds = analysisResult.data.suggested_sections
+                                            .filter((s: any) => s.selected !== false)
+                                            .map((s: any) => s.section_type_id);
+
+                                        if (sectionIds.length > 0) {
+                                            await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
+                                        }
+                                    }
+
+                                    // Auto-populate Q&A section with generated answers
+                                    setUploadPercent(95);
+                                    try {
+                                        await sectionsApi.populateFromQA(Number(id), {
+                                            create_qa_section: true,
+                                            inject_into_sections: false,
+                                        });
+                                    } catch (qaError) {
+                                        console.warn('Q&A section population skipped:', qaError);
+                                    }
+
+                                    shouldNavigateToProposal = true;
+                                }
+
+                                if (status === 'FAILURE') {
+                                    throw new Error(statusResult.data.error || 'Analysis failed');
+                                }
+                            } catch (pollError) {
+                                console.warn('Job poll error:', pollError);
+                            }
+                        }
+
+                        if (!jobComplete) {
+                            // Fallback: If async job times out, use sync analysis
+                            console.warn('Async job timeout, falling back to sync analysis');
+                            const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+
+                            if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
+                                const sectionIds = analysisResult.data.suggested_sections
+                                    .filter((s: any) => s.selected !== false)
+                                    .map((s: any) => s.section_type_id);
+
+                                if (sectionIds.length > 0) {
+                                    setUploadState('building_sections');
+                                    setUploadPercent(95);
+                                    await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
+                                    shouldNavigateToProposal = true;
+                                }
+                            }
+                        }
+
+                    } catch (asyncError) {
+                        // Fallback: Use sync analysis if async fails
+                        console.warn('Async analysis failed, using sync:', asyncError);
+                        setUploadState('document_analysis');
+                        setUploadPercent(50);
 
                         const analysisResult = await documentsApi.analyze(uploadedDoc.id);
-
-                        setUploadState('extracting_questions');
-                        setUploadPercent(calculateProgress(fileIndex, 80));
 
                         if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
                             const sectionIds = analysisResult.data.suggested_sections
@@ -133,27 +241,24 @@ export default function ProjectDetail() {
 
                             if (sectionIds.length > 0) {
                                 setUploadState('building_sections');
-                                setUploadPercent(calculateProgress(fileIndex, 95));
-
+                                setUploadPercent(90);
                                 await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
-                                totalSectionsCreated += sectionIds.length;
                                 shouldNavigateToProposal = true;
                             }
                         }
-
-                        setUploadPercent(calculateProgress(fileIndex, 100));
-
-                    } catch {
-                        toast.error(`Analysis failed for ${file.name}, but document uploaded successfully`);
                     }
-                } catch {
-                    toast.error(`Failed to upload ${file.name}`);
+
+                    setUploadPercent(100);
+
+                } catch (fileError) {
+                    console.error(`Error processing ${file.name}:`, fileError);
+                    toast.error(`Failed to process ${file.name}`);
                 }
             }
 
             setUploadState('complete');
             setUploadPercent(100);
-            setCurrentFileName(`${totalFiles} file${totalFiles > 1 ? 's' : ''} processed`);
+            setCurrentFileName(`${acceptedFiles.length} file${acceptedFiles.length > 1 ? 's' : ''} processed`);
 
             await loadProject();
 
@@ -162,14 +267,15 @@ export default function ProjectDetail() {
 
                 if (shouldNavigateToProposal) {
                     toast.success(
-                        `✨ Auto-analyzed ${acceptedFiles.length} RFP(s) and created ${totalSectionsCreated} proposal sections with AI content!`,
+                        `✨ RFP analyzed with full AI pipeline! Q&A answers generated and proposal sections created.`,
                         { duration: 4000 }
                     );
                     navigate(`/projects/${id}/proposal`);
                 }
             }, 1500);
 
-        } catch {
+        } catch (error) {
+            console.error('Upload error:', error);
             setUploadState('error');
             toast.error('Failed to upload documents');
         } finally {

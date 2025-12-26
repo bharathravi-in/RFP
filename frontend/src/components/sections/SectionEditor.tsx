@@ -23,6 +23,7 @@ import ClarificationQuestions from '@/components/sections/ClarificationQuestions
 import SectionAIChatSidebar from '@/components/sections/SectionAIChatSidebar';
 import SectionHistory from '@/components/sections/SectionHistory';
 import SectionDetailsSidebar from '@/components/sections/SectionDetailsSidebar';
+import RelatedQASidebar from '@/components/sections/RelatedQASidebar';
 import { ConfidenceIndicator } from '@/components/ai';
 import {
     NarrativeEditor,
@@ -62,6 +63,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
 
     // Related Questions panel state
     const [showRelatedQuestions, setShowRelatedQuestions] = useState(true);
+
+    // Related Q&A sidebar state (NEW)
+    const [showQASidebar, setShowQASidebar] = useState(true);
 
     // Knowledge Sources panel state
     const [showSources, setShowSources] = useState(false);
@@ -282,6 +286,39 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
             setShowAIChatPanel(false);
         } catch {
             toast.error('Failed to update section');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Handler for inserting Q&A answer into section content (NEW)
+    const handleInsertQAAnswer = async (question: any, answer: string) => {
+        // Format the Q&A content to insert
+        const qaBlock = `
+
+---
+
+**Q: ${question.text}**
+
+${answer}
+
+---
+
+`;
+
+        // Append to current content
+        const newContent = (content || '') + qaBlock;
+        setContent(newContent);
+
+        // Save immediately
+        setIsSaving(true);
+        try {
+            const response = await sectionsApi.updateSection(projectId, section.id, {
+                content: newContent,
+            });
+            onUpdate(response.data.section);
+        } catch {
+            toast.error('Failed to save section');
         } finally {
             setIsSaving(false);
         }
@@ -1185,6 +1222,18 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                         isOpen={showAIChatPanel}
                         onClose={() => setShowAIChatPanel(false)}
                         onContentGenerated={handleAIContent}
+                    />
+                )}
+
+                {/* Related Q&A Sidebar - for non-Q&A sections with related questions */}
+                {!isQASection && !isClarificationsSection && sectionQuestions.length > 0 && (
+                    <RelatedQASidebar
+                        questions={sectionQuestions}
+                        isLoading={loadingQuestions}
+                        isOpen={showQASidebar}
+                        onToggle={() => setShowQASidebar(!showQASidebar)}
+                        onInsertAnswer={handleInsertQAAnswer}
+                        sectionTitle={section.title}
                     />
                 )}
             </div>

@@ -177,6 +177,7 @@ export default function ProposalBuilder() {
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [isImportingQA, setIsImportingQA] = useState(false);
     const [viewMode, setViewMode] = useState<'sections' | 'compliance' | 'diagrams' | 'strategy'>('sections');
     const [primaryDocumentId, setPrimaryDocumentId] = useState<number | null>(null);
     const [showKnowledgeContext, setShowKnowledgeContext] = useState(true);
@@ -310,6 +311,44 @@ export default function ProposalBuilder() {
 
     const approvedCount = sections.filter(s => s.status === 'approved').length;
     const completionPercent = sections.length > 0 ? Math.round((approvedCount / sections.length) * 100) : 0;
+
+    // Handler to import Q&A answers into proposal sections
+    const handleImportFromQA = async () => {
+        if (!projectId) return;
+
+        setIsImportingQA(true);
+        try {
+            const result = await sectionsApi.populateFromQA(projectId, {
+                create_qa_section: true,
+                inject_into_sections: false,
+            });
+
+            if (result.data.success) {
+                await loadSections();
+                const qaSection = result.data.qa_section;
+                const mapping = result.data.mapping || {};
+                const totalAnswers = Object.values(mapping).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0);
+
+                toast.success(
+                    `✅ Imported ${totalAnswers} Q&A answers into proposal!${qaSection ? ' Created Q&A Responses section.' : ''}`,
+                    { duration: 4000 }
+                );
+
+                // Select the new Q&A section if created
+                if (qaSection) {
+                    const newSection = sections.find(s => s.id === qaSection.id);
+                    if (newSection) setSelectedSection(newSection);
+                }
+            } else {
+                toast.error(result.data.message || 'No Q&A answers found to import');
+            }
+        } catch (error) {
+            console.error('Failed to import Q&A:', error);
+            toast.error('Failed to import Q&A answers. Make sure you have answered questions in the workspace.');
+        } finally {
+            setIsImportingQA(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -465,6 +504,17 @@ export default function ProposalBuilder() {
                         </div>
                     )}
                 </div>
+
+                {/* Import from Q&A - NEW */}
+                <button
+                    onClick={handleImportFromQA}
+                    disabled={isImportingQA}
+                    className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1.5"
+                    title="Import answers from Q&A Workspace into proposal sections"
+                >
+                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                    {isImportingQA ? 'Importing...' : 'Import Q&A'}
+                </button>
 
                 {/* Add Section */}
                 <button

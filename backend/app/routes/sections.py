@@ -1257,3 +1257,207 @@ def export_preview(project_id):
         ],
     })
 
+
+# ============================================================
+# Q&A to Section Bridge Endpoints (NEW)
+# ============================================================
+
+@bp.route('/projects/<int:project_id>/sections/populate-from-qa', methods=['POST'])
+@jwt_required()
+def populate_sections_from_qa(project_id):
+    """
+    Populate proposal sections with Q&A answers.
+    
+    This bridges the gap between the Q&A workflow and Proposal Builder.
+    Maps approved Q&A answers to relevant proposal sections.
+    
+    Request body (optional):
+    {
+        "create_qa_section": true,  // Create Q&A Responses section if missing
+        "inject_into_sections": true,  // Inject Q&A context into narrative sections
+        "use_ai_mapping": false  // Use AI for intelligent mapping (slower)
+    }
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json() or {}
+    create_qa_section = data.get('create_qa_section', True)
+    inject_into_sections = data.get('inject_into_sections', False)
+    use_ai_mapping = data.get('use_ai_mapping', False)
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    result = {
+        'project_id': project_id,
+        'qa_section': None,
+        'sections_updated': [],
+        'mapping': {}
+    }
+    
+    # 1. Populate Q&A Responses section
+    if create_qa_section:
+        qa_section = bridge_service.populate_qa_responses_section(
+            project_id, 
+            create_if_missing=True
+        )
+        if qa_section:
+            result['qa_section'] = qa_section.to_dict()
+    
+    # 2. Get Q&A-to-section mapping
+    mapping = bridge_service.map_answers_to_sections(
+        project_id, 
+        use_ai_mapping=use_ai_mapping
+    )
+    result['mapping'] = {
+        slug: len(answers) for slug, answers in mapping.items()
+    }
+    
+    # 3. Inject Q&A context into narrative sections
+    if inject_into_sections:
+        existing_sections = RFPSection.query.filter_by(project_id=project_id).all()
+        for section in existing_sections:
+            if section.section_type and section.section_type.slug != 'qa_responses':
+                section_slug = section.section_type.slug
+                relevant_answers = mapping.get(section_slug, [])
+                if relevant_answers:
+                    inject_result = bridge_service.inject_qa_context_into_section(
+                        section.id, 
+                        qa_answers=relevant_answers
+                    )
+                    if inject_result.get('success') and inject_result.get('count', 0) > 0:
+                        result['sections_updated'].append({
+                            'section_id': section.id,
+                            'section_title': section.title,
+                            'qa_count': inject_result['count']
+                        })
+    
+    return jsonify({
+        'success': True,
+        'message': f"Populated {len(result.get('sections_updated', []))} sections with Q&A content",
+        **result
+    })
+
+
+@bp.route('/projects/<int:project_id>/sections/qa-mapping-preview', methods=['GET'])
+@jwt_required()
+def preview_qa_section_mapping(project_id):
+    """
+    Preview how Q&A answers would map to proposal sections.
+    
+    Returns a preview without making any changes.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    preview = bridge_service.get_section_qa_mapping_preview(project_id)
+    
+    return jsonify({
+        'success': True,
+        'preview': preview
+    })
+
+
+@bp.route('/sections/<int:section_id>/inject-qa', methods=['POST'])
+@jwt_required()
+def inject_qa_into_section(section_id):
+    """
+    Inject relevant Q&A answers into a specific section.
+    
+    Request body (optional):
+    {
+        "question_ids": [1, 2, 3]  // Specific questions to inject (optional)
+    }
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json() or {}
+    question_ids = data.get('question_ids')
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    # If specific question IDs provided, filter answers
+    qa_answers = None
+    if question_ids:
+        all_qa = bridge_service.get_project_qa_answers(section.project_id)
+        qa_answers = [qa for qa in all_qa if qa['question_id'] in question_ids]
+    
+    result = bridge_service.inject_qa_context_into_section(
+        section_id,
+        qa_answers=qa_answers
+    )
+    
+    # Refresh section
+    db.session.refresh(section)
+    
+    return jsonify({
+        **result,
+        'section': section.to_dict() if result.get('success') else None
+    })
+
+
+@bp.route('/projects/<int:project_id>/sections/populate-qa-section', methods=['POST'])
+@jwt_required()
+def create_qa_responses_section(project_id):
+    """
+    Create or update the Q&A Responses section with all approved answers.
+    
+    This creates a formatted section containing all Q&A from the project.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    qa_section = bridge_service.populate_qa_responses_section(
+        project_id,
+        create_if_missing=True
+    )
+    
+    if qa_section:
+        return jsonify({
+            'success': True,
+            'message': 'Q&A Responses section populated',
+            'section': qa_section.to_dict()
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'No Q&A answers found to populate'
+        })
+

@@ -434,6 +434,22 @@ export const sectionsApi = {
 
     deleteComment: (sectionId: number, commentId: number) =>
         api.delete(`/sections/${sectionId}/comments/${commentId}`),
+
+    // Q&A to Section Bridge (NEW)
+    populateFromQA: (projectId: number, options?: {
+        create_qa_section?: boolean;
+        inject_into_sections?: boolean;
+        use_ai_mapping?: boolean;
+    }) => api.post(`/projects/${projectId}/sections/populate-from-qa`, options || {}),
+
+    getQAMappingPreview: (projectId: number) =>
+        api.get(`/projects/${projectId}/sections/qa-mapping-preview`),
+
+    injectQAIntoSection: (sectionId: number, questionIds?: number[]) =>
+        api.post(`/sections/${sectionId}/inject-qa`, questionIds ? { question_ids: questionIds } : {}),
+
+    populateQASection: (projectId: number) =>
+        api.post(`/projects/${projectId}/sections/populate-qa-section`),
 };
 
 // ===============================
