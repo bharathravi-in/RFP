@@ -44,7 +44,7 @@ def allowed_file(filename):
 @bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_document():
-    """Upload a document to a project."""
+    """Upload a document to a project with cloud-agnostic storage."""
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -71,26 +71,66 @@ def upload_document():
     if not allowed_file(file.filename):
         return jsonify({'error': f'File type not allowed. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
     
-    # Generate unique filename
     original_filename = secure_filename(file.filename)
     ext = original_filename.rsplit('.', 1)[1].lower()
-    unique_filename = f"{uuid.uuid4().hex}.{ext}"
     
-    # Read file content into memory
-    file_data = file.read()
-    file_size = len(file_data)
-    
-    # Create document record with file data in DB
-    document = Document(
-        filename=unique_filename,
-        original_filename=original_filename,
-        file_data=file_data,  # Store binary content in DB
-        file_type=ext,
-        file_size=file_size,
-        status='pending',
-        project_id=project_id,
-        uploaded_by=user_id
-    )
+    # Use cloud-agnostic storage service
+    try:
+        from app.services.storage_service import get_storage_service
+        
+        storage = get_storage_service()
+        storage_metadata = storage.upload(
+            file=file,
+            original_filename=original_filename,
+            metadata={
+                'project_id': int(project_id),
+                'uploaded_by': user_id,
+                'organization_id': user.organization_id
+            }
+        )
+        
+        # Create document record with storage info
+        document = Document(
+            file_id=storage_metadata.file_id,
+            filename=storage_metadata.file_name,
+            original_filename=original_filename,
+            file_url=storage_metadata.file_url,
+            storage_type=storage_metadata.storage_type,
+            file_type=ext,
+            file_size=storage_metadata.file_size,
+            content_type=storage_metadata.content_type,
+            content_hash=storage_metadata.checksum,
+            status='pending',
+            embedding_status='pending',
+            project_id=int(project_id),
+            uploaded_by=user_id,
+            file_metadata={
+                'storage': storage_metadata.to_dict()
+            }
+        )
+        
+    except Exception as storage_error:
+        # Fallback to legacy DB storage if storage service fails
+        current_app.logger.warning(f"Storage service failed, using DB storage: {storage_error}")
+        
+        file.seek(0)  # Reset file position
+        file_data = file.read()
+        file_size = len(file_data)
+        unique_filename = f"{uuid.uuid4().hex}.{ext}"
+        
+        document = Document(
+            file_id=str(uuid.uuid4()),
+            filename=unique_filename,
+            original_filename=original_filename,
+            file_data=file_data,  # Store binary content in DB
+            storage_type='database',
+            file_type=ext,
+            file_size=file_size,
+            status='pending',
+            embedding_status='pending',
+            project_id=int(project_id),
+            uploaded_by=user_id
+        )
     
     db.session.add(document)
     db.session.commit()
@@ -103,10 +143,20 @@ def upload_document():
     except Exception as e:
         parse_result = {'error': str(e)}
     
+    # Trigger background embedding task
+    try:
+        from app.tasks import process_document_embeddings_task
+        process_document_embeddings_task.delay(document.id, user.organization_id)
+        embedding_triggered = True
+    except Exception as e:
+        current_app.logger.warning(f"Failed to trigger embedding task: {e}")
+        embedding_triggered = False
+    
     return jsonify({
         'message': 'Document uploaded and processing started',
         'document': document.to_dict(),
-        'parse_result': parse_result
+        'parse_result': parse_result,
+        'embedding_triggered': embedding_triggered
     }), 201
 
 
@@ -650,3 +700,178 @@ def download_document(document_id):
         }
     )
 
+
+@bp.route('/search', methods=['POST'])
+@jwt_required()
+def hybrid_search_documents():
+    """
+    Hybrid search across document chunks.
+    
+    Combines dense (semantic) and sparse (BM25 keyword) vectors
+    for comprehensive search results using Reciprocal Rank Fusion.
+    
+    Request body:
+        {
+            "query": "search query text",
+            "limit": 10,  // optional, default 10
+            "file_id": "uuid",  // optional, filter by specific document
+            "project_id": 123  // optional, filter by project (NOT YET IMPLEMENTED)
+        }
+    
+    Returns:
+        {
+            "results": [
+                {
+                    "chunk_id": "abc123",
+                    "file_id": "uuid",
+                    "page_number": 5,
+                    "content": "matched text...",
+                    "score": 0.95,
+                    "doc_url": "gs://bucket/path",
+                    "original_filename": "document.pdf",
+                    "metadata": {...}
+                }
+            ],
+            "query": "original query",
+            "total_results": 10
+        }
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    query = data.get('query', '').strip()
+    if not query:
+        return jsonify({'error': 'Query is required'}), 400
+    
+    limit = data.get('limit', 10)
+    file_id = data.get('file_id')
+    
+    try:
+        from app.services.hybrid_search_service import get_hybrid_search_service
+        
+        hybrid_search = get_hybrid_search_service(user.organization_id)
+        
+        if not hybrid_search.enabled:
+            return jsonify({
+                'error': 'Vector search not available',
+                'results': [],
+                'query': query
+            }), 503
+        
+        results = hybrid_search.hybrid_search(
+            query=query,
+            org_id=user.organization_id,
+            limit=limit,
+            file_id=file_id
+        )
+        
+        return jsonify({
+            'results': [r.to_dict() for r in results],
+            'query': query,
+            'total_results': len(results)
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Hybrid search failed: {e}")
+        return jsonify({
+            'error': f'Search failed: {str(e)}',
+            'results': [],
+            'query': query
+        }), 500
+
+
+@bp.route('/<int:document_id>/chunks', methods=['GET'])
+@jwt_required()
+def get_document_chunks(document_id):
+    """
+    Get all indexed chunks for a document.
+    
+    Returns:
+        {
+            "chunks": [...],
+            "total": 25,
+            "document_id": 123
+        }
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    project = Project.query.get(document.project_id)
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        from app.services.hybrid_search_service import get_hybrid_search_service
+        
+        hybrid_search = get_hybrid_search_service(user.organization_id)
+        
+        if not hybrid_search.enabled or not document.file_id:
+            return jsonify({
+                'chunks': [],
+                'total': 0,
+                'document_id': document_id
+            })
+        
+        chunks = hybrid_search.get_document_chunks(
+            file_id=document.file_id,
+            org_id=user.organization_id
+        )
+        
+        return jsonify({
+            'chunks': [c.to_dict() for c in chunks],
+            'total': len(chunks),
+            'document_id': document_id
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to get chunks for document {document_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<int:document_id>/reindex', methods=['POST'])
+@jwt_required()
+def reindex_document(document_id):
+    """
+    Trigger re-indexing of a document's embeddings.
+    
+    Useful when document chunking or embedding has failed
+    and needs to be retried.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    project = Project.query.get(document.project_id)
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        from app.tasks import reprocess_document_embeddings_task
+        
+        reprocess_document_embeddings_task.delay(document.id, user.organization_id)
+        
+        document.embedding_status = 'pending'
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Document reindexing triggered',
+            'document': document.to_dict()
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to trigger reindex for document {document_id}: {e}")
+        return jsonify({'error': str(e)}), 500

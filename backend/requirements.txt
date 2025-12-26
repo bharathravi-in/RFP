@@ -42,3 +42,13 @@ python-pptx>=0.6.21
 mammoth>=1.6.0
 flask-socketio>=5.3.6
 eventlet>=0.35.0
+
+# Cloud Storage
+google-cloud-storage>=2.14.0
+
+# Document Chunking (Docling)
+docling>=2.0.0
+docling-core>=2.0.0
+
+# Sparse Embeddings (BM25)
+fastembed>=0.2.0

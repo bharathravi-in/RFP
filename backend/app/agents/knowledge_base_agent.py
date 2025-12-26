@@ -38,6 +38,18 @@ class KnowledgeBaseAgent:
         return self._qdrant
     
     @property
+    def hybrid_search_service(self):
+        """Lazy load hybrid search service for dense+sparse vector search."""
+        if not hasattr(self, '_hybrid_search'):
+            self._hybrid_search = None
+            try:
+                from app.services.hybrid_search_service import get_hybrid_search_service
+                self._hybrid_search = get_hybrid_search_service()
+            except Exception as e:
+                logger.warning(f"Could not load hybrid search service: {e}")
+        return self._hybrid_search
+    
+    @property
     def answer_reuse_service(self):
         """Lazy load answer reuse service."""
         if self._answer_reuse is None:
@@ -282,8 +294,42 @@ Only return the JSON array, nothing else."""
             }
             
             # Search Qdrant for relevant knowledge with dimension filtering
-            # Use query expansion for better recall
-            if self.qdrant_service and org_id:
+            # Try hybrid search first (dense + sparse vectors), fallback to regular Qdrant
+            search_results = []
+            
+            # Try hybrid search first
+            if self.hybrid_search_service and self.hybrid_search_service.enabled and org_id:
+                try:
+                    # Expand query for better coverage
+                    query_variations = self._expand_query(q_text, q_category)
+                    
+                    all_results = []
+                    for query in query_variations:
+                        hybrid_results = self.hybrid_search_service.hybrid_search(
+                            query=query,
+                            org_id=org_id,
+                            limit=3
+                        )
+                        # Convert hybrid results to standard format
+                        for r in hybrid_results:
+                            all_results.append([{
+                                'item_id': r.chunk_id,
+                                'title': r.original_filename or 'Knowledge',
+                                'content_preview': r.content,
+                                'score': r.score,
+                                'page_number': r.page_number,
+                                'doc_url': r.doc_url
+                            }])
+                    
+                    search_results = self._merge_search_results(all_results, limit=5)
+                    logger.debug(f"Hybrid search returned {len(search_results)} results for question {q_id}")
+                    
+                except Exception as e:
+                    logger.warning(f"Hybrid search failed, falling back to Qdrant: {e}")
+                    search_results = []
+            
+            # Fallback to regular Qdrant semantic search
+            if not search_results and self.qdrant_service and org_id:
                 try:
                     # Expand query for better coverage
                     query_variations = self._expand_query(q_text, q_category)
@@ -301,25 +347,27 @@ Only return the JSON array, nothing else."""
                     
                     # Merge and deduplicate results
                     search_results = self._merge_search_results(all_results, limit=5)
-                    
-                    context["knowledge_items"] = [
-                        {
-                            "title": r.get("title", "Knowledge"),
-                            "content": r.get("content_preview", "")[:500],
-                            "relevance": r.get("score", 0),
-                            "item_id": r.get("item_id"),
-                            "geography": r.get("geography"),
-                            "client_type": r.get("client_type"),
-                            "industry": r.get("industry")
-                        }
-                        for r in search_results
-                    ]
-                    if context["knowledge_items"]:
-                        context["relevance_score"] = max(
-                            item["relevance"] for item in context["knowledge_items"]
-                        )
                 except Exception as e:
                     logger.error(f"Qdrant search failed for question {q_id}: {e}")
+            
+            if search_results:
+                context["knowledge_items"] = [
+                    {
+                        "title": r.get("title", "Knowledge"),
+                        "content": r.get("content_preview", "")[:500],
+                        "relevance": r.get("score", 0),
+                        "item_id": r.get("item_id"),
+                        "page_number": r.get("page_number"),  # NEW: page-level context
+                        "doc_url": r.get("doc_url"),  # NEW: source document URL
+                        "geography": r.get("geography"),
+                        "client_type": r.get("client_type"),
+                        "industry": r.get("industry")
+                    }
+                    for r in search_results
+                ]
+                context["relevance_score"] = max(
+                    item["relevance"] for item in context["knowledge_items"]
+                )
             
             # Find similar approved answers
             if self.answer_reuse_service and org_id:
@@ -377,6 +425,7 @@ Only return the JSON array, nothing else."""
     ) -> List[Dict]:
         """
         Direct knowledge search for a single query.
+        Uses hybrid search (dense + sparse) with fallback to semantic-only.
         
         Args:
             query: Search query text
@@ -384,17 +433,40 @@ Only return the JSON array, nothing else."""
             limit: Maximum results to return
             
         Returns:
-            List of matching knowledge items
+            List of matching knowledge items with page-level context
         """
+        # Try hybrid search first
+        if self.hybrid_search_service and self.hybrid_search_service.enabled:
+            try:
+                hybrid_results = self.hybrid_search_service.hybrid_search(
+                    query=query,
+                    org_id=org_id,
+                    limit=limit
+                )
+                if hybrid_results:
+                    return [{
+                        'item_id': r.chunk_id,
+                        'title': r.original_filename or 'Knowledge',
+                        'content_preview': r.content,
+                        'score': r.score,
+                        'page_number': r.page_number,
+                        'doc_url': r.doc_url,
+                        'search_type': 'hybrid'
+                    } for r in hybrid_results]
+            except Exception as e:
+                logger.warning(f"Hybrid search failed, falling back: {e}")
+        
+        # Fallback to regular Qdrant
         if not self.qdrant_service:
             return []
         
         try:
-            return self.qdrant_service.search(
+            results = self.qdrant_service.search(
                 query=query,
                 org_id=org_id,
                 limit=limit
             )
+            return [{**r, 'search_type': 'semantic'} for r in results]
         except Exception as e:
             logger.error(f"Knowledge search failed: {e}")
             return []
