@@ -38,6 +38,18 @@ class KnowledgeBaseAgent:
         return self._qdrant
     
     @property
+    def hybrid_search_service(self):
+        """Lazy load hybrid search service for dense+sparse vector search."""
+        if not hasattr(self, '_hybrid_search'):
+            self._hybrid_search = None
+            try:
+                from app.services.hybrid_search_service import get_hybrid_search_service
+                self._hybrid_search = get_hybrid_search_service()
+            except Exception as e:
+                logger.warning(f"Could not load hybrid search service: {e}")
+        return self._hybrid_search
+    
+    @property
     def answer_reuse_service(self):
         """Lazy load answer reuse service."""
         if self._answer_reuse is None:
@@ -47,6 +59,163 @@ class KnowledgeBaseAgent:
             except Exception as e:
                 logger.warning(f"Could not load answer reuse service: {e}")
         return self._answer_reuse
+    
+    def _expand_query(self, query: str, category: str = None) -> List[str]:
+        """
+        Expand query with search variations for better recall.
+        Uses LLM to generate semantically similar search terms.
+        
+        Args:
+            query: Original search query
+            category: Question category for context
+            
+        Returns:
+            List of query variations including original
+        """
+        expanded = [query]
+        
+        # Try to use LLM for intelligent expansion
+        if self.config.client:
+            try:
+                expansion_prompt = f"""Generate 2 alternative search queries for finding relevant knowledge to answer this question.
+                
+Question: {query}
+{f'Category: {category}' if category else ''}
+
+Return only 2 alternative queries, one per line. Keep them concise and focused on key concepts."""
+                
+                if self.config.is_adk_enabled:
+                    response = self.config.client.models.generate_content(
+                        model=self.config.model_name,
+                        contents=expansion_prompt
+                    )
+                    variations = response.text.strip().split('\n')[:2]
+                else:
+                    response = self.config.client.generate_content(expansion_prompt)
+                    variations = response.text.strip().split('\n')[:2]
+                
+                # Clean and add variations
+                for v in variations:
+                    v = v.strip().lstrip('0123456789.-) ')
+                    if v and len(v) > 10 and v not in expanded:
+                        expanded.append(v)
+                        
+                logger.debug(f"Expanded query '{query[:50]}...' to {len(expanded)} variations")
+                
+            except Exception as e:
+                logger.warning(f"Query expansion failed: {e}")
+        
+        return expanded
+    
+    def _merge_search_results(self, all_results: List[List[Dict]], limit: int = 5) -> List[Dict]:
+        """
+        Merge and deduplicate results from multiple searches.
+        Uses max score when same item appears multiple times.
+        
+        Args:
+            all_results: List of result lists from different searches
+            limit: Maximum results to return
+            
+        Returns:
+            Merged and ranked results
+        """
+        seen_ids = {}
+        
+        for results in all_results:
+            for result in results:
+                item_id = result.get("item_id")
+                if item_id:
+                    if item_id not in seen_ids:
+                        seen_ids[item_id] = result
+                    else:
+                        # Keep higher score
+                        if result.get("score", 0) > seen_ids[item_id].get("score", 0):
+                            seen_ids[item_id] = result
+                else:
+                    # No item_id, use content hash
+                    content = result.get("content_preview", "")[:100]
+                    if content not in seen_ids:
+                        seen_ids[content] = result
+        
+        # Sort by score and return top results
+        merged = sorted(seen_ids.values(), key=lambda x: x.get("score", 0), reverse=True)
+        return merged[:limit]
+    
+    def _rerank_results(self, results: List[Dict], query: str, limit: int = 5) -> List[Dict]:
+        """
+        Use LLM to re-rank results by relevance to query.
+        
+        Args:
+            results: Initial search results
+            query: Original search query
+            limit: Maximum results to return
+            
+        Returns:
+            Re-ranked results with updated scores
+        """
+        if not results or len(results) <= 1:
+            return results
+        
+        # Only re-rank if we have a client
+        if not self.config.client:
+            return results[:limit]
+        
+        # Format results for LLM
+        results_text = "\n".join([
+            f"[{i+1}] {r.get('title', 'Untitled')}: {r.get('content_preview', '')[:200]}"
+            for i, r in enumerate(results[:10])  # Max 10 for re-ranking
+        ])
+        
+        rerank_prompt = f"""Given this search query and the search results, rank the results from most to least relevant.
+
+Query: {query}
+
+Results:
+{results_text}
+
+Return a JSON array of result numbers in order of relevance, e.g. [3, 1, 5, 2, 4].
+Only return the JSON array, nothing else."""
+
+        try:
+            if self.config.is_adk_enabled:
+                response = self.config.client.models.generate_content(
+                    model=self.config.model_name,
+                    contents=rerank_prompt
+                )
+                response_text = response.text.strip()
+            else:
+                response = self.config.client.generate_content(rerank_prompt)
+                response_text = response.text.strip()
+            
+            # Parse ranking
+            import json
+            import re
+            response_text = re.sub(r'^```(?:json)?\n?', '', response_text)
+            response_text = re.sub(r'\n?```$', '', response_text)
+            ranking = json.loads(response_text)
+            
+            # Reorder results based on ranking
+            reranked = []
+            for idx in ranking[:limit]:
+                if 1 <= idx <= len(results):
+                    result = results[idx - 1].copy()
+                    result["reranked_position"] = len(reranked) + 1
+                    result["original_position"] = idx
+                    reranked.append(result)
+            
+            # Add any results that weren't in the ranking
+            for i, r in enumerate(results):
+                if (i + 1) not in ranking and len(reranked) < limit:
+                    reranked.append(r)
+            
+            logger.debug(f"Re-ranked {len(results)} results for query: {query[:50]}")
+            return reranked
+            
+        except Exception as e:
+            logger.warning(f"Re-ranking failed: {e}")
+            return results[:limit]
+
+
     
     def retrieve_context(
         self,
@@ -125,32 +294,80 @@ class KnowledgeBaseAgent:
             }
             
             # Search Qdrant for relevant knowledge with dimension filtering
-            if self.qdrant_service and org_id:
+            # Try hybrid search first (dense + sparse vectors), fallback to regular Qdrant
+            search_results = []
+            
+            # Try hybrid search first
+            if self.hybrid_search_service and self.hybrid_search_service.enabled and org_id:
                 try:
-                    search_results = self.qdrant_service.search(
-                        query=q_text,
-                        org_id=org_id,
-                        limit=5,
-                        filters=dimension_filter if dimension_filter else None
-                    )
-                    context["knowledge_items"] = [
-                        {
-                            "title": r.get("title", "Knowledge"),
-                            "content": r.get("content_preview", "")[:500],
-                            "relevance": r.get("score", 0),
-                            "item_id": r.get("item_id"),
-                            "geography": r.get("geography"),
-                            "client_type": r.get("client_type"),
-                            "industry": r.get("industry")
-                        }
-                        for r in search_results
-                    ]
-                    if context["knowledge_items"]:
-                        context["relevance_score"] = max(
-                            item["relevance"] for item in context["knowledge_items"]
+                    # Expand query for better coverage
+                    query_variations = self._expand_query(q_text, q_category)
+                    
+                    all_results = []
+                    for query in query_variations:
+                        hybrid_results = self.hybrid_search_service.hybrid_search(
+                            query=query,
+                            org_id=org_id,
+                            limit=3
                         )
+                        # Convert hybrid results to standard format
+                        for r in hybrid_results:
+                            all_results.append([{
+                                'item_id': r.chunk_id,
+                                'title': r.original_filename or 'Knowledge',
+                                'content_preview': r.content,
+                                'score': r.score,
+                                'page_number': r.page_number,
+                                'doc_url': r.doc_url
+                            }])
+                    
+                    search_results = self._merge_search_results(all_results, limit=5)
+                    logger.debug(f"Hybrid search returned {len(search_results)} results for question {q_id}")
+                    
+                except Exception as e:
+                    logger.warning(f"Hybrid search failed, falling back to Qdrant: {e}")
+                    search_results = []
+            
+            # Fallback to regular Qdrant semantic search
+            if not search_results and self.qdrant_service and org_id:
+                try:
+                    # Expand query for better coverage
+                    query_variations = self._expand_query(q_text, q_category)
+                    
+                    # Search with all variations
+                    all_results = []
+                    for query in query_variations:
+                        results = self.qdrant_service.search(
+                            query=query,
+                            org_id=org_id,
+                            limit=3,  # Fewer per query since we're doing multiple
+                            filters=dimension_filter if dimension_filter else None
+                        )
+                        all_results.append(results)
+                    
+                    # Merge and deduplicate results
+                    search_results = self._merge_search_results(all_results, limit=5)
                 except Exception as e:
                     logger.error(f"Qdrant search failed for question {q_id}: {e}")
+            
+            if search_results:
+                context["knowledge_items"] = [
+                    {
+                        "title": r.get("title", "Knowledge"),
+                        "content": r.get("content_preview", "")[:500],
+                        "relevance": r.get("score", 0),
+                        "item_id": r.get("item_id"),
+                        "page_number": r.get("page_number"),  # NEW: page-level context
+                        "doc_url": r.get("doc_url"),  # NEW: source document URL
+                        "geography": r.get("geography"),
+                        "client_type": r.get("client_type"),
+                        "industry": r.get("industry")
+                    }
+                    for r in search_results
+                ]
+                context["relevance_score"] = max(
+                    item["relevance"] for item in context["knowledge_items"]
+                )
             
             # Find similar approved answers
             if self.answer_reuse_service and org_id:
@@ -208,6 +425,7 @@ class KnowledgeBaseAgent:
     ) -> List[Dict]:
         """
         Direct knowledge search for a single query.
+        Uses hybrid search (dense + sparse) with fallback to semantic-only.
         
         Args:
             query: Search query text
@@ -215,22 +433,45 @@ class KnowledgeBaseAgent:
             limit: Maximum results to return
             
         Returns:
-            List of matching knowledge items
+            List of matching knowledge items with page-level context
         """
+        # Try hybrid search first
+        if self.hybrid_search_service and self.hybrid_search_service.enabled:
+            try:
+                hybrid_results = self.hybrid_search_service.hybrid_search(
+                    query=query,
+                    org_id=org_id,
+                    limit=limit
+                )
+                if hybrid_results:
+                    return [{
+                        'item_id': r.chunk_id,
+                        'title': r.original_filename or 'Knowledge',
+                        'content_preview': r.content,
+                        'score': r.score,
+                        'page_number': r.page_number,
+                        'doc_url': r.doc_url,
+                        'search_type': 'hybrid'
+                    } for r in hybrid_results]
+            except Exception as e:
+                logger.warning(f"Hybrid search failed, falling back: {e}")
+        
+        # Fallback to regular Qdrant
         if not self.qdrant_service:
             return []
         
         try:
-            return self.qdrant_service.search(
+            results = self.qdrant_service.search(
                 query=query,
                 org_id=org_id,
                 limit=limit
             )
+            return [{**r, 'search_type': 'semantic'} for r in results]
         except Exception as e:
             logger.error(f"Knowledge search failed: {e}")
             return []
 
 
-def get_knowledge_base_agent() -> KnowledgeBaseAgent:
+def get_knowledge_base_agent(org_id: int = None) -> KnowledgeBaseAgent:
     """Factory function to get Knowledge Base Agent."""
-    return KnowledgeBaseAgent()
+    return KnowledgeBaseAgent(org_id=org_id)

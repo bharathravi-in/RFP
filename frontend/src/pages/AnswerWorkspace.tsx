@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { questionsApi, answersApi, exportApi } from '@/api/client';
 import { Question, Answer, SimilarAnswer, QuestionCategory } from '@/types';
+import { useRealTime } from '@/hooks/useRealTime';
+import ActiveUsers from '@/components/collaboration/ActiveUsers';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -22,6 +24,8 @@ import {
     CurrencyDollarIcon,
     CubeIcon,
 } from '@heroicons/react/24/outline';
+import DiagramRenderer from '@/components/diagrams/DiagramRenderer';
+import SimpleMarkdown from '@/components/common/SimpleMarkdown';
 
 // Category configuration for badges
 const CATEGORY_CONFIG: Record<string, { icon: typeof ShieldCheckIcon; color: string; bg: string }> = {
@@ -48,12 +52,17 @@ export default function AnswerWorkspace() {
     // New state for AI workflow features
     const [similarAnswers, setSimilarAnswers] = useState<SimilarAnswer[]>([]);
     const [answerFlags, setAnswerFlags] = useState<string[]>([]);
+    const [suggestedDiagram, setSuggestedDiagram] = useState<any | null>(null);
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [showSimilarPanel, setShowSimilarPanel] = useState(false);
+    const [isPreview, setIsPreview] = useState(false);
+
+    // Collaboration hook
+    const { activeUsers, updateCursor, broadcastChange, lastRemoteChange } = useRealTime(id);
 
     const loadQuestions = useCallback(async () => {
         if (!id) return;
-        
+
         try {
             const response = await questionsApi.list(Number(id));
             setQuestions(response.data.questions || []);
@@ -82,6 +91,19 @@ export default function AnswerWorkspace() {
         }
     }, [searchParams, questions, selectedQuestion]);
 
+    // Handle remote content changes
+    useEffect(() => {
+        if (lastRemoteChange && selectedQuestion && lastRemoteChange.section_id === selectedQuestion.id) {
+            setEditorContent(lastRemoteChange.content);
+            // Optionally update the question in the list too
+            setQuestions(prev => prev.map(q =>
+                q.id === selectedQuestion.id
+                    ? { ...q, answer: { ...q.answer, content: lastRemoteChange.content } as Answer }
+                    : q
+            ));
+        }
+    }, [lastRemoteChange, selectedQuestion]);
+
     const handleSelectQuestion = (question: Question) => {
         setSelectedQuestion(question);
         setEditorContent(question.answer?.content || '');
@@ -96,17 +118,22 @@ export default function AnswerWorkspace() {
         setIsGenerating(true);
         try {
             const response = await answersApi.generate(selectedQuestion.id);
-            const { answer: newAnswer, classification, flags, similar_answers } = response.data;
+            const { answer: newAnswer, classification, flags, similar_answers, suggested_diagram } = response.data;
 
             setEditorContent(newAnswer.content);
 
-            // Store similar answers and flags for display
+            // Store similar answers, flags, and suggested diagram for display
             if (similar_answers) {
                 setSimilarAnswers(similar_answers);
                 setShowSimilarPanel(similar_answers.length > 0);
             }
             if (flags) {
                 setAnswerFlags(flags);
+            }
+            if (suggested_diagram) {
+                setSuggestedDiagram(suggested_diagram);
+            } else {
+                setSuggestedDiagram(null);
             }
 
             // Update question with classification data
@@ -246,11 +273,19 @@ export default function AnswerWorkspace() {
                         {questions.filter(q => q.status === 'approved').length} / {questions.length} questions approved
                     </p>
                 </div>
-                <div className="h-2 w-32 bg-background rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${(questions.filter(q => q.status === 'approved').length / questions.length) * 100}%` }}
-                    />
+
+                <div className="flex items-center gap-6">
+                    {/* Active Users */}
+                    <ActiveUsers users={activeUsers} />
+
+                    <div className="flex items-center gap-2">
+                        <div className="h-2 w-32 bg-background rounded-full overflow-hidden border border-border">
+                            <div
+                                className="h-full bg-primary rounded-full transition-all duration-500"
+                                style={{ width: `${(questions.filter(q => q.status === 'approved').length / Math.max(questions.length, 1)) * 100}%` }}
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -403,14 +438,60 @@ export default function AnswerWorkspace() {
                                             </div>
                                         )}
 
-                                        {/* Editor */}
-                                        <div className="bg-surface rounded-xl border border-border p-4 min-h-[200px]">
-                                            <textarea
-                                                value={editorContent}
-                                                onChange={(e) => setEditorContent(e.target.value)}
-                                                className="w-full min-h-[150px] resize-none border-0 focus:ring-0 text-text-primary bg-transparent"
-                                                placeholder="Type your answer here..."
-                                            />
+                                        {/* Editor/Preview Controls */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <button
+                                                onClick={() => setIsPreview(false)}
+                                                className={clsx(
+                                                    'px-3 py-1 rounded-md text-sm font-medium transition-all',
+                                                    !isPreview ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:bg-background'
+                                                )}
+                                            >
+                                                Write
+                                            </button>
+                                            <button
+                                                onClick={() => setIsPreview(true)}
+                                                className={clsx(
+                                                    'px-3 py-1 rounded-md text-sm font-medium transition-all',
+                                                    isPreview ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:bg-background'
+                                                )}
+                                            >
+                                                Preview
+                                            </button>
+                                        </div>
+
+                                        {/* Editor or Preview */}
+                                        <div className="bg-surface rounded-xl border border-border p-4 min-h-[300px] focus-within:ring-2 focus-within:ring-primary/20 transition-all relative">
+                                            {isPreview ? (
+                                                <div className="max-w-none">
+                                                    <SimpleMarkdown content={editorContent} />
+                                                </div>
+                                            ) : (
+                                                <textarea
+                                                    value={editorContent}
+                                                    onChange={(e) => {
+                                                        const newContent = e.target.value;
+                                                        setEditorContent(newContent);
+                                                        if (selectedQuestion) {
+                                                            broadcastChange(selectedQuestion.id, newContent);
+                                                        }
+                                                    }}
+                                                    onFocus={() => {
+                                                        if (selectedQuestion) {
+                                                            updateCursor(selectedQuestion.id, 'content');
+                                                        }
+                                                    }}
+                                                    className="w-full min-h-[250px] resize-none border-0 focus:ring-0 text-text-primary bg-transparent text-lg leading-relaxed"
+                                                    placeholder="Type your answer here..."
+                                                />
+                                            )}
+                                            {/* Typing Indicator */}
+                                            {lastRemoteChange && lastRemoteChange.section_id === selectedQuestion.id && (
+                                                <div className="absolute top-2 right-2 flex items-center gap-1 text-[10px] text-primary animate-pulse font-bold uppercase tracking-widest bg-white/80 px-2 py-1 rounded shadow-sm border border-primary/10">
+                                                    <span className="flex h-1.5 w-1.5 rounded-full bg-primary" />
+                                                    {lastRemoteChange.user_name} is editing
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Actions */}
@@ -528,8 +609,39 @@ export default function AnswerWorkspace() {
                             </div>
                         )}
 
+                        {/* Suggested Diagram Section */}
+                        {suggestedDiagram && (
+                            <div className="pt-4 border-t border-border">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <CubeIcon className="h-4 w-4 text-primary" />
+                                    <h2 className="text-sm font-medium text-text-secondary">Suggested Diagram</h2>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="rounded-lg border border-border bg-background overflow-hidden">
+                                        <DiagramRenderer
+                                            code={suggestedDiagram.mermaid_code}
+                                            title={suggestedDiagram.title}
+                                            description={suggestedDiagram.description}
+                                            compact={true}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const diagramMarkdown = `\n\n### ${suggestedDiagram.title}\n\n${suggestedDiagram.description}\n\n\`\`\`mermaid\n${suggestedDiagram.mermaid_code}\n\`\`\`\n\n${suggestedDiagram.notes || ''}`;
+                                            setEditorContent(editorContent + diagramMarkdown);
+                                            setSuggestedDiagram(null);
+                                            toast.success('Diagram added to answer!');
+                                        }}
+                                        className="w-full btn-secondary text-xs py-1.5"
+                                    >
+                                        Apply to Answer
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Sources Section */}
-                        <div>
+                        <div className="pt-4 border-t border-border">
                             <h2 className="text-sm font-medium text-text-secondary mb-3">Sources & References</h2>
 
                             {selectedQuestion?.answer?.sources && selectedQuestion.answer.sources.length > 0 ? (

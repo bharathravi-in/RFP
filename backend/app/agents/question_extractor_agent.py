@@ -22,6 +22,29 @@ class QuestionExtractorAgent:
     - Prioritizes by importance
     """
     
+    # Few-shot examples for better extraction accuracy
+    FEW_SHOT_EXAMPLES = """
+**EXAMPLE 1 - Direct Question (EXTRACT):**
+Input: "What is your disaster recovery time objective (RTO)?"
+Output: {"text": "What is your disaster recovery time objective (RTO)?", "category": "technical", "type": "direct", "mandatory": true}
+
+**EXAMPLE 2 - Imperative Requirement (EXTRACT):**
+Input: "Describe your data encryption methodology."
+Output: {"text": "Describe your data encryption methodology.", "category": "security", "type": "imperative", "mandatory": true}
+
+**EXAMPLE 3 - Existing Answer (DO NOT EXTRACT):**
+Input: "Vendor Response: Our company maintains SOC 2 Type II certification..."
+Output: SKIP - This is an existing vendor response, not a question
+
+**EXAMPLE 4 - Table Header (EXTRACT):**
+Input: "| Requirement | Vendor Response | Comments |"
+Output: {"text": "Complete the requirements table with response and comments", "category": "general", "type": "table", "mandatory": true}
+
+**EXAMPLE 5 - Sample/Example Text (DO NOT EXTRACT):**
+Input: "Example: We provide 24/7 support with 99.9% uptime..."
+Output: SKIP - This is example text, not a question requiring response
+"""
+    
     EXTRACTION_PROMPT = """You are an expert at analyzing RFP documents. Your task is to extract ALL questions and requirements that need vendor responses.
 
 **CRITICAL: WHAT TO EXTRACT vs WHAT TO IGNORE**
@@ -31,6 +54,8 @@ class QuestionExtractorAgent:
 - Requirements that need vendor confirmation or description
 - Requests for information from vendors
 - Items in vendor response sections that are BLANK or need filling
+- Table/matrix rows requiring vendor input
+- Scoring/weighting questions (e.g., "Rate on scale 1-5")
 
 ❌ **DO NOT EXTRACT THESE:**
 - Example answers or sample responses
@@ -39,6 +64,8 @@ class QuestionExtractorAgent:
 - Pre-filled answers or completed sections
 - Narrative text explaining what vendors should do
 - Instructions or guidelines (unless they contain a specific question)
+
+{few_shot_examples}
 
 **IMPORTANT EXTRACTION RULES:**
 1. Extract EVERY question that needs a NEW vendor response
@@ -49,6 +76,7 @@ class QuestionExtractorAgent:
    - Requirements phrased as: "The vendor must/shall/should..."
    - Checkbox or form-style items requiring responses
    - Tables or matrices requiring completion
+   - Scoring/rating questions: "Rate...", "Score...", "On a scale..."
    - "Please confirm...", "Indicate whether..."
 
 4. For each question, identify:
@@ -57,6 +85,8 @@ class QuestionExtractorAgent:
    - Whether it's mandatory (must, shall, required) or optional (should, may, preferred)
    - Priority based on context and language strength
    - Which section it belongs to
+   - Question type (direct, imperative, requirement, checkbox, table, scoring)
+   - Document position (beginning, middle, end)
 
 **CATEGORIES EXPLAINED:**
 - security: Authentication, encryption, access control, data protection
@@ -79,7 +109,10 @@ class QuestionExtractorAgent:
       "mandatory": true,
       "priority": "critical|high|medium|low",
       "section_reference": "Section name or null",
-      "question_type": "direct|imperative|requirement|checkbox|table"
+      "question_type": "direct|imperative|requirement|checkbox|table|scoring",
+      "document_position": "beginning|middle|end",
+      "requires_table_response": false,
+      "scoring_type": null
     }}
   ],
   "total_count": 0,
@@ -95,7 +128,8 @@ class QuestionExtractorAgent:
     "general": 0
   }},
   "mandatory_count": 0,
-  "optional_count": 0
+  "optional_count": 0,
+  "table_questions_count": 0
 }}
 
 **DOCUMENT TEXT:**
@@ -130,6 +164,11 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         
         try:
             result = self._extract_with_ai(text, doc_structure)
+            # Apply validation pass to filter out sample answers
+            validated_questions = self._validate_questions(result.get("questions", []))
+            result["questions"] = validated_questions
+            result["total_count"] = len(validated_questions)
+            result["validation_filtered"] = len(result.get("questions", [])) - len(validated_questions)
         except Exception as e:
             logger.error(f"AI extraction failed: {e}")
             result = self._fallback_extraction(text)
@@ -164,7 +203,10 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         if not client:
             return self._fallback_extraction(text)
         
-        prompt = self.EXTRACTION_PROMPT.format(text=text[:25000])
+        prompt = self.EXTRACTION_PROMPT.format(
+            text=text[:25000],
+            few_shot_examples=self.FEW_SHOT_EXAMPLES
+        )
         
         try:
             if self.config.is_adk_enabled:
@@ -263,6 +305,101 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
             "category_breakdown": category_breakdown
         }
     
+    def _validate_questions(self, questions: List[Dict]) -> List[Dict]:
+        """
+        Validate extracted questions to filter out sample answers.
+        Uses heuristics to detect text that looks like an answer rather than a question.
+        
+        Args:
+            questions: List of extracted question dicts
+            
+        Returns:
+            Filtered list of validated questions
+        """
+        validated = []
+        
+        # Patterns that indicate the text is likely an answer, not a question
+        answer_patterns = [
+            # Company statements
+            r'^(?:we|our company|the vendor|our team|our organization)\s+(?:provide|offer|support|ensure|have|are|will|can|do)',
+            r'^(?:yes|no)[,\.\s]',
+            r'^(?:absolutely|certainly|indeed|affirmative)',
+            # Solution statements  
+            r'^(?:our solution|the system|this platform|the proposed|our approach)',
+            r'(?:is implemented|has been deployed|we have implemented|we currently)',
+            r'(?:compliant with|certified for|meets the requirements|satisfies)',
+            r'^(?:as described|per our|in accordance)',
+            # Response indicators
+            r'^(?:response:|answer:|solution:)',
+            r'^(?:vendor response|service provider answer)',
+            # Past tense delivery statements
+            r'we have successfully (?:implemented|delivered|completed)',
+            r'our (?:experience|track record|portfolio) includes',
+            # List of features (common in answers)
+            r'^(?:features include|benefits include|capabilities include)',
+            r'^(?:key benefits|key features|advantages)',
+        ]
+        
+        # Patterns that indicate it IS a question (positive patterns)
+        question_patterns = [
+            r'\?$',  # Ends with question mark
+            r'^(?:please|kindly)\s+(?:describe|explain|provide|list|detail)',
+            r'^(?:what|how|when|where|why|which|who|whose|whom)',
+            r'^(?:does|do|is|are|can|will|would|should|could|have|has)\s+',
+            r'^(?:describe|explain|provide|list|detail|outline|specify)',
+            r'(?:required|mandatory|must|shall)\s+(?:be|provide|have)',
+        ]
+        
+        for q in questions:
+            text = q.get("text", "").strip()
+            text_lower = text.lower()
+            
+            # Skip empty or very short
+            if len(text) < 15:
+                continue
+            
+            # Check if explicitly looks like a question (positive match)
+            is_question = False
+            for pattern in question_patterns:
+                if re.search(pattern, text_lower):
+                    is_question = True
+                    break
+            
+            # Check if looks like an answer (negative match)
+            is_answer = False
+            for pattern in answer_patterns:
+                if re.search(pattern, text_lower, re.IGNORECASE):
+                    is_answer = True
+                    logger.debug(f"Filtered potential answer: {text[:50]}...")
+                    break
+            
+            # Skip if too detailed (likely an answer with lots of explanation)
+            # But allow if it has a question mark
+            sentence_count = text.count('.') + text.count('!') + text.count(';')
+            if sentence_count > 4 and '?' not in text:
+                is_answer = True
+                logger.debug(f"Filtered due to sentence count: {text[:50]}...")
+            
+            # Check for service provider's answer section markers
+            if 'service provider' in text_lower and ('answer' in text_lower or 'response' in text_lower):
+                is_answer = True
+            
+            # If it has explicit question markers, include it even if it matches answer patterns
+            if '?' in text:
+                is_answer = False
+                is_question = True
+            
+            # Include if it's a question and not an answer
+            if is_question and not is_answer:
+                validated.append(q)
+            elif not is_answer:
+                # Include if it doesn't match answer patterns, even without explicit question markers
+                validated.append(q)
+        
+        logger.info(f"Validation: kept {len(validated)}/{len(questions)} questions")
+        return validated
+
+    
     def _guess_category(self, text: str) -> str:
         """Guess question category based on keywords."""
         text_lower = text.lower()
@@ -283,6 +420,6 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         return 'general'
 
 
-def get_question_extractor_agent() -> QuestionExtractorAgent:
+def get_question_extractor_agent(org_id: int = None) -> QuestionExtractorAgent:
     """Factory function to get Question Extractor Agent."""
-    return QuestionExtractorAgent()
+    return QuestionExtractorAgent(org_id=org_id)

@@ -182,8 +182,63 @@ class EmailService:
         """
         
         return self.send_email(to, subject, html_body)
+    
+    def send_team_invitation(
+        self,
+        to: str,
+        inviter_name: str,
+        organization_name: str,
+        role: str,
+        invite_link: str
+    ) -> bool:
+        """Send team invitation email."""
+        subject = f'You\'re invited to join {organization_name} on RFP Pro'
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb;">
+            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited!</h1>
+            </div>
+            <div style="padding: 40px; background: white;">
+                <p style="font-size: 16px; color: #374151;">Hi there,</p>
+                <p style="font-size: 16px; color: #374151;">
+                    <strong>{inviter_name}</strong> has invited you to join <strong>{organization_name}</strong> on RFP Pro as a <strong>{role}</strong>.
+                </p>
+                <div style="background: #f3f4f6; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
+                    <p style="margin: 0 0 16px 0; color: #6b7280;">Click the button below to accept the invitation:</p>
+                    <a href="{invite_link}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                        Accept Invitation
+                    </a>
+                </div>
+                <p style="font-size: 14px; color: #9ca3af;">
+                    This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.
+                </p>
+            </div>
+            <div style="padding: 24px; text-align: center; color: #9ca3af; font-size: 12px; background: #f9fafb;">
+                <p style="margin: 0;">RFP Pro - AI-Powered RFP Responses</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_body = f"""
+Hi there,
+
+{inviter_name} has invited you to join {organization_name} on RFP Pro as a {role}.
+
+Click here to accept the invitation: {invite_link}
+
+This invitation will expire in 7 days.
+
+- RFP Pro Team
+        """
+        
+        return self.send_email([to], subject, html_body, text_body)
 
 
 def get_email_service() -> EmailService:
     """Get email service instance."""
     return EmailService()
+

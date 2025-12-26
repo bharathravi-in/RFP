@@ -79,14 +79,29 @@ For product questions:
 - Reference documentation where applicable"""
     }
     
-    def __init__(self):
+    def __init__(self, org_id: int = None):
+        """Initialize AI service with optional organization ID for dynamic provider selection."""
+        self.org_id = org_id
+        self._provider = None
+        # Fallback to env vars for backward compatibility
         self.api_key = os.getenv('GOOGLE_API_KEY')
         self.model_name = os.getenv('GOOGLE_MODEL', 'gemini-1.5-pro')
         self._client = None
     
+    def _get_provider(self, org_id: int = None):
+        """Get the LLM provider for the organization."""
+        target_org = org_id or self.org_id
+        if target_org:
+            try:
+                from app.services.llm_service_helper import get_llm_provider
+                return get_llm_provider(target_org)
+            except Exception as e:
+                logger.warning(f"Failed to get dynamic provider: {e}, falling back to default")
+        return None
+    
     @property
     def client(self):
-        """Lazy load the Google AI client."""
+        """Lazy load the Google AI client (legacy fallback)."""
         if self._client is None and self.api_key:
             try:
                 import google.generativeai as genai
@@ -104,7 +119,8 @@ For product questions:
         length: str = 'medium',
         similar_answers: List[Dict] = None,
         question_category: str = None,
-        sub_category: str = None
+        sub_category: str = None,
+        org_id: int = None
     ) -> Dict:
         """
         Generate an AI answer for a question with enhanced RAG support.
@@ -134,7 +150,10 @@ For product questions:
             context, similar_answers, question_category
         )
         
-        if not self.client:
+        # Try dynamic provider first, then fall back to legacy client
+        provider = self._get_provider(org_id)
+        
+        if not provider and not self.client:
             # Return placeholder for when API is not configured
             return self._placeholder_response(question, confidence, flags)
         
@@ -150,8 +169,14 @@ For product questions:
         )
         
         try:
-            response = self.client.generate_content(prompt)
-            content = response.text
+            # Use dynamic provider if available, otherwise legacy client
+            if provider:
+                content = provider.generate_content(prompt)
+                model_used = getattr(provider, 'model', 'dynamic')
+            else:
+                response = self.client.generate_content(prompt)
+                content = response.text
+                model_used = self.model_name
             
             # Post-process the response
             content = self._post_process_answer(content, tone)
@@ -159,18 +184,24 @@ For product questions:
             # Build source citations
             sources = self._build_sources(context, similar_answers)
             
+            # Phase 4: Suggest a diagram if the question is technical
+            suggested_diagram = None
+            if question_category in ['technical', 'architecture', 'product']:
+                suggested_diagram = self._suggest_diagram(question, context, org_id)
+
             return {
                 'content': content,
                 'confidence_score': confidence,
                 'sources': sources,
                 'flags': flags,
+                'suggested_diagram': suggested_diagram,
                 'generation_params': {
                     'tone': tone,
                     'length': length,
                     'category': question_category,
                     'context_count': len(context),
                     'similar_answer_count': len(similar_answers),
-                    'model': self.model_name
+                    'model': model_used
                 }
             }
             
@@ -183,6 +214,23 @@ For product questions:
                 'flags': ['generation_error'],
                 'generation_params': {}
             }
+
+    def _suggest_diagram(self, question: str, context: List[Dict], org_id: int = None) -> Optional[Dict]:
+        """Suggest a diagram based on question and context."""
+        try:
+            from app.agents.diagram_generator_agent import get_diagram_generator_agent
+            
+            # Combine context for the agent
+            context_text = "\n".join([c.get('content', '') for c in context[:3]])
+            
+            agent = get_diagram_generator_agent(org_id=org_id)
+            result = agent.generate_for_context(question, context_text)
+            
+            if result.get('success'):
+                return result.get('diagram')
+        except Exception as e:
+            logger.error(f"Diagram suggestion failed: {e}")
+        return None
     
     def _build_prompt(
         self,

@@ -4,7 +4,7 @@ Proposal Version routes for managing document versions.
 from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
-from ..models import ProposalVersion, Project, User, RFPSection, Question
+from ..models import ProposalVersion, Project, User, RFPSection, Question, SectionVersion
 
 bp = Blueprint('versions', __name__)
 
@@ -524,3 +524,84 @@ def compare_versions(version_id, other_version_id):
         'section_diffs': section_diffs,
         'stats': stats,
     }), 200
+
+
+@bp.route('/versions/<int:version_id>/branch', methods=['POST'])
+@jwt_required()
+def branch_version(version_id):
+    """
+    Create an editable draft from a previous version.
+    This replaces current sections with the version's snapshot,
+    allowing the user to edit and build upon the historical version.
+    
+    Request body:
+    {
+        "mode": "replace" | "merge",  // replace=overwrite current, merge=add alongside
+        "clear_current": true/false   // only used in merge mode
+    }
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    version = ProposalVersion.query.get(version_id)
+    if not version:
+        return jsonify({'error': 'Version not found'}), 404
+    
+    if version.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if not version.sections_snapshot:
+        return jsonify({'error': 'This version does not have section data for editing'}), 400
+    
+    data = request.get_json() or {}
+    mode = data.get('mode', 'replace')  # Default: replace current sections
+    
+    project = version.project
+    project_id = project.id
+    
+    # Step 1: Delete current sections (for replace mode)
+    if mode == 'replace':
+        current_sections = RFPSection.query.filter_by(project_id=project_id).all()
+        section_ids = [s.id for s in current_sections]
+        # Delete section versions first (due to FK constraint)
+        if section_ids:
+            SectionVersion.query.filter(SectionVersion.section_id.in_(section_ids)).delete(synchronize_session=False)
+        # Now delete sections
+        for section in current_sections:
+            db.session.delete(section)
+        db.session.flush()
+    
+    # Step 2: Create new sections from the version snapshot
+    created_sections = []
+    for i, section_data in enumerate(version.sections_snapshot):
+        new_section = RFPSection(
+            project_id=project_id,
+            section_type_id=section_data.get('section_type_id'),
+            title=section_data.get('title', 'Untitled Section'),
+            content=section_data.get('content', ''),
+            order=section_data.get('order', i),
+            status='draft',  # Always start as draft for editing
+            inputs=section_data.get('inputs'),
+            ai_generation_params=section_data.get('ai_generation_params'),
+            confidence_score=section_data.get('confidence_score'),
+            sources=section_data.get('sources'),
+            flags=section_data.get('flags'),
+        )
+        db.session.add(new_section)
+        created_sections.append(new_section)
+    
+    # Step 3: Update project to reflect the branch
+    project.status = 'in_progress'
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Created editable draft from version {version.version_number}',
+        'version_id': version_id,
+        'version_title': version.title,
+        'sections_created': len(created_sections),
+        'sections': [s.to_dict() for s in created_sections],
+    }), 201

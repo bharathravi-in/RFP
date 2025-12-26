@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from .config import config
-from .extensions import db, migrate, jwt, cors
+from .extensions import db, migrate, jwt, cors, socketio
 
 
 def create_app(config_name=None):
@@ -16,6 +16,8 @@ def create_app(config_name=None):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    socketio.init_app(app, cors_allowed_origins="*")
+    
     cors.init_app(app, resources={
         r"/api/*": {
             "origins": ["http://localhost:5173", "http://localhost:3000"],
@@ -24,12 +26,15 @@ def create_app(config_name=None):
         }
     })
     
+    # Register Socket.IO handlers
+    from . import socket_events
+    
     # Create upload folder
     upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
     os.makedirs(upload_folder, exist_ok=True)
     
     # Register blueprints
-    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections, ai_config, agent_config, users, organizations, invitations, versions, compliance
+    from .routes import auth, projects, documents, questions, answers, knowledge, export, analytics, ai, folders, preview, sections, ai_config, agent_config, users, organizations, invitations, versions, compliance, answer_library, go_no_go, notifications, comments, smart_search, activity, copilot
     from .routes.agents import agents_bp
     from .routes.profiles import profiles_bp
     
@@ -54,6 +59,19 @@ def create_app(config_name=None):
     app.register_blueprint(invitations.bp)  # Team invitations (url_prefix in blueprint)
     app.register_blueprint(versions.bp, url_prefix='/api')  # Document versioning
     app.register_blueprint(compliance.bp, url_prefix='/api')  # Compliance matrix
+    app.register_blueprint(answer_library.bp, url_prefix='/api/answer-library')  # Reusable Q&A library
+    app.register_blueprint(go_no_go.bp, url_prefix='/api')  # Go/No-Go analysis
+    app.register_blueprint(notifications.bp, url_prefix='/api/notifications')  # User notifications
+    app.register_blueprint(comments.bp, url_prefix='/api/comments')  # Inline comments & @mentions
+    app.register_blueprint(smart_search.bp, url_prefix='/api/search')  # Smart natural language search
+    app.register_blueprint(activity.bp, url_prefix='/api/activity')  # Activity timeline
+    app.register_blueprint(copilot.bp)  # Co-Pilot AI chat
+
+    # PPT generation
+    from .routes import ppt
+    from .routes import export_templates
+    app.register_blueprint(ppt.bp, url_prefix='/api/ppt')  # PowerPoint generation
+    app.register_blueprint(export_templates.bp, url_prefix='/api/export-templates')  # Export templates
 
     
     # Health check endpoint

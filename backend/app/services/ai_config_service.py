@@ -97,7 +97,14 @@ class AIConfigService:
         Args:
             org_id: Organization ID
             agent_type: Agent type
-            data: Configuration data
+            data: Configuration data including:
+                - provider: 'litellm', 'google', 'openai', etc.
+                - model: Model name (free text)
+                - base_url: LiteLLM proxy URL
+                - temperature: Generation temperature
+                - max_tokens: Max tokens to generate
+                - api_key: API key (optional if using default)
+                - use_default_key: Use organization's default API key
             
         Returns:
             AgentAIConfig instance
@@ -115,11 +122,21 @@ class AIConfigService:
                 agent_type=agent_type
             )
         
-        # Update fields
+        # Update core fields
         config.provider = data.get('provider', config.provider)
-        config.model = data.get('model', config.model)  # Free text!
+        config.model = data.get('model', config.model)
         config.api_endpoint = data.get('api_endpoint', config.api_endpoint)
-        config.use_default_key = data.get('use_default_key', config.use_default_key)
+        config.use_default_key = data.get('use_default_key', config.use_default_key if config.use_default_key is not None else True)
+        
+        # Update LiteLLM specific fields
+        if 'base_url' in data:
+            config.base_url = data['base_url']
+        if 'temperature' in data:
+            config.temperature = data['temperature']
+        if 'max_tokens' in data:
+            config.max_tokens = data['max_tokens']
+        
+        # Update metadata
         config.config_metadata = data.get('config_metadata', config.config_metadata or {})
         
         # Update API key if provided and not using default
@@ -129,7 +146,7 @@ class AIConfigService:
         db.session.add(config)
         db.session.commit()
         
-        logger.info(f"Updated config for agent '{agent_type}' in org {org_id}")
+        logger.info(f"Updated config for agent '{agent_type}' in org {org_id}: {config.provider}/{config.model}")
         return config
     
     @staticmethod

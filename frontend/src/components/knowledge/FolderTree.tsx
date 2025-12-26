@@ -30,6 +30,8 @@ export interface KnowledgeItem {
     file_type?: string;
     folder_id?: number;
     created_at: string;
+    knowledge_profile_id?: number;
+    knowledge_profile_name?: string;
 }
 
 interface FolderTreeProps {
@@ -264,9 +266,16 @@ export function KnowledgeItemList({ items, onSelect, onPreview, onDownload, onDe
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-text-primary truncate">
-                                    {item.title}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-text-primary truncate">
+                                        {item.title}
+                                    </p>
+                                    {item.knowledge_profile_name && (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-purple-100 text-purple-700 flex-shrink-0">
+                                            📁 {item.knowledge_profile_name}
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-text-muted">
                                     {item.source_type} • {new Date(item.created_at).toLocaleDateString()}
                                 </p>

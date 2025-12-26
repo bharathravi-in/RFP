@@ -391,7 +391,7 @@ def reindex_knowledge():
 @bp.route('/search', methods=['POST'])
 @jwt_required()
 def search_knowledge():
-    """Semantic search in knowledge base."""
+    """Semantic and hybrid search in knowledge base."""
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -400,12 +400,68 @@ def search_knowledge():
     
     data = request.get_json()
     query = data.get('query')
-    limit = data.get('limit', 5)
+    limit = data.get('limit', 10)
+    file_id = data.get('file_id')  # Optional: filter by specific document
     
     if not query:
         return jsonify({'error': 'Search query required'}), 400
     
-    # Semantic search with Qdrant
+    # Try hybrid search first (dense + sparse vectors)
+    try:
+        from app.services.hybrid_search_service import get_hybrid_search_service
+        
+        hybrid_search = get_hybrid_search_service(user.organization_id)
+        
+        if hybrid_search.enabled:
+            hybrid_results = hybrid_search.hybrid_search(
+                query=query,
+                org_id=user.organization_id,
+                limit=limit,
+                file_id=file_id
+            )
+            
+            if hybrid_results:
+                results = []
+                for r in hybrid_results:
+                    # Try to find the parent knowledge item
+                    if r.doc_url and r.doc_url.startswith('knowledge://'):
+                        item_id = int(r.doc_url.split('://')[1])
+                        item = KnowledgeItem.query.get(item_id)
+                        if item:
+                            results.append({
+                                'item': item.to_dict(),
+                                'score': r.score,
+                                'chunk': {
+                                    'page_number': r.page_number,
+                                    'content': r.content[:500] + '...' if len(r.content) > 500 else r.content,
+                                    'original_filename': r.original_filename
+                                }
+                            })
+                    else:
+                        # Search result without parent reference
+                        results.append({
+                            'item': {
+                                'id': None,
+                                'title': r.original_filename or 'Unknown',
+                                'content': r.content[:500] + '...' if len(r.content) > 500 else r.content
+                            },
+                            'score': r.score,
+                            'chunk': {
+                                'page_number': r.page_number,
+                                'chunk_id': r.chunk_id,
+                                'file_id': r.file_id
+                            }
+                        })
+                
+                if results:
+                    return jsonify({
+                        'results': results,
+                        'search_type': 'hybrid'
+                    }), 200
+    except Exception as e:
+        logger.warning(f"Hybrid search failed, falling back: {e}")
+    
+    # Fallback to regular Qdrant semantic search
     try:
         qdrant = get_qdrant_service()
         if qdrant.enabled:
@@ -428,10 +484,14 @@ def search_knowledge():
                     if item:
                         results.append({
                             'item': item.to_dict(),
-                            'score': r['score']
+                            'score': r['score'],
+                            'search_type': 'semantic'
                         })
                 
-                return jsonify({'results': results}), 200
+                return jsonify({
+                    'results': results,
+                    'search_type': 'semantic'
+                }), 200
     except Exception as e:
         logger.error(f"Qdrant search failed, falling back to SQL: {e}")
     
@@ -448,6 +508,8 @@ def search_knowledge():
     return jsonify({
         'results': [{
             'item': item.to_dict(),
-            'score': 0.9  # Placeholder relevance score
-        } for item in items]
+            'score': 0.9,  # Placeholder relevance score
+            'search_type': 'text'
+        } for item in items],
+        'search_type': 'text'
     }), 200

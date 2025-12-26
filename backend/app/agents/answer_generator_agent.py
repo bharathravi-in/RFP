@@ -55,30 +55,98 @@ class AnswerGeneratorAgent:
 - Reference documentation"""
     }
     
-    GENERATION_PROMPT = """You are an expert RFP response writer.
+    # Answer format templates
+    FORMAT_TEMPLATES = {
+        'paragraph': {
+            'description': 'Standard paragraph format for narrative answers',
+            'instruction': 'Write the answer in clear, flowing paragraphs. Each paragraph should focus on one main point.',
+            'best_for': ['explanations', 'descriptions', 'general responses']
+        },
+        'bullet': {
+            'description': 'Bullet point format for lists and features',
+            'instruction': 'Format the answer as bullet points. Start each point with a dash (-). Be concise but complete for each point.',
+            'best_for': ['features', 'requirements', 'capabilities', 'multiple items']
+        },
+        'numbered': {
+            'description': 'Numbered list for sequential steps or priorities',
+            'instruction': 'Format the answer as a numbered list (1., 2., 3.). Use for sequential information or ranked items.',
+            'best_for': ['processes', 'procedures', 'steps', 'prioritized items']
+        },
+        'table': {
+            'description': 'Tabular format for comparisons or structured data',
+            'instruction': 'Format the answer as a markdown table with clear headers. Use for comparisons or structured data.',
+            'best_for': ['comparisons', 'specifications', 'matrices', 'structured data']
+        },
+        'hybrid': {
+            'description': 'Mixed format with intro paragraph followed by bullet points',
+            'instruction': 'Start with 1-2 introductory sentences, then provide details as bullet points.',
+            'best_for': ['complex topics', 'detailed explanations', 'comprehensive responses']
+        }
+    }
+    
+    # Length estimation parameters  
+    LENGTH_PARAMS = {
+        'short': {'min_words': 30, 'max_words': 80, 'sentences': '1-2'},
+        'medium': {'min_words': 80, 'max_words': 200, 'sentences': '3-5'},
+        'long': {'min_words': 200, 'max_words': 500, 'sentences': '5-10'},
+        'comprehensive': {'min_words': 400, 'max_words': 1000, 'sentences': '8-15'}
+    }
+    
+    GENERATION_PROMPT = """You are an expert RFP response writer. Think step-by-step to generate accurate, well-sourced answers.
 
-## Question
-{question}
+## STEP 1: Understand the Question
+Analyze what is being asked:
+- Question: {question}
+- Category: {category}
+- Is it asking for: facts / capabilities / processes / compliance / pricing?
 
-## Context from Knowledge Base
+## STEP 2: Review Available Context
+Knowledge Base Items:
 {context}
 
-## Similar Approved Answers
+Similar Approved Answers:
 {similar_answers}
 
-## Instructions
-- Tone: {tone}
-- Length: {length_instruction}
-- Category: {category}
+## STEP 3: Plan Your Response
 {category_instructions}
 
-## Requirements
-- Use context to build accurate answers
-- Be specific, avoid vague statements
-- Never make unverifiable claims
-- Match the tone of approved similar answers
+Requirements:
+- Tone: {tone}
+- Length: {length_instruction}
+- **IMPORTANT: Cite your sources using [Source: Document Name] format**
+- Only make claims supported by the context above
+- If information is missing, acknowledge limitations
+- Match the style of similar approved answers
 
-Write the answer directly, no preamble."""
+## STEP 4: Citation Guidelines
+- When referencing specific facts or claims, cite the source: [Source: Knowledge Base Item Title]
+- If referring to a previous approved answer, cite: [Source: Similar Answer]
+- For claims without direct source, indicate: [Needs Verification]
+- Always prefer cited claims over uncited ones
+
+## STEP 5: Write the Answer
+Based on your analysis, write a clear, accurate response WITH inline citations.
+Do NOT include the step numbers or analysis in your final answer.
+Write the answer directly, professionally, and concisely.
+
+**OUTPUT FORMAT:**
+Your answer text here with inline citations [Source: Document Name] where appropriate.
+
+Sources Used:
+- [List each source referenced]"""
+    
+    # Structured output format for better parsing
+    STRUCTURED_OUTPUT_PROMPT = """Generate a response in the following JSON format:
+{{
+  "answer": "Your complete answer text with [Source: X] citations inline",
+  "sources_used": ["Source 1 name", "Source 2 name"],
+  "confidence_reasoning": "Why this confidence level",
+  "key_claims": [
+    {{"claim": "Specific claim text", "source": "Source name or 'Needs Verification'", "verified": true/false}}
+  ],
+  "limitations": "Any limitations or missing information"
+}}
+"""
 
     def __init__(self, org_id: int = None):
         self.config = get_agent_config(org_id=org_id, agent_type='answer_generation')
@@ -279,6 +347,6 @@ Write the answer directly, no preamble."""
         }
 
 
-def get_answer_generator_agent() -> AnswerGeneratorAgent:
+def get_answer_generator_agent(org_id: int = None) -> AnswerGeneratorAgent:
     """Factory function to get Answer Generator Agent."""
-    return AnswerGeneratorAgent()
+    return AnswerGeneratorAgent(org_id=org_id)

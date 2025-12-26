@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFP Pro - Architecture Presentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .slide {
+            min-height: 100vh;
+            padding: 60px;
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .slide.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        h1 {
+            font-size: 3em;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: #38bdf8;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+        }
+
+        h3 {
+            color: #818cf8;
+            font-size: 1.6em;
+            margin-bottom: 20px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            margin-top: 40px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(129, 140, 248, 0.15) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 4em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-card .label {
+            color: #94a3b8;
+            margin-top: 10px;
+            font-size: 1.1em;
+        }
+
+        .diagram-box {
+            background: rgba(30, 41, 59, 0.8);
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 40px;
+            margin: 20px 0;
+        }
+
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .flow-box {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(129, 140, 248, 0.2) 100%);
+            border: 2px solid rgba(56, 189, 248, 0.5);
+            border-radius: 12px;
+            padding: 20px 30px;
+            text-align: center;
+            min-width: 150px;
+        }
+
+        .flow-box.large {
+            padding: 30px 40px;
+            min-width: 200px;
+        }
+
+        .flow-box .icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .flow-box .title {
+            font-weight: 700;
+            color: #38bdf8;
+        }
+
+        .flow-box .subtitle {
+            font-size: 0.85em;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .arrow {
+            font-size: 2em;
+            color: #38bdf8;
+        }
+
+        .arrow-down {
+            display: block;
+            text-align: center;
+            font-size: 2em;
+            color: #38bdf8;
+            margin: 15px 0;
+        }
+
+        .layer-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .layer {
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.15) 0%, rgba(129, 140, 248, 0.15) 100%);
+            border: 2px solid;
+            border-radius: 12px;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .layer-1 {
+            border-color: #3b82f6;
+        }
+
+        .layer-2 {
+            border-color: #22c55e;
+        }
+
+        .layer-3 {
+            border-color: #a855f7;
+        }
+
+        .layer-4 {
+            border-color: #f97316;
+        }
+
+        .layer .label {
+            font-weight: 700;
+            min-width: 200px;
+            font-size: 1.1em;
+        }
+
+        .layer .items {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .layer .item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .agent-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid;
+        }
+
+        .agent-card.analysis {
+            border-color: #3b82f6;
+        }
+
+        .agent-card.content {
+            border-color: #22c55e;
+        }
+
+        .agent-card.quality {
+            border-color: #a855f7;
+        }
+
+        .agent-card.strategy {
+            border-color: #f97316;
+        }
+
+        .agent-card.knowledge {
+            border-color: #06b6d4;
+        }
+
+        .agent-card.export {
+            border-color: #ec4899;
+        }
+
+        .agent-card h4 {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .agent-card ul {
+            list-style: none;
+        }
+
+        .agent-card li {
+            padding: 5px 0;
+            color: #94a3b8;
+        }
+
+        .sequence-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .seq-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .seq-actor {
+            background: #38bdf8;
+            color: #0f172a;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .seq-arrow {
+            flex: 1;
+            height: 2px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            position: relative;
+        }
+
+        .seq-arrow::after {
+            content: '→';
+            position: absolute;
+            right: -15px;
+            top: -12px;
+            font-size: 1.5em;
+            color: #818cf8;
+        }
+
+        .seq-message {
+            background: rgba(129, 140, 248, 0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        .list-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 25px;
+        }
+
+        .list-box h4 {
+            color: #38bdf8;
+            margin-bottom: 15px;
+        }
+
+        .list-box ul {
+            list-style: none;
+        }
+
+        .list-box li {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .list-box li::before {
+            content: '→';
+            color: #38bdf8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 15px 20px;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+        }
+
+        tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        .badge-green {
+            background: #22c55e;
+            color: white;
+        }
+
+        .badge-orange {
+            background: #f97316;
+            color: white;
+        }
+
+        .badge-red {
+            background: #ef4444;
+            color: white;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(249, 115, 22, 0.15) 100%);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+
+        .success-box {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+
+        .nav {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            background: rgba(56, 189, 248, 0.2);
+            border: 2px solid #38bdf8;
+            color: #38bdf8;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: #38bdf8;
+            color: #0f172a;
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 40px;
+            left: 30px;
+            color: #64748b;
+            font-size: 0.9em;
+        }
+
+        .pipeline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .pipeline-step {
+            flex: 1;
+            text-align: center;
+        }
+
+        .pipeline-step .box {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(129, 140, 248, 0.2) 100%);
+            border: 2px solid rgba(56, 189, 248, 0.5);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .pipeline-step .icon {
+            font-size: 1.5em;
+        }
+
+        .pipeline-step .title {
+            font-weight: 600;
+            color: #38bdf8;
+            font-size: 0.9em;
+        }
+
+        .pipeline-arrow {
+            color: #38bdf8;
+            font-size: 1.5em;
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .tech-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .tech-card .icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+
+        .tech-card .name {
+            font-weight: 700;
+            color: #38bdf8;
+        }
+
+        .tech-card .desc {
+            font-size: 0.85em;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .er-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .er-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .er-entity {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(129, 140, 248, 0.2) 100%);
+            border: 2px solid #38bdf8;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-weight: 600;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        .er-relation {
+            color: #94a3b8;
+            font-size: 0.9em;
+        }
+
+        .center {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Slide 1: Title -->
+    <div class="slide active" id="slide1">
+        <div class="center">
+            <h1>🚀 RFP Pro</h1>
+            <h3 style="color: #94a3b8; font-weight: 400; margin-bottom: 20px;">AI-Powered Proposal Management Platform
+            </h3>
+            <p style="color: #64748b; margin-bottom: 50px;">Architecture Deep Dive</p>
+        </div>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="number">27</div>
+                <div class="label">AI Agents</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">32</div>
+                <div class="label">API Routes</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">30+</div>
+                <div class="label">Services</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">28</div>
+                <div class="label">Data Models</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 2: Agenda -->
+    <div class="slide" id="slide2">
+        <h2>📋 Agenda</h2>
+        <div class="list-box" style="max-width: 600px;">
+            <ol style="list-style: decimal; padding-left: 30px; font-size: 1.3em; line-height: 2.5;">
+                <li style="border: none;">Full Application Architecture</li>
+                <li style="border: none;">Backend Architecture & Services</li>
+                <li style="border: none;">AI Agents Ecosystem</li>
+                <li style="border: none;">Knowledge Flow Pipeline</li>
+                <li style="border: none;">Gap Analysis & Recommendations</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Slide 3: Full Architecture -->
+    <div class="slide" id="slide3">
+        <h2>🏗️ Full Application Architecture</h2>
+        <div class="diagram-box">
+            <div class="flow-diagram">
+                <div class="flow-box large">
+                    <div class="icon">🖥️</div>
+                    <div class="title">Frontend</div>
+                    <div class="subtitle">React + TypeScript</div>
+                    <div class="subtitle">Tailwind CSS</div>
+                </div>
+                <span class="arrow">→</span>
+                <div class="flow-box large">
+                    <div class="icon">🔧</div>
+                    <div class="title">Backend</div>
+                    <div class="subtitle">Flask + Python</div>
+                    <div class="subtitle">32 Routes</div>
+                </div>
+                <span class="arrow">→</span>
+                <div class="flow-box large">
+                    <div class="icon">🤖</div>
+                    <div class="title">AI Agents</div>
+                    <div class="subtitle">27 Specialized</div>
+                    <div class="subtitle">Agents</div>
+                </div>
+                <span class="arrow">→</span>
+                <div class="flow-box large">
+                    <div class="icon">🧠</div>
+                    <div class="title">LLM</div>
+                    <div class="subtitle">Gemini, OpenAI</div>
+                    <div class="subtitle">Claude</div>
+                </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="flow-diagram">
+                <div class="flow-box">
+                    <div class="icon">🐘</div>
+                    <div class="title">PostgreSQL</div>
+                    <div class="subtitle">Primary DB</div>
+                </div>
+                <div class="flow-box">
+                    <div class="icon">🔍</div>
+                    <div class="title">Qdrant</div>
+                    <div class="subtitle">Vector DB</div>
+                </div>
+                <div class="flow-box">
+                    <div class="icon">⚡</div>
+                    <div class="title">Redis</div>
+                    <div class="subtitle">Cache</div>
+                </div>
+                <div class="flow-box">
+                    <div class="icon">📁</div>
+                    <div class="title">S3 Storage</div>
+                    <div class="subtitle">Files</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: Tech Stack -->
+    <div class="slide" id="slide4">
+        <h2>Technology Stack</h2>
+        <div class="tech-grid">
+            <div class="tech-card">
+                <div class="icon">⚛️</div>
+                <div class="name">React 18</div>
+                <div class="desc">Frontend UI</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">🎨</div>
+                <div class="name">Tailwind</div>
+                <div class="desc">Styling</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">🐍</div>
+                <div class="name">Flask</div>
+                <div class="desc">Backend API</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">🐘</div>
+                <div class="name">PostgreSQL</div>
+                <div class="desc">Database</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">🔍</div>
+                <div class="name">Qdrant</div>
+                <div class="desc">Vector Search</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">⚡</div>
+                <div class="name">Redis</div>
+                <div class="desc">Caching</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">🤖</div>
+                <div class="name">Gemini</div>
+                <div class="desc">Primary LLM</div>
+            </div>
+            <div class="tech-card">
+                <div class="icon">🐳</div>
+                <div class="name">Docker</div>
+                <div class="desc">Deployment</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: Backend Architecture -->
+    <div class="slide" id="slide5">
+        <h2>🔧 Backend Layered Architecture</h2>
+        <div class="diagram-box">
+            <div class="layer-diagram">
+                <div class="layer layer-1">
+                    <span class="label">📡 Routes (32)</span>
+                    <div class="items">
+                        <span class="item">auth.py</span>
+                        <span class="item">projects.py</span>
+                        <span class="item">documents.py</span>
+                        <span class="item">agents.py</span>
+                        <span class="item">knowledge.py</span>
+                        <span class="item">export.py</span>
+                    </div>
+                </div>
+                <div class="layer layer-2">
+                    <span class="label">🧠 Services (30+)</span>
+                    <div class="items">
+                        <span class="item">ai_service</span>
+                        <span class="item">qdrant_service</span>
+                        <span class="item">export_service</span>
+                        <span class="item">quality_service</span>
+                        <span class="item">chunking_service</span>
+                    </div>
+                </div>
+                <div class="layer layer-3">
+                    <span class="label">🤖 AI Agents (27)</span>
+                    <div class="items">
+                        <span class="item">Document Analyzer</span>
+                        <span class="item">Answer Generator</span>
+                        <span class="item">Quality Reviewer</span>
+                        <span class="item">Orchestrator</span>
+                    </div>
+                </div>
+                <div class="layer layer-4">
+                    <span class="label">💾 Models (28)</span>
+                    <div class="items">
+                        <span class="item">User</span>
+                        <span class="item">Project</span>
+                        <span class="item">Question</span>
+                        <span class="item">Answer</span>
+                        <span class="item">KnowledgeItem</span>
+                        <span class="item">RFPSection</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: AI Agents -->
+    <div class="slide" id="slide6">
+        <h2>🤖 27 Specialized AI Agents</h2>
+        <div class="agent-grid">
+            <div class="agent-card analysis">
+                <h4>📊 Analysis (4)</h4>
+                <ul>
+                    <li>Document Analyzer</li>
+                    <li>Question Extractor</li>
+                    <li>Section Alignment</li>
+                    <li>Alignment Fixer</li>
+                </ul>
+            </div>
+            <div class="agent-card content">
+                <h4>✍️ Content Gen (4)</h4>
+                <ul>
+                    <li>Answer Generator</li>
+                    <li>Proposal Writer</li>
+                    <li>Section Mapper</li>
+                    <li>Diagram Generator</li>
+                </ul>
+            </div>
+            <div class="agent-card quality">
+                <h4>✅ Quality (5)</h4>
+                <ul>
+                    <li>Quality Reviewer</li>
+                    <li>Answer Validator</li>
+                    <li>Similarity Validator</li>
+                    <li>Quality Gate</li>
+                    <li>Compliance Checker</li>
+                </ul>
+            </div>
+            <div class="agent-card strategy">
+                <h4>💡 Strategy (4)</h4>
+                <ul>
+                    <li>Win Theme Agent</li>
+                    <li>Competitive Analysis</li>
+                    <li>Pricing Calculator</li>
+                    <li>Legal Review</li>
+                </ul>
+            </div>
+            <div class="agent-card knowledge">
+                <h4>📚 Knowledge (2)</h4>
+                <ul>
+                    <li>Knowledge Base Agent</li>
+                    <li>Feedback Learning</li>
+                </ul>
+            </div>
+            <div class="agent-card export">
+                <h4>📄 Export (3)</h4>
+                <ul>
+                    <li>Doc Generator</li>
+                    <li>PPT Generator</li>
+                    <li>Executive Editor</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 7: Agent Flow -->
+    <div class="slide" id="slide7">
+        <h2>Agent Orchestration Flow</h2>
+        <div class="diagram-box">
+            <div class="sequence-diagram">
+                <div class="seq-row">
+                    <div class="seq-actor">👤 User</div>
+                    <div class="seq-arrow"></div>
+                    <div class="seq-message">Upload RFP Document</div>
+                    <div class="seq-actor">🎯 Orchestrator</div>
+                </div>
+                <div class="seq-row">
+                    <div class="seq-actor">🎯 Orchestrator</div>
+                    <div class="seq-arrow"></div>
+                    <div class="seq-message">Analyze Structure</div>
+                    <div class="seq-actor">📊 Doc Analyzer</div>
+                </div>
+                <div class="seq-row">
+                    <div class="seq-actor">🎯 Orchestrator</div>
+                    <div class="seq-arrow"></div>
+                    <div class="seq-message">Extract Questions</div>
+                    <div class="seq-actor">❓ Extractor</div>
+                </div>
+                <div class="seq-row">
+                    <div class="seq-actor">🎯 Orchestrator</div>
+                    <div class="seq-arrow"></div>
+                    <div class="seq-message">Find Knowledge</div>
+                    <div class="seq-actor">📚 KB Agent</div>
+                </div>
+                <div class="seq-row">
+                    <div class="seq-actor">🎯 Orchestrator</div>
+                    <div class="seq-arrow"></div>
+                    <div class="seq-message">Generate Answers</div>
+                    <div class="seq-actor">✍️ Answer Gen</div>
+                </div>
+                <div class="seq-row">
+                    <div class="seq-actor">🎯 Orchestrator</div>
+                    <div class="seq-arrow"></div>
+                    <div class="seq-message">Review Quality</div>
+                    <div class="seq-actor">✅ Quality</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 8: Knowledge Flow -->
+    <div class="slide" id="slide8">
+        <h2>📚 Knowledge Flow Pipeline</h2>
+        <div class="diagram-box">
+            <div class="pipeline">
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">📤</div>
+                        <div class="title">Upload</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">RFP, KB Docs</div>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">📝</div>
+                        <div class="title">Extract</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">Text Content</div>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">✂️</div>
+                        <div class="title">Chunk</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">Split Docs</div>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">🔢</div>
+                        <div class="title">Embed</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">Vectors</div>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">💾</div>
+                        <div class="title">Store</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">Qdrant</div>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">🔍</div>
+                        <div class="title">Search</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">Semantic</div>
+                </div>
+                <span class="pipeline-arrow">→</span>
+                <div class="pipeline-step">
+                    <div class="box">
+                        <div class="icon">✍️</div>
+                        <div class="title">Generate</div>
+                    </div>
+                    <div style="color:#94a3b8;font-size:0.8em;">Answer</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 9: Knowledge Profiles -->
+    <div class="slide" id="slide9">
+        <h2>Knowledge Profile Filtering</h2>
+        <div class="diagram-box">
+            <div class="flow-diagram" style="flex-direction: column; gap: 30px;">
+                <div style="display:flex; gap:30px; align-items:center;">
+                    <div class="flow-box large">
+                        <div class="icon">📁</div>
+                        <div class="title">Project</div>
+                        <div class="subtitle">Gov Tech RFP</div>
+                    </div>
+                    <span class="arrow">→</span>
+                    <div class="flow-box large">
+                        <div class="icon">📋</div>
+                        <div class="title">Knowledge Profile</div>
+                        <div class="subtitle">India Government</div>
+                    </div>
+                </div>
+                <div class="arrow-down">↓</div>
+                <div style="display:flex; gap:20px; justify-content:center; flex-wrap:wrap;">
+                    <div class="flow-box" style="border-color:#22c55e;">
+                        <div class="title" style="color:#22c55e;">Geography</div>
+                        <div class="subtitle">🇮🇳 India</div>
+                    </div>
+                    <div class="flow-box" style="border-color:#a855f7;">
+                        <div class="title" style="color:#a855f7;">Client Type</div>
+                        <div class="subtitle">🏛️ Government</div>
+                    </div>
+                    <div class="flow-box" style="border-color:#f97316;">
+                        <div class="title" style="color:#f97316;">Currency</div>
+                        <div class="subtitle">₹ INR</div>
+                    </div>
+                    <div class="flow-box" style="border-color:#06b6d4;">
+                        <div class="title" style="color:#06b6d4;">Industry</div>
+                        <div class="subtitle">💻 Technology</div>
+                    </div>
+                </div>
+                <div class="arrow-down">↓</div>
+                <div class="flow-box large" style="background:rgba(34,197,94,0.2); border-color:#22c55e;">
+                    <div class="title" style="color:#22c55e;">Filtered Knowledge Base</div>
+                    <div class="subtitle">India-specific • Govt compliance • INR pricing</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 10: Data Model -->
+    <div class="slide" id="slide10">
+        <h2>Data Model Relationships</h2>
+        <div class="diagram-box">
+            <div class="er-diagram">
+                <div class="er-row">
+                    <div class="er-entity">Organization</div>
+                    <span class="er-relation">1 ──────── * </span>
+                    <div class="er-entity">Project</div>
+                    <span class="er-relation">1 ──────── * </span>
+                    <div class="er-entity">Document</div>
+                </div>
+                <div class="er-row">
+                    <div class="er-entity">Project</div>
+                    <span class="er-relation">1 ──────── * </span>
+                    <div class="er-entity">Question</div>
+                    <span class="er-relation">1 ──────── 1 </span>
+                    <div class="er-entity">Answer</div>
+                </div>
+                <div class="er-row">
+                    <div class="er-entity">Project</div>
+                    <span class="er-relation">* ──────── * </span>
+                    <div class="er-entity">KnowledgeProfile</div>
+                    <span class="er-relation">1 ──────── * </span>
+                    <div class="er-entity">KnowledgeItem</div>
+                </div>
+                <div class="er-row">
+                    <div class="er-entity">Project</div>
+                    <span class="er-relation">1 ──────── * </span>
+                    <div class="er-entity">RFPSection</div>
+                    <span class="er-relation">1 ──────── 1 </span>
+                    <div class="er-entity">ProjectStrategy</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 11: Gap Analysis Table -->
+    <div class="slide" id="slide11">
+        <h2>⚠️ Agent Connectivity Matrix</h2>
+        <table>
+            <tr>
+                <th>Agent</th>
+                <th>Knowledge Base</th>
+                <th>Vendor Profile</th>
+                <th>Knowledge Profile</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td>Document Analyzer</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td>❌</td>
+                <td><span class="badge badge-green">OK</span></td>
+            </tr>
+            <tr>
+                <td>Answer Generator</td>
+                <td>✅</td>
+                <td>⚠️</td>
+                <td>✅</td>
+                <td><span class="badge badge-orange">Fix Needed</span></td>
+            </tr>
+            <tr>
+                <td>Proposal Writer</td>
+                <td>✅</td>
+                <td>⚠️</td>
+                <td>✅</td>
+                <td><span class="badge badge-orange">Fix Needed</span></td>
+            </tr>
+            <tr>
+                <td>Win Theme Agent</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="badge badge-green">OK</span></td>
+            </tr>
+            <tr>
+                <td>Pricing Calculator</td>
+                <td>❌</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="badge badge-green">OK</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Slide 12: Gaps -->
+    <div class="slide" id="slide12">
+        <h2>Identified Gaps & Fixes</h2>
+        <div class="highlight-box">
+            <h4 style="color:#ef4444; margin-bottom:15px;">🔴 Critical Gaps</h4>
+            <ul style="list-style:none;">
+                <li style="padding:10px 0;">⚠️ <strong>Vendor Profile Integration:</strong> Answer Generator doesn't
+                    consistently receive vendor profile</li>
+                <li style="padding:10px 0;">✅ <strong>Knowledge Profile Currency:</strong> <span
+                        class="badge badge-green">FIXED</span> Now reads from profile</li>
+                <li style="padding:10px 0;">✅ <strong>Strategy Persistence:</strong> <span
+                        class="badge badge-green">FIXED</span> Now saves to database</li>
+            </ul>
+        </div>
+        <div class="success-box">
+            <h4 style="color:#22c55e; margin-bottom:15px;">🟢 What's Working Well</h4>
+            <ul style="list-style:none;">
+                <li style="padding:8px 0;">✓ 27 agents fully operational</li>
+                <li style="padding:8px 0;">✓ Multi-LLM provider support</li>
+                <li style="padding:8px 0;">✓ Vector-based semantic search</li>
+                <li style="padding:8px 0;">✓ Knowledge profile filtering</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Slide 13: Recommendations -->
+    <div class="slide" id="slide13">
+        <h2>Recommended Next Steps</h2>
+        <div class="two-col">
+            <div class="list-box">
+                <h4 style="color:#f97316;">🔴 Immediate (High Priority)</h4>
+                <ul style="list-style:none;">
+                    <li>Pass vendor profile to Answer Generator</li>
+                    <li>Add vendor context to Proposal Writer</li>
+                    <li>Implement profile filtering in search</li>
+                </ul>
+            </div>
+            <div class="list-box">
+                <h4 style="color:#eab308;">🟡 Short-term (1-2 weeks)</h4>
+                <ul style="list-style:none;">
+                    <li>Add hybrid search (BM25 + semantic)</li>
+                    <li>Implement answer caching</li>
+                    <li>Real-time collaboration via WebSocket</li>
+                </ul>
+            </div>
+        </div>
+        <div class="list-box" style="margin-top:30px;">
+            <h4 style="color:#22c55e;">🟢 Medium-term (1 month)</h4>
+            <ul style="list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <li>Cross-project learning</li>
+                <li>Agent performance monitoring</li>
+                <li>Agent recommendation system</li>
+                <li>Additional export formats</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Slide 14: Summary -->
+    <div class="slide" id="slide14">
+        <div class="center">
+            <h2>📊 Summary</h2>
+        </div>
+        <div class="stat-grid" style="margin-top:50px;">
+            <div class="stat-card">
+                <div class="number">27</div>
+                <div class="label">AI Agents</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">32</div>
+                <div class="label">API Routes</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">5</div>
+                <div class="label">Dimensions</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">3</div>
+                <div class="label">LLM Providers</div>
+            </div>
+        </div>
+        <div class="center" style="margin-top:50px;">
+            <p style="font-size:1.3em; color:#94a3b8;">
+                A comprehensive AI-powered proposal management platform<br>
+                with multi-dimensional knowledge profiles and 27 specialized agents
+            </p>
+        </div>
+    </div>
+
+    <!-- Slide 15: Thank You -->
+    <div class="slide" id="slide15">
+        <div class="center" style="padding-top:150px;">
+            <h1>Thank You! 🙏</h1>
+            <p style="color:#94a3b8; margin-top:40px; font-size:1.5em;">Questions?</p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav">
+        <button class="nav-btn" onclick="prevSlide()">←</button>
+        <button class="nav-btn" onclick="nextSlide()">→</button>
+    </div>
+    <div class="slide-counter" id="counter">1 / 15</div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 15;
+
+        function showSlide(n) {
+            if (n < 1) n = 1;
+            if (n > totalSlides) n = totalSlides;
+            currentSlide = n;
+
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            document.getElementById('slide' + n).classList.add('active');
+            document.getElementById('counter').textContent = n + ' / ' + totalSlides;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function prevSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevSlide();
+            }
+        });
+    </script>
+</body>
+
+</html>

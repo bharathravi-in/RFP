@@ -167,6 +167,18 @@ def update_project(project_id):
     if 'project_value' in data:
         project.project_value = data['project_value']
     
+    # Outcome fields
+    if 'outcome' in data:
+        project.outcome = data['outcome']
+    if 'outcome_date' in data:
+        project.outcome_date = data['outcome_date']
+    if 'outcome_notes' in data:
+        project.outcome_notes = data['outcome_notes']
+    if 'contract_value' in data:
+        project.contract_value = data['contract_value']
+    if 'loss_reason' in data:
+        project.loss_reason = data['loss_reason']
+    
     # Update knowledge profiles if provided
     if 'knowledge_profile_ids' in data:
         profile_ids = data['knowledge_profile_ids']
@@ -181,6 +193,55 @@ def update_project(project_id):
     
     return jsonify({
         'message': 'Project updated',
+        'project': project.to_dict(include_stats=True)
+    }), 200
+
+
+@bp.route('/<int:project_id>/outcome', methods=['PUT'])
+@jwt_required()
+def update_project_outcome(project_id):
+    """Update project outcome (won/lost/abandoned) - dedicated endpoint for analytics."""
+    from datetime import datetime
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if user.role not in ['admin', 'editor']:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+    
+    project = Project.query.get(project_id)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    
+    outcome = data.get('outcome')
+    if outcome not in ['pending', 'won', 'lost', 'abandoned']:
+        return jsonify({'error': 'Invalid outcome. Must be: pending, won, lost, or abandoned'}), 400
+    
+    project.outcome = outcome
+    project.outcome_date = datetime.utcnow()
+    project.outcome_notes = data.get('outcome_notes')
+    
+    # Outcome-specific fields
+    if outcome == 'won':
+        project.contract_value = data.get('contract_value')
+        project.loss_reason = None
+    elif outcome == 'lost':
+        project.loss_reason = data.get('loss_reason')
+        project.contract_value = None
+    else:
+        project.contract_value = None
+        project.loss_reason = None
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Project marked as {outcome}',
         'project': project.to_dict(include_stats=True)
     }), 200
 
@@ -243,3 +304,31 @@ def assign_reviewers(project_id):
         'message': 'Reviewers assigned',
         'reviewers': [r.to_dict() for r in reviewers]
     }), 200
+
+
+@bp.route('/upcoming-deadlines', methods=['GET'])
+@jwt_required()
+def get_upcoming_deadlines():
+    """Get projects with upcoming deadlines for the dashboard widget."""
+    from ..services.reminder_service import get_reminder_service
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'deadlines': []}), 200
+    
+    days_ahead = request.args.get('days', 14, type=int)
+    
+    try:
+        reminder_service = get_reminder_service()
+        deadlines = reminder_service.get_upcoming_deadlines(
+            org_id=user.organization_id,
+            days_ahead=days_ahead
+        )
+        
+        return jsonify({'deadlines': deadlines}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+

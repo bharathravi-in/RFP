@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { usersApi, organizationsApi, invitationsApi } from '@/api/client';
 import InviteMemberModal from '@/components/modals/InviteMemberModal';
@@ -20,11 +20,17 @@ import {
     PlusIcon,
     BriefcaseIcon,
     DocumentArrowUpIcon,
+    QuestionMarkCircleIcon,
+    RocketLaunchIcon,
+    BookOpenIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
 import FilterDimensions from '@/components/knowledge/FilterDimensions';
 import AIConfigurationSection from '@/components/settings/AIConfigurationSection';
+import PlatformTour from '@/components/onboarding/PlatformTour';
+
+const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
 const tabs = [
     { id: 'profile', name: 'Profile', icon: UserCircleIcon },
@@ -35,6 +41,7 @@ const tabs = [
     { id: 'security', name: 'Security', icon: KeyIcon },
     { id: 'notifications', name: 'Notifications', icon: BellIcon },
     { id: 'ai', name: 'AI Settings', icon: CogIcon },
+    { id: 'help', name: 'Help & Support', icon: QuestionMarkCircleIcon },
 ];
 
 export default function Settings() {
@@ -62,6 +69,7 @@ export default function Settings() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [invitations, setInvitations] = useState<any[]>([]);
     const [loadingInvitations, setLoadingInvitations] = useState(false);
+    const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
     // Password state
     const [currentPassword, setCurrentPassword] = useState('');
@@ -80,6 +88,18 @@ export default function Settings() {
     const [isSavingVendor, setIsSavingVendor] = useState(false);
     const [isExtractingVendor, setIsExtractingVendor] = useState(false);
     const vendorFileInputRef = useRef<HTMLInputElement>(null);
+
+    // Platform Tour state
+    const [showTour, setShowTour] = useState(false);
+
+    const handleStartTour = () => {
+        setShowTour(true);
+    };
+
+    const handleTourComplete = () => {
+        localStorage.setItem(TOUR_COMPLETED_KEY, 'true');
+        setShowTour(false);
+    };
 
     // Sync activeTab with URL parameter
     useEffect(() => {
@@ -106,8 +126,19 @@ export default function Settings() {
         if (activeTab === 'organization') {
             fetchOrganization();
             fetchInvitations();
+            fetchTeamMembers();
         }
     }, [activeTab, setOrganization]);
+
+    // Fetch team members
+    const fetchTeamMembers = async () => {
+        try {
+            const response = await organizationsApi.getMembers();
+            setTeamMembers(response.data.members || []);
+        } catch (error) {
+            console.error('Failed to fetch team members:', error);
+        }
+    };
 
     // Fetch invitations
     const fetchInvitations = async () => {
@@ -599,27 +630,37 @@ export default function Settings() {
                                 </div>
                                 <div className="p-6">
                                     <div className="space-y-3">
-                                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10">
-                                            <div className="flex items-center gap-3">
-                                                {user?.profile_photo ? (
-                                                    <img src={user.profile_photo} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-medium">
-                                                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                        {teamMembers.map((member) => (
+                                            <div key={member.id} className={clsx(
+                                                "flex items-center justify-between p-4 rounded-xl border",
+                                                member.is_current_user
+                                                    ? "bg-gradient-to-r from-primary/5 to-blue-50 border-primary/10"
+                                                    : "bg-gray-50 border-gray-100"
+                                            )}>
+                                                <div className="flex items-center gap-3">
+                                                    {member.profile_photo ? (
+                                                        <img src={member.profile_photo} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white font-medium">
+                                                            {member.name?.charAt(0)?.toUpperCase() || 'U'}
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <p className="font-medium text-text-primary">{member.name}</p>
+                                                        <p className="text-sm text-text-secondary">{member.email}</p>
                                                     </div>
-                                                )}
-                                                <div>
-                                                    <p className="font-medium text-text-primary">{user?.name}</p>
-                                                    <p className="text-sm text-text-secondary">{user?.email}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={clsx(
+                                                        "px-3 py-1 rounded-full text-xs font-medium",
+                                                        member.role === 'admin' ? "bg-primary/15 text-primary" : "bg-gray-200 text-gray-600"
+                                                    )}>
+                                                        {member.role?.charAt(0).toUpperCase() + member.role?.slice(1)}
+                                                    </span>
+                                                    {member.is_current_user && <span className="text-xs text-text-muted">You</span>}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/15 text-primary">
-                                                    {user?.role === 'admin' ? 'Admin' : user?.role}
-                                                </span>
-                                                <span className="text-xs text-text-muted">You</span>
-                                            </div>
-                                        </div>
+                                        ))}
 
                                         {/* Pending Invitations */}
                                         {invitations.filter(inv => inv.status === 'pending').length > 0 && (
@@ -939,7 +980,133 @@ export default function Settings() {
                 )}
 
                 {activeTab === 'ai' && <AIConfigurationSection />}
+
+                {/* Help & Support Tab */}
+                {activeTab === 'help' && (
+                    <div className="space-y-6 max-w-3xl">
+                        {/* Platform Tour Card */}
+                        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+                            <div className="flex items-start gap-4">
+                                <div className="p-3 bg-white/20 rounded-xl">
+                                    <RocketLaunchIcon className="h-8 w-8" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-bold mb-2">Platform Tour</h3>
+                                    <p className="text-white/90 mb-4">
+                                        New to RFP Pro? Take an interactive tour to learn how our AI-powered platform
+                                        helps you create winning proposals.
+                                    </p>
+                                    <button
+                                        onClick={handleStartTour}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-all"
+                                    >
+                                        <RocketLaunchIcon className="h-5 w-5" />
+                                        Start Platform Tour
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Documentation Card */}
+                        <div className="bg-surface rounded-xl border border-border">
+                            <div className="p-6 border-b border-border">
+                                <h2 className="text-lg font-semibold text-text-primary">Documentation & Resources</h2>
+                                <p className="text-sm text-text-secondary mt-1">Learn how to use RFP Pro effectively</p>
+                            </div>
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Link
+                                    to="/projects"
+                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                                            <BookOpenIcon className="h-5 w-5 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">Getting Started Guide</p>
+                                            <p className="text-sm text-text-secondary">Create your first project</p>
+                                        </div>
+                                    </div>
+                                </Link>
+                                <button
+                                    onClick={() => {
+                                        handleStartTour();
+                                    }}
+                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group text-left"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                                            <CogIcon className="h-5 w-5 text-green-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">AI Agents Overview</p>
+                                            <p className="text-sm text-text-secondary">See our 27 AI agents in action</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <Link
+                                    to="/knowledge"
+                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                                            <FolderIcon className="h-5 w-5 text-purple-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">Knowledge Base Tips</p>
+                                            <p className="text-sm text-text-secondary">Upload and manage content</p>
+                                        </div>
+                                    </div>
+                                </Link>
+                                <button
+                                    onClick={() => {
+                                        toast.success('FAQ section coming soon!');
+                                    }}
+                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group text-left"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                                            <QuestionMarkCircleIcon className="h-5 w-5 text-orange-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">FAQ</p>
+                                            <p className="text-sm text-text-secondary">Common questions answered</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Contact Support Card */}
+                        <div className="bg-surface rounded-xl border border-border">
+                            <div className="p-6 border-b border-border">
+                                <h2 className="text-lg font-semibold text-text-primary">Need Help?</h2>
+                                <p className="text-sm text-text-secondary mt-1">Our support team is here to assist you</p>
+                            </div>
+                            <div className="p-6">
+                                <a
+                                    href="mailto:support@rfppro.com?subject=RFP Pro Support Request"
+                                    className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all"
+                                >
+                                    <EnvelopeIcon className="h-6 w-6 text-blue-600" />
+                                    <div className="flex-1">
+                                        <p className="font-medium text-text-primary">Email Support</p>
+                                        <p className="text-sm text-blue-600">support@rfppro.com</p>
+                                    </div>
+                                    <span className="px-4 py-2 bg-white text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary hover:text-white transition-colors">Contact</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {/* Platform Tour Modal */}
+            <PlatformTour
+                isOpen={showTour}
+                onClose={() => setShowTour(false)}
+                onComplete={handleTourComplete}
+            />
         </div>
     );
 }

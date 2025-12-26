@@ -24,15 +24,42 @@ interface RFPAnalysis {
         timeline_mentions: string[];
     };
     suggested_sections: Array<{
-        section_type_id: number;
+        section_type_id: number | null;
         section_type_slug: string;
         section_type_name: string;
         icon: string;
         reason: string;
         selected: boolean;
+        questions_count?: number;
+        is_narrative_only?: boolean;
     }>;
+    // NEW: Comprehensive section mappings with questions
+    section_mappings?: Array<{
+        section_id: string;
+        section_name: string;
+        questions: Array<{
+            id: number;
+            text: string;
+            original_reference?: string;
+            intent?: string;
+        }>;
+        is_narrative_only: boolean;
+        narrative_note?: string;
+    }>;
+    // NEW: Alignment validation summary
+    alignment_summary?: {
+        total_questions: number;
+        total_sections: number;
+        validation?: {
+            is_valid: boolean;
+            coverage_percentage: number;
+            sections_with_questions: number;
+            narrative_only_sections: number;
+        };
+    };
     questions_extracted: number;
 }
+
 
 interface RFPAnalysisModalProps {
     documentId: number;
@@ -166,12 +193,25 @@ export default function RFPAnalysisModal({
                             {/* Summary */}
                             <div className="bg-success-light/20 rounded-lg p-4 flex items-start gap-3">
                                 <CheckCircleIcon className="h-6 w-6 text-success flex-shrink-0" />
-                                <div>
+                                <div className="flex-1">
                                     <p className="font-medium text-text-primary">Analysis Complete</p>
                                     <p className="text-sm text-text-secondary">
-                                        Found {analysis.questions_extracted} questions and
-                                        {' '}{analysis.analysis.themes?.length || 0} key themes
+                                        Found {analysis.alignment_summary?.total_questions || analysis.questions_extracted} questions mapped to{' '}
+                                        {analysis.alignment_summary?.total_sections || analysis.suggested_sections.length} sections
                                     </p>
+                                    {analysis.alignment_summary?.validation && (
+                                        <div className="flex gap-4 mt-2 text-xs">
+                                            <span className="text-success">
+                                                {analysis.alignment_summary.validation.coverage_percentage}% coverage
+                                            </span>
+                                            <span className="text-text-muted">
+                                                {analysis.alignment_summary.validation.sections_with_questions} sections with questions
+                                            </span>
+                                            <span className="text-text-muted">
+                                                {analysis.alignment_summary.validation.narrative_only_sections} narrative-only
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -194,33 +234,47 @@ export default function RFPAnalysisModal({
                                 </div>
                             )}
 
-                            {/* Suggested Sections */}
+                            {/* Suggested Sections with Question Counts */}
                             <div>
                                 <h4 className="text-sm font-medium text-text-secondary mb-3">
                                     Recommended Proposal Sections
                                 </h4>
-                                <div className="space-y-2">
-                                    {analysis.suggested_sections.map(section => (
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                    {analysis.suggested_sections.map((section, idx) => (
                                         <label
-                                            key={section.section_type_id}
+                                            key={section.section_type_id || `section-${idx}`}
                                             className={clsx(
                                                 'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all',
-                                                selectedSections.includes(section.section_type_id)
+                                                section.section_type_id && selectedSections.includes(section.section_type_id)
                                                     ? 'border-primary bg-primary-light/50'
-                                                    : 'border-border hover:border-gray-300'
+                                                    : 'border-border hover:border-gray-300',
+                                                section.is_narrative_only && 'opacity-75'
                                             )}
                                         >
                                             <input
                                                 type="checkbox"
-                                                checked={selectedSections.includes(section.section_type_id)}
-                                                onChange={() => toggleSection(section.section_type_id)}
+                                                checked={section.section_type_id ? selectedSections.includes(section.section_type_id) : false}
+                                                onChange={() => section.section_type_id && toggleSection(section.section_type_id)}
+                                                disabled={!section.section_type_id}
                                                 className="h-4 w-4 text-primary rounded"
                                             />
                                             <span className="text-xl">{section.icon}</span>
                                             <div className="flex-1">
-                                                <p className="font-medium text-text-primary">
-                                                    {section.section_type_name}
-                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-text-primary">
+                                                        {section.section_type_name}
+                                                    </p>
+                                                    {section.questions_count !== undefined && section.questions_count > 0 && (
+                                                        <span className="px-2 py-0.5 bg-primary text-white text-xs rounded-full">
+                                                            {section.questions_count} Q
+                                                        </span>
+                                                    )}
+                                                    {section.is_narrative_only && (
+                                                        <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded-full">
+                                                            Narrative
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-text-muted">
                                                     {section.reason}
                                                 </p>
@@ -251,6 +305,7 @@ export default function RFPAnalysisModal({
 
                     {step === 'building' && (
                         <div className="text-center py-12">
+
                             <div className="relative h-16 w-16 mx-auto mb-6">
                                 <ArrowPathIcon className="h-16 w-16 animate-spin text-primary" />
                                 <SparklesIcon className="h-6 w-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary" />

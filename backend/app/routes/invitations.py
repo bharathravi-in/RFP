@@ -94,15 +94,33 @@ def create_invitation():
     db.session.add(invitation)
     db.session.commit()
     
-    # TODO: Send invitation email here
-    # For now, we'll just return the invitation with the token
-    # In production, you'd send an email with a link like:
-    # {frontend_url}/accept-invite?token={invitation.token}
+    # Send invitation email
+    from flask import current_app
+    from app.services.email_service import get_email_service
+    
+    frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
+    invite_link = f"{frontend_url}/accept-invite?token={invitation.token}"
+    
+    email_sent = False
+    try:
+        email_service = get_email_service()
+        email_sent = email_service.send_team_invitation(
+            to=email,
+            inviter_name=user.name,
+            organization_name=user.organization.name,
+            role=role,
+            invite_link=invite_link
+        )
+    except Exception as e:
+        # Log error but don't fail the invitation creation
+        import logging
+        logging.error(f"Failed to send invitation email: {e}")
     
     return jsonify({
         'message': 'Invitation sent successfully',
         'invitation': invitation.to_dict(),
-        'invite_link': f'/accept-invite?token={invitation.token}'  # For demo purposes
+        'invite_link': invite_link,
+        'email_sent': email_sent
     }), 201
 
 

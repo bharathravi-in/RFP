@@ -283,6 +283,15 @@ def update_section(project_id, section_id):
     if 'flags' in data:
         section.flags = data['flags']
     
+    # Workflow fields
+    if 'assigned_to' in data:
+        section.assigned_to = data['assigned_to']
+    if 'due_date' in data:
+        from datetime import datetime as dt
+        section.due_date = dt.fromisoformat(data['due_date']) if data['due_date'] else None
+    if 'priority' in data:
+        section.priority = data['priority']
+    
     section.updated_at = datetime.utcnow()
     db.session.commit()
     
@@ -321,6 +330,83 @@ def reorder_sections(project_id):
     db.session.commit()
     
     return jsonify({'message': 'Sections reordered'})
+
+
+@bp.route('/sections/<int:section_id>/comments', methods=['POST'])
+@jwt_required()
+def add_section_comment(section_id):
+    """Add a comment to a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    text = data.get('text', '').strip()
+    
+    if not text:
+        return jsonify({'error': 'Comment text is required'}), 400
+    
+    # Create comment object
+    comment = {
+        'id': len(section.comments or []) + 1,
+        'user_id': user_id,
+        'user_name': user.name,
+        'text': text,
+        'created_at': datetime.utcnow().isoformat(),
+    }
+    
+    # Add to comments array
+    comments = section.comments or []
+    comments.append(comment)
+    section.comments = comments
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment added',
+        'comment': comment,
+        'comments': section.comments,
+    }), 201
+
+
+@bp.route('/sections/<int:section_id>/comments/<int:comment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_section_comment(section_id, comment_id):
+    """Delete a comment from a section"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Find and remove comment
+    comments = section.comments or []
+    original_len = len(comments)
+    comments = [c for c in comments if c.get('id') != comment_id]
+    
+    if len(comments) == original_len:
+        return jsonify({'error': 'Comment not found'}), 404
+    
+    section.comments = comments
+    section.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Comment deleted',
+        'comments': section.comments,
+    })
 
 
 # ============================================================
@@ -487,7 +573,7 @@ def chat_for_section():
         print(f"Error searching knowledge: {e}")
     
     # Build the prompt for the AI
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     
     # Build system context
     system_context = f"""You are an AI assistant helping to create proposal content.
@@ -560,6 +646,10 @@ def generate_section_content(section_id):
     inputs = {**section.inputs, **data.get('inputs', {})}
     generation_params = {**section.ai_generation_params, **data.get('generation_params', {})}
     
+    # Special handling for diagram section types
+    if section_type.template_type == 'diagram':
+        return generate_diagram_section(section, project, user)
+    
     # Retrieve context from knowledge base with project dimension filtering
     from app.services.qdrant_service import get_qdrant_service
     qdrant = get_qdrant_service(user.organization_id)
@@ -592,7 +682,7 @@ def generate_section_content(section_id):
         print(f"Error retrieving context: {e}")
     
     # Generate content
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     result = generator.generate_section_content(
         section_type_slug=section_type.slug,
         prompt_template=section_type.default_prompt or '',
@@ -600,6 +690,83 @@ def generate_section_content(section_id):
         context=context,
         generation_params=generation_params,
     )
+    
+    # Post-process: Replace common placeholders with actual values
+    content = result['content']
+    
+    # Get company name from organization
+    organization = user.organization
+    company_name = organization.name if organization else 'Our Company'
+    
+    # Get vendor profile for additional company info
+    vendor_profile = {}
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        if vendor_profile.get('company_name'):
+            company_name = vendor_profile['company_name']
+    
+    # Replace common placeholders
+    placeholder_replacements = {
+        # Company name variations
+        '[Company Name]': company_name,
+        '[company name]': company_name,
+        '[COMPANY NAME]': company_name,
+        '[Your Company Name]': company_name,
+        '[Your Company]': company_name,
+        '[Our Company]': company_name,
+        '[Our Company Name]': company_name,
+        '[Vendor Name]': company_name,
+        '{{company_name}}': company_name,
+        '{{Company_Name}}': company_name,
+        '{{organization_name}}': company_name,
+        # Client/Project name variations
+        '[Client Name]': project.client_name or project.name or 'the client',
+        '[CLIENT NAME]': project.client_name or project.name or 'the client',
+        '[Client Contact Name]': project.client_name or 'the client representative',
+        '[Client Contact Name/Client Name]': project.client_name or project.name or 'the client',
+        '[Project Name]': project.name or 'this project',
+        '[PROJECT NAME]': project.name or 'this project',
+        '{{project_name}}': project.name or 'this project',
+        '{{Project_Name}}': project.name or 'this project',
+        # RFP references
+        '[RFP Title/Number]': project.name or 'this RFP',
+        '[RFP Title]': project.name or 'this RFP',
+        '[RFP Number]': project.name or 'this RFP',
+        '{{rfp_title}}': project.name or 'this RFP',
+        # Vendor profile info
+        '[Your Industry/Core Expertise]': vendor_profile.get('industry', 'technology solutions'),
+        '[Your Title]': 'Proposal Manager',
+        '[Your Name]': vendor_profile.get('contact_name', 'The Proposal Team'),
+        '[Number]': str(vendor_profile.get('years_in_business', '10+')),
+        '{{years_in_business}}': str(vendor_profile.get('years_in_business', '10+')),
+        # Date placeholder
+        '{{current_date}}': datetime.utcnow().strftime('%B %d, %Y'),
+    }
+    
+    for placeholder, value in placeholder_replacements.items():
+        content = content.replace(placeholder, value)
+    
+    # Comprehensive regex-based cleanup for remaining placeholders
+    import re
+    
+    # Remove instruction-like brackets [briefly mention...], [e.g., ...]
+    content = re.sub(r'\[briefly\s+[^\]]+\]', '', content)
+    content = re.sub(r'\[mention\s+[^\]]+\]', '', content)
+    content = re.sub(r'\[e\.g\.,?\s*[^\]]+\]', '', content)
+    content = re.sub(r'\[insert\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\[add\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\[include\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    
+    # Replace remaining {{...}} template variables with empty or generic text
+    content = re.sub(r'\{\{[^}]+\}\}', '', content)
+    
+    # Replace remaining [Something Name] patterns that look like placeholders
+    content = re.sub(r'\[Your [^\]]+\]', company_name, content)
+    content = re.sub(r'\[Our [^\]]+\]', company_name, content)
+    
+    result['content'] = content
+
+
     
     # Update section
     section.content = result['content']
@@ -619,6 +786,95 @@ def generate_section_content(section_id):
     })
 
 
+def generate_diagram_section(section, project, user):
+    """Generate a diagram section using DiagramGeneratorAgent"""
+    from app.agents import DiagramGeneratorAgent
+    from app.models import Document
+    
+    # Get RFP document text from project
+    documents = Document.query.filter_by(project_id=project.id).all()
+    
+    if not documents:
+        return jsonify({'error': 'No documents found for this project. Please upload an RFP document first.'}), 400
+    
+    # Combine document text
+    document_text = ""
+    for doc in documents:
+        if doc.extracted_text:
+            document_text += doc.extracted_text + "\n\n"
+    
+    if not document_text.strip():
+        return jsonify({'error': 'No text content found in project documents. Please ensure documents have been processed.'}), 400
+    
+    # Generate diagram
+    agent = DiagramGeneratorAgent(org_id=user.organization_id)
+    result = agent.generate_diagram(document_text, diagram_type='architecture')
+    
+    if not result.get('success'):
+        return jsonify({'error': result.get('error', 'Failed to generate diagram')}), 500
+    
+    diagram = result.get('diagram', {})
+    
+    # Extract values to avoid backslash in f-string
+    description = diagram.get('description', 'System architecture for the proposed solution.')
+    mermaid_code = diagram.get('mermaid_code', 'flowchart TB\n    A[System] --> B[Component]')
+    notes = diagram.get('notes', 'The architecture diagram above shows the key components of the proposed solution and how they interact with each other.')
+    
+    # Build section content with mermaid diagram and explanation
+    content = f"""## Architecture Overview
+
+{description}
+
+## System Architecture Diagram
+
+```mermaid
+{mermaid_code}
+```
+
+## Component Descriptions
+
+{notes}
+
+## Key Components
+
+"""
+    # Add components if available
+    components = diagram.get('components', [])
+    for comp in components:
+        content += f"- **{comp}**\n"
+    
+    # Update section
+    section.content = content
+    section.confidence_score = 0.85
+    section.sources = [{'type': 'ai_generated', 'title': 'DiagramGeneratorAgent'}]
+    section.flags = []
+    section.status = 'generated'
+    section.version += 1
+    section.updated_at = datetime.utcnow()
+    
+    # Store diagram metadata in inputs for later use
+    section.inputs = {
+        **section.inputs,
+        'diagram_data': {
+            'mermaid_code': diagram.get('mermaid_code', ''),
+            'title': diagram.get('title', ''),
+            'description': diagram.get('description', ''),
+        }
+    }
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Architecture diagram generated',
+        'section': section.to_dict(),
+        'generation_result': {
+            'content': content,
+            'diagram': diagram,
+            'confidence_score': 0.85,
+        },
+    })
+
+
 @bp.route('/sections/<int:section_id>/regenerate', methods=['POST'])
 @jwt_required()
 def regenerate_section(section_id):
@@ -634,7 +890,7 @@ def regenerate_section(section_id):
     feedback = data.get('feedback', '')
     
     # Use regenerate with feedback
-    generator = get_section_generator()
+    generator = get_section_generator(org_id=user.organization_id)
     from app.services.qdrant_service import get_qdrant_service
     qdrant = get_qdrant_service(user.organization_id)
     project = section.project
@@ -666,6 +922,36 @@ def regenerate_section(section_id):
         section_type_slug=section.section_type.slug,
         context=context,
     )
+    
+    # Post-process: Replace common placeholders with actual values
+    content = result['content']
+    organization = user.organization
+    company_name = organization.name if organization else 'Our Company'
+    
+    # Get vendor profile for additional company info
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        if vendor_profile.get('company_name'):
+            company_name = vendor_profile['company_name']
+    
+    # Replace common placeholders
+    placeholder_replacements = {
+        '[Company Name]': company_name,
+        '[company name]': company_name,
+        '[COMPANY NAME]': company_name,
+        '{{company_name}}': company_name,
+        '[Your Company]': company_name,
+        '[Our Company]': company_name,
+        '[Vendor Name]': company_name,
+        '[Client Name]': project.client_name or 'the client',
+        '[CLIENT NAME]': project.client_name or 'the client',
+        '[Project Name]': project.name or 'this project',
+    }
+    
+    for placeholder, value in placeholder_replacements.items():
+        content = content.replace(placeholder, value)
+    
+    result['content'] = content
     
     section.content = result['content']
     section.confidence_score = result['confidence_score']
@@ -904,8 +1190,20 @@ def export_proposal(project_id):
         filename = f'{project.name.replace(" ", "_")}_proposal.xlsx'
         mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     else:
-        # Pass organization for vendor visibility section
-        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization)
+        # Check for default DOCX template
+        import os
+        from app.models import ExportTemplate
+        template_path = None
+        template = ExportTemplate.query.filter_by(
+            organization_id=user.organization_id,
+            template_type='docx',
+            is_default=True
+        ).first()
+        if template and os.path.exists(template.file_path):
+            template_path = template.file_path
+        
+        # Pass organization and template for vendor visibility section
+        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization, template_path)
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     

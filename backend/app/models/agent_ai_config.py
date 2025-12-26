@@ -20,10 +20,15 @@ class AgentAIConfig(db.Model):
     agent_type = db.Column(db.String(50), nullable=False)  # 'default', 'rfp_analysis', 'ppt_generation', etc.
     
     # Provider configuration
-    provider = db.Column(db.String(50), nullable=False)  # google, openai, azure, anthropic, custom
+    provider = db.Column(db.String(50), nullable=False)  # google, openai, azure, litellm, custom
     model = db.Column(db.String(200), nullable=False)    # FREE TEXT - any model name
     api_key = db.Column(db.Text, nullable=True)          # Encrypted, optional if using default
     api_endpoint = db.Column(db.String(255), nullable=True)  # For Azure/custom endpoints
+    
+    # LiteLLM specific configuration
+    base_url = db.Column(db.String(500), nullable=True)  # LiteLLM proxy URL
+    temperature = db.Column(db.Float, default=0.7)       # Generation temperature
+    max_tokens = db.Column(db.Integer, default=4096)     # Max tokens to generate
     
     # Key management
     use_default_key = db.Column(db.Boolean, default=True)  # Use organization's default API key
@@ -93,6 +98,9 @@ class AgentAIConfig(db.Model):
             'provider': self.provider,
             'model': self.model,
             'api_endpoint': self.api_endpoint,
+            'base_url': self.base_url,
+            'temperature': self.temperature,
+            'max_tokens': self.max_tokens,
             'use_default_key': self.use_default_key,
             'config_metadata': self.config_metadata,
             'is_active': self.is_active,

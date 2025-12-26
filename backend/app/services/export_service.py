@@ -61,6 +61,64 @@ def setup_document_styles(doc):
         pass
 
 
+def safe_add_heading(doc, text, level=1):
+    """
+    Safely add a heading, falling back to manual styling if style doesn't exist.
+    This handles templates that may lack standard Word heading styles.
+    """
+    try:
+        return doc.add_heading(text, level)
+    except KeyError:
+        # Fallback: create paragraph with manual heading styling
+        para = doc.add_paragraph()
+        run = para.add_run(text)
+        
+        if level == 0:  # Title
+            run.font.size = Pt(28)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(31, 73, 125)
+        elif level == 1:
+            run.font.size = Pt(18)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(31, 73, 125)
+        elif level == 2:
+            run.font.size = Pt(14)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(54, 95, 145)
+        else:
+            run.font.size = Pt(12)
+            run.font.bold = True
+        
+        run.font.name = 'Calibri'
+        return para
+
+
+def safe_add_paragraph(doc, text='', style=None):
+    """
+    Safely add a paragraph with optional style, falling back to manual styling if style doesn't exist.
+    This handles templates that may lack standard Word paragraph styles.
+    """
+    try:
+        if style:
+            para = doc.add_paragraph(text, style=style)
+        else:
+            para = doc.add_paragraph(text)
+        return para
+    except KeyError:
+        # Fallback: create paragraph without style, apply manual formatting
+        para = doc.add_paragraph()
+        if text:
+            run = para.add_run(text)
+            run.font.name = 'Calibri'
+            run.font.size = Pt(11)
+            # Add bullet character for list styles
+            if style and 'bullet' in style.lower():
+                run.text = '• ' + text
+            elif style and 'number' in style.lower():
+                run.text = text
+        return para
+
+
 def add_document_header(doc, project_name, organization_name=None):
     """
     Add professional header with company name and project to all pages.
@@ -127,10 +185,72 @@ def style_table(table):
                 cell._tc.get_or_add_tcPr().append(shading)
 
 
+def add_revision_history_table(doc, project, organization=None):
+    """
+    Add a revision history table to the document for professional tracking.
+    
+    Args:
+        doc: Document object
+        project: Project model instance
+        organization: Organization model instance
+    """
+    # Revision History heading
+    heading = doc.add_heading('Revision History', level=2)
+    heading.runs[0].font.color.rgb = RGBColor(75, 0, 130)
+    
+    # Create revision table
+    table = doc.add_table(rows=1, cols=4)
+    table.style = 'Table Grid'
+    
+    # Header row
+    header_cells = table.rows[0].cells
+    headers = ['Version', 'Date', 'Author', 'Description']
+    for i, header in enumerate(headers):
+        header_cells[i].text = header
+        header_cells[i].paragraphs[0].runs[0].font.bold = True
+        header_cells[i].paragraphs[0].runs[0].font.size = Pt(10)
+        # Add header background
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), '4B0082')  # Indigo
+        header_cells[i]._tc.get_or_add_tcPr().append(shading)
+        header_cells[i].paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+    
+    # Get version info
+    version_number = getattr(project, 'version', 1) or 1
+    current_date = datetime.now()
+    
+    # Get author name
+    author_name = 'Proposal Team'
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        author_name = vendor_profile.get('contact_name', 'Proposal Team')
+    
+    # Add current version row
+    row = table.add_row()
+    row.cells[0].text = f'{version_number}.0'
+    row.cells[1].text = current_date.strftime('%Y-%m-%d')
+    row.cells[2].text = author_name
+    row.cells[3].text = 'Initial proposal submission'
+    
+    # Style all cells
+    for cell in row.cells:
+        cell.paragraphs[0].runs[0].font.size = Pt(10) if cell.paragraphs[0].runs else None
+    
+    # Add a previous version placeholder if version > 1
+    if version_number > 1:
+        prev_row = table.add_row()
+        prev_row.cells[0].text = f'{version_number - 1}.0'
+        prev_row.cells[1].text = (current_date.replace(day=max(1, current_date.day - 7))).strftime('%Y-%m-%d')
+        prev_row.cells[2].text = author_name
+        prev_row.cells[3].text = 'Draft revision'
+    
+    doc.add_paragraph()  # Spacing after table
+
+
 def add_markdown_to_doc(doc, content):
     """
     Convert markdown content to Word document formatting.
-    Handles: headers, bold, italic, lists, and paragraphs.
+    Handles: headers, bold, italic, lists, code blocks, and paragraphs.
     """
     if not content:
         return
@@ -138,6 +258,9 @@ def add_markdown_to_doc(doc, content):
     lines = content.split('\n')
     current_list_items = []
     is_in_list = False
+    is_in_code_block = False
+    code_block_content = []
+    code_block_language = ''
     
     def flush_list():
         nonlocal current_list_items, is_in_list
@@ -145,7 +268,7 @@ def add_markdown_to_doc(doc, content):
             for item in current_list_items:
                 # Remove list markers
                 clean_item = re.sub(r'^[\*\-]\s*|^\d+\.\s*', '', item)
-                para = doc.add_paragraph(style='List Bullet')
+                para = safe_add_paragraph(doc, style='List Bullet')
                 add_formatted_text(para, clean_item)
             current_list_items = []
             is_in_list = False
@@ -187,6 +310,64 @@ def add_markdown_to_doc(doc, content):
     
     for line in lines:
         stripped = line.strip()
+        
+        # Handle code blocks (including mermaid) - check both original and stripped line
+        if stripped.startswith('```') or line.lstrip().startswith('```'):
+            if is_in_code_block:
+                # End of code block
+                flush_list()
+                if code_block_language == 'mermaid':
+                    # For mermaid, render the diagram as an image
+                    mermaid_code = '\n'.join(code_block_content)
+                    try:
+                        from .mermaid_service import render_mermaid_to_bytes_io
+                        diagram_buffer = render_mermaid_to_bytes_io(mermaid_code)
+                        if diagram_buffer:
+                            # Add the diagram image to the document
+                            doc.add_picture(diagram_buffer, width=Inches(5.5))
+                            # Add caption
+                            caption_para = doc.add_paragraph()
+                            caption_run = caption_para.add_run('Figure: Architecture Diagram')
+                            caption_run.italic = True
+                            caption_run.font.size = Pt(10)
+                            caption_run.font.color.rgb = RGBColor(100, 100, 100)
+                            caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        else:
+                            # Fallback: Add placeholder text if rendering failed
+                            para = doc.add_paragraph()
+                            run = para.add_run('[Diagram could not be rendered - see web application]')
+                            run.italic = True
+                            run.font.size = Pt(10)
+                            run.font.color.rgb = RGBColor(100, 100, 100)
+                    except Exception as e:
+                        # Error handling: Add placeholder text
+                        para = doc.add_paragraph()
+                        run = para.add_run(f'[Diagram rendering error - see web application]')
+                        run.italic = True
+                        run.font.size = Pt(10)
+                        run.font.color.rgb = RGBColor(100, 100, 100)
+                elif code_block_content:
+                    # For other non-empty code blocks, add as monospace text
+                    para = doc.add_paragraph()
+                    code_text = '\n'.join(code_block_content)
+                    run = para.add_run(code_text)
+                    run.font.name = 'Courier New'
+                    run.font.size = Pt(9)
+                code_block_content = []
+                is_in_code_block = False
+                code_block_language = ''
+            else:
+                # Start of code block - extract language
+                flush_list()
+                is_in_code_block = True
+                # Get the part after ```
+                lang_part = stripped[3:] if stripped.startswith('```') else line.lstrip()[3:]
+                code_block_language = lang_part.strip().lower()
+            continue
+        
+        if is_in_code_block:
+            code_block_content.append(line)
+            continue
         
         # Skip empty lines
         if not stripped:
@@ -454,7 +635,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
         certifications = ['SOC 2 Type II', 'ISO 27001', 'GDPR Compliant']
     
     for cert in certifications:
-        cert_para = doc.add_paragraph(style='List Bullet')
+        cert_para = safe_add_paragraph(doc, style='List Bullet')
         cert_run = cert_para.add_run(f'✓ {cert}')
         cert_run.font.size = Pt(10)
     
@@ -476,7 +657,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
     industries_run.font.size = Pt(10)
     
     for industry in industries:
-        ind_para = doc.add_paragraph(style='List Bullet')
+        ind_para = safe_add_paragraph(doc, style='List Bullet')
         ind_run = ind_para.add_run(industry)
         ind_run.font.size = Pt(10)
     
@@ -498,14 +679,14 @@ def add_vendor_visibility_section(doc, project, organization=None):
     geo_run.font.size = Pt(10)
     
     for geo in geographies:
-        geo_item = doc.add_paragraph(style='List Bullet')
+        geo_item = safe_add_paragraph(doc, style='List Bullet')
         geo_item_run = geo_item.add_run(geo)
         geo_item_run.font.size = Pt(10)
     
     doc.add_page_break()
 
 
-def generate_proposal_docx(project, sections, include_qa=True, questions=None, organization=None):
+def generate_proposal_docx(project, sections, include_qa=True, questions=None, organization=None, template_path=None):
     """
     Generate a full proposal DOCX with all sections.
     
@@ -515,18 +696,47 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
         include_qa: Whether to include Q&A section
         questions: List of Question model instances (if include_qa is True)
         organization: Organization model instance for vendor profile
+        template_path: Optional path to DOCX template file to use as base
     
     Returns:
         BytesIO buffer containing the DOCX file
     """
-    doc = Document()
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # ========================================
-    # ENTERPRISE FORMATTING SETUP
-    # ========================================
+    # Track if we're using a template (affects style handling)
+    using_template = False
     
-    # Apply professional styles and margins
-    setup_document_styles(doc)
+    # Load template or create new document
+    if template_path and os.path.exists(template_path):
+        try:
+            doc = Document(template_path)
+            logger.info(f"Using DOCX template: {template_path}")
+            using_template = True
+            # Clear existing content from template but keep styles and section properties
+            # We must preserve sectPr elements for table width calculations
+            from docx.oxml.ns import qn
+            for element in doc.element.body[:]:
+                # Don't remove sectPr (section properties) - needed for page layout/table widths
+                if element.tag != qn('w:sectPr'):
+                    doc.element.body.remove(element)
+            # Ensure required styles exist (some templates may lack them)
+            try:
+                setup_document_styles(doc)
+            except Exception as style_err:
+                logger.warning(f"Could not setup styles on template: {style_err}")
+        except Exception as e:
+            logger.warning(f"Failed to load template {template_path}: {e}, using blank document")
+            doc = Document()
+            setup_document_styles(doc)
+    else:
+        doc = Document()
+        # ========================================
+        # ENTERPRISE FORMATTING SETUP
+        # ========================================
+        # Apply professional styles and margins
+        setup_document_styles(doc)
     
     # Get organization name for headers
     org_name = None
@@ -557,7 +767,7 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     doc.add_paragraph()
     
     # Main Title
-    title = doc.add_heading(project.name, 0)
+    title = safe_add_heading(doc, project.name, 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     # Subtitle
@@ -672,10 +882,19 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     doc.add_page_break()
     
     # ========================================
+    # REVISION HISTORY TABLE
+    # ========================================
+    
+    add_revision_history_table(doc, project, organization)
+    
+    doc.add_page_break()
+    
+    # ========================================
     # VENDOR VISIBILITY SECTION
     # ========================================
     
     add_vendor_visibility_section(doc, project, organization)
+
     
     # ========================================
     # PROPOSAL SECTIONS

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { sectionsApi, questionsApi } from '@/api/client';
+import { sectionsApi, questionsApi, usersApi } from '@/api/client';
 import { RFPSection, Question } from '@/types';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -16,17 +16,21 @@ import {
     ChatBubbleLeftRightIcon,
     PlusIcon,
     ClockIcon,
+    Cog8ToothIcon,
 } from '@heroicons/react/24/outline';
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
 import SectionAIChatSidebar from '@/components/sections/SectionAIChatSidebar';
 import SectionHistory from '@/components/sections/SectionHistory';
+import SectionDetailsSidebar from '@/components/sections/SectionDetailsSidebar';
 import { ConfidenceIndicator } from '@/components/ai';
 import {
     NarrativeEditor,
     TableEditor,
     CardEditor,
     TechnicalEditor,
+    TimelineEditor,
+    ComplianceMatrixEditor,
 } from '@/components/editors';
 
 interface SectionEditorProps {
@@ -44,6 +48,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
     const [showAIChatPanel, setShowAIChatPanel] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [showDetailsSidebar, setShowDetailsSidebar] = useState(false);
 
     // Q&A Section state
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -57,6 +62,12 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
 
     // Related Questions panel state
     const [showRelatedQuestions, setShowRelatedQuestions] = useState(true);
+
+    // Knowledge Sources panel state
+    const [showSources, setShowSources] = useState(false);
+
+    // Users for assignee dropdown
+    const [orgUsers, setOrgUsers] = useState<{ id: number; name: string; email: string }[]>([]);
 
     // Category-to-section mapping - EXCLUSIVE matching
     // Backend AI categories: security, compliance, technical, pricing, legal, product, support, integration, general
@@ -142,6 +153,19 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
             setLoadingQuestions(false);
         }
     };
+
+    // Load org users for assignee dropdown
+    useEffect(() => {
+        const loadUsers = async () => {
+            try {
+                const response = await usersApi.list();
+                setOrgUsers(response.data.users || []);
+            } catch (error) {
+                console.error('Failed to load users:', error);
+            }
+        };
+        loadUsers();
+    }, []);
 
     const handleCreateQuestion = async () => {
         if (!newQuestionText.trim()) {
@@ -295,6 +319,20 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                     description: editorData.description,
                     codeBlocks: editorData.codeBlocks,
                 });
+            } else if (templateType === 'timeline') {
+                // For timeline editor, store as JSON string
+                contentToSave = JSON.stringify({
+                    type: 'timeline',
+                    milestones: editorData.milestones,
+                    style: editorData.style,
+                });
+            } else if (templateType === 'compliance_matrix') {
+                // For compliance matrix editor, store as JSON string
+                contentToSave = JSON.stringify({
+                    type: 'compliance_matrix',
+                    requirements: editorData.requirements,
+                    style: editorData.style,
+                });
             }
 
             const response = await sectionsApi.updateSection(projectId, section.id, {
@@ -320,9 +358,9 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
             return null;
         }
 
-        // Parse content if it's JSON (for table, card, technical)
+        // Parse content if it's JSON (for table, card, technical, timeline, compliance_matrix)
         let parsedContent: any = null;
-        if (['table', 'card', 'technical'].includes(templateType)) {
+        if (['table', 'card', 'technical', 'timeline', 'compliance_matrix'].includes(templateType)) {
             try {
                 parsedContent = JSON.parse(content || '{}');
             } catch {
@@ -382,6 +420,36 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                     <TechnicalEditor
                         description={parsedContent?.description || ''}
                         codeBlocks={parsedContent?.codeBlocks || []}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            case 'timeline':
+                return (
+                    <TimelineEditor
+                        milestones={parsedContent?.milestones || []}
+                        style={parsedContent?.style || 'list'}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            case 'compliance_matrix':
+                return (
+                    <ComplianceMatrixEditor
+                        requirements={parsedContent?.requirements || []}
+                        style={parsedContent?.style || 'table'}
                         onSave={handleEditorSave}
                         onCancel={() => {
                             setContent(section.content || '');
@@ -488,7 +556,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                                     </button>
                                 ) : (
                                     <>
-                                        {templateType !== 'narrative' && templateType !== 'table' && templateType !== 'card' && templateType !== 'technical' ? (
+                                        {templateType !== 'narrative' && templateType !== 'table' && templateType !== 'card' && templateType !== 'technical' && templateType !== 'timeline' && templateType !== 'compliance_matrix' ? (
                                             <>
                                                 <button
                                                     onClick={handleSave}
@@ -947,6 +1015,59 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                             </div>
                         )}
 
+                        {/* Knowledge Sources Panel - Show what docs were used */}
+                        {!isQASection && section.sources && section.sources.length > 0 && (
+                            <div className="mt-6 border-t border-border pt-4">
+                                <button
+                                    onClick={() => setShowSources(!showSources)}
+                                    className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors w-full"
+                                >
+                                    <BookOpenIcon className="h-4 w-4" />
+                                    Sources Used ({section.sources.length})
+                                    <span className={clsx(
+                                        'ml-auto transition-transform',
+                                        showSources ? 'rotate-180' : ''
+                                    )}>
+                                        ▼
+                                    </span>
+                                </button>
+
+                                {showSources && (
+                                    <div className="mt-3 space-y-2">
+                                        <p className="text-xs text-text-muted mb-2">
+                                            This content was generated using the following knowledge sources:
+                                        </p>
+                                        {section.sources.map((source, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="p-3 rounded-lg border border-border bg-gradient-to-r from-purple-50/50 to-violet-50/50"
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <DocumentTextIcon className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-medium text-text-primary truncate">
+                                                            {source.title}
+                                                        </p>
+                                                        {source.snippet && (
+                                                            <p className="text-xs text-text-muted mt-1 line-clamp-2">
+                                                                {source.snippet}
+                                                            </p>
+                                                        )}
+                                                        {source.relevance && (
+                                                            <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-600">
+                                                                <SparklesIcon className="h-3 w-3" />
+                                                                {Math.round(source.relevance * 100)}% relevant
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Section-Specific Questions Panel */}
                         {!isQASection && !isClarificationsSection && sectionQuestions.length > 0 && (
                             <div className="mt-6 border-t border-border pt-4">
@@ -1005,80 +1126,46 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
                 </div>
 
 
-                {/* Right Sidebar - Sources & Flags (only for non-Q&A sections with content) */}
+                {/* Right Sidebar - Section Details (toggled) */}
                 {!isQASection && section.content && (
-                    <div className="w-[280px] border-l border-border bg-surface p-4 overflow-y-auto custom-scrollbar flex-shrink-0">
-                        {/* Flags */}
-                        {section.flags && section.flags.filter((f: any) => typeof f === 'string').length > 0 && (
-                            <div className="mb-6">
-                                <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
-                                    <ExclamationTriangleIcon className="h-4 w-4 text-warning" />
-                                    Review Flags
-                                </h3>
-                                <div className="space-y-2">
-                                    {section.flags.filter((f: any) => typeof f === 'string').map((flag: string, idx: number) => (
-                                        <div
-                                            key={idx}
-                                            className="p-2 rounded-lg bg-warning-light border border-warning-light"
-                                        >
-                                            <p className="text-sm text-warning-dark capitalize">
-                                                {flag.replace(/_/g, ' ')}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
+                    <>
+                        {/* Toggle Button (shown when sidebar is closed) */}
+                        {!showDetailsSidebar && (
+                            <div className="w-12 border-l border-border bg-surface flex flex-col items-center py-4 gap-3">
+                                <button
+                                    onClick={() => setShowDetailsSidebar(true)}
+                                    className="p-2 rounded-lg hover:bg-background transition-colors text-text-muted hover:text-primary"
+                                    title="Section Details"
+                                >
+                                    <Cog8ToothIcon className="h-5 w-5" />
+                                </button>
+                                {section.comments && section.comments.length > 0 && (
+                                    <div className="relative">
+                                        <ChatBubbleLeftRightIcon className="h-5 w-5 text-text-muted" />
+                                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs rounded-full flex items-center justify-center">
+                                            {section.comments.length}
+                                        </span>
+                                    </div>
+                                )}
+                                {section.confidence_score !== null && section.confidence_score !== undefined && (
+                                    <div className="text-xs text-text-muted text-center">
+                                        <SparklesIcon className="h-5 w-5 mx-auto mb-1" />
+                                        <span>{Math.round(section.confidence_score * 100)}%</span>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* AI Confidence Score */}
-                        {section.confidence_score !== null && section.confidence_score !== undefined && (
-                            <div className="mb-6">
-                                <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
-                                    <SparklesIcon className="h-4 w-4" />
-                                    AI Confidence
-                                </h3>
-                                <ConfidenceIndicator
-                                    score={section.confidence_score}
-                                    showExplanation={true}
-                                    size="md"
-                                />
-                            </div>
-                        )}
-
-                        {/* Sources */}
-                        <div className="mb-6">
-                            <h3 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
-                                <BookOpenIcon className="h-4 w-4" />
-                                Sources
-                            </h3>
-                            {section.sources && section.sources.length > 0 ? (
-                                <div className="space-y-2">
-                                    {section.sources.map((source, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="p-2 rounded-lg bg-background"
-                                        >
-                                            <p className="text-sm font-medium text-text-primary">
-                                                {source.title}
-                                            </p>
-                                            <p className="text-xs text-text-muted mt-1">
-                                                Relevance: {Math.round(source.relevance * 100)}%
-                                            </p>
-                                            {source.snippet && (
-                                                <p className="text-xs text-text-secondary mt-1 line-clamp-2">
-                                                    "{source.snippet}"
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-text-muted">
-                                    No sources cited
-                                </p>
-                            )}
-                        </div>
-                    </div>
+                        {/* Section Details Sidebar */}
+                        <SectionDetailsSidebar
+                            section={section}
+                            projectId={projectId}
+                            onUpdate={onUpdate}
+                            onClose={() => setShowDetailsSidebar(false)}
+                            users={orgUsers}
+                            isOpen={showDetailsSidebar}
+                        />
+                    </>
                 )}
 
                 {/* Clarification Questions - Full section if clarifications_questions type */}

@@ -13,8 +13,13 @@ from .document_analyzer_agent import get_document_analyzer_agent
 from .question_extractor_agent import get_question_extractor_agent
 from .knowledge_base_agent import get_knowledge_base_agent
 from .answer_generator_agent import get_answer_generator_agent
-from .clarification_agent import get_clarification_agent  # NEW
+from .answer_validator_agent import get_answer_validator_agent
+from .compliance_checker_agent import get_compliance_checker_agent
+from .clarification_agent import get_clarification_agent
 from .quality_reviewer_agent import get_quality_reviewer_agent
+from .proposal_quality_gate_agent import get_proposal_quality_gate_agent
+from .executive_editor_agent import get_executive_editor_agent
+from .similarity_validator_agent import get_similarity_validator_agent
 
 logger = logging.getLogger(__name__)
 
@@ -28,21 +33,57 @@ class OrchestratorAgent:
     2. Question Extractor → Identifies questions
     3. Knowledge Base → Retrieves context
     4. Answer Generator → Creates draft answers
-    4.5. Clarification Agent → Identifies questions needing clarification (NEW)
-    5. Quality Reviewer → Reviews and validates
+    4.5. Answer Validator → Validates answers against knowledge (NEW)
+    4.6. Compliance Checker → Validates compliance claims (NEW)
+    5. Clarification Agent → Identifies questions needing clarification
+    6. Quality Reviewer → Reviews and validates
     """
+    
+    # Workflow step definitions for progress tracking
+    WORKFLOW_STEPS = [
+        {'step': 1, 'id': 'document_analysis', 'name': 'Document Analysis', 'agent': 'DocumentAnalyzerAgent', 'weight': 10},
+        {'step': 2, 'id': 'question_extraction', 'name': 'Question Extraction', 'agent': 'QuestionExtractorAgent', 'weight': 10},
+        {'step': 3, 'id': 'knowledge_retrieval', 'name': 'Knowledge Retrieval', 'agent': 'KnowledgeBaseAgent', 'weight': 15},
+        {'step': 4, 'id': 'answer_generation', 'name': 'Answer Generation', 'agent': 'AnswerGeneratorAgent', 'weight': 20},
+        {'step': 5, 'id': 'answer_validation', 'name': 'Answer Validation', 'agent': 'AnswerValidatorAgent', 'weight': 10},
+        {'step': 6, 'id': 'compliance_check', 'name': 'Compliance Check', 'agent': 'ComplianceCheckerAgent', 'weight': 5},
+        {'step': 7, 'id': 'clarification', 'name': 'Clarification Analysis', 'agent': 'ClarificationAgent', 'weight': 5},
+        {'step': 8, 'id': 'quality_review', 'name': 'Quality Review', 'agent': 'QualityReviewerAgent', 'weight': 5},
+        {'step': 9, 'id': 'executive_edit', 'name': 'Executive Editing', 'agent': 'ExecutiveEditorAgent', 'weight': 10},
+        {'step': 10, 'id': 'similarity_validation', 'name': 'Similarity Validation', 'agent': 'SimilarityValidatorAgent', 'weight': 5},
+        {'step': 11, 'id': 'quality_gate', 'name': 'Quality Gate', 'agent': 'ProposalQualityGateAgent', 'weight': 5},
+    ]
+    
+    # Error recovery strategies
+    ERROR_RECOVERY = {
+        'document_analysis': {'fallback': 'skip', 'critical': True},
+        'question_extraction': {'fallback': 'skip', 'critical': True},
+        'knowledge_retrieval': {'fallback': 'continue_empty', 'critical': False},
+        'answer_generation': {'fallback': 'partial', 'critical': True},
+        'answer_validation': {'fallback': 'skip_validation', 'critical': False},
+        'compliance_check': {'fallback': 'skip', 'critical': False},
+        'clarification': {'fallback': 'skip', 'critical': False},
+        'quality_review': {'fallback': 'skip', 'critical': False},
+        'executive_edit': {'fallback': 'skip', 'critical': False},
+        'similarity_validation': {'fallback': 'skip', 'critical': False},
+        'quality_gate': {'fallback': 'pass_with_warning', 'critical': True},
+    }
+
     
     def __init__(self, org_id: int = None):
         self.config = get_agent_config(org_id=org_id, agent_type='default')
         self.name = "OrchestratorAgent"
+        self.org_id = org_id
         
-        # Initialize sub-agents
-        self.document_analyzer = get_document_analyzer_agent()
-        self.question_extractor = get_question_extractor_agent()
-        self.knowledge_base = get_knowledge_base_agent()
-        self.answer_generator = get_answer_generator_agent()
-        self.clarification_agent = get_clarification_agent()  # NEW
-        self.quality_reviewer = get_quality_reviewer_agent()
+        # Initialize sub-agents with org_id for proper LLM config
+        self.document_analyzer = get_document_analyzer_agent(org_id=org_id)
+        self.question_extractor = get_question_extractor_agent(org_id=org_id)
+        self.knowledge_base = get_knowledge_base_agent(org_id=org_id)
+        self.answer_generator = get_answer_generator_agent(org_id=org_id)
+        self.answer_validator = get_answer_validator_agent(org_id=org_id)
+        self.compliance_checker = get_compliance_checker_agent(org_id=org_id)
+        self.clarification_agent = get_clarification_agent(org_id=org_id)
+        self.quality_reviewer = get_quality_reviewer_agent(org_id=org_id)
     
     def analyze_rfp(
         self,
@@ -149,9 +190,49 @@ class OrchestratorAgent:
             result["steps_completed"].append("answer_generation")
             session_state = answer_result.get("session_state", session_state)
             
-            # Step 4.5: Identify Clarifications (NEW)
+            # Step 4.5: Validate Answers (NEW - prevents hallucinations)
+            session_state[SessionKeys.CURRENT_STEP] = "validating_answers"
+            logger.info("Step 4.5: Validating answers against knowledge base...")
+            
+            validation_result = self.answer_validator.validate_answers(
+                session_state=session_state
+            )
+            
+            # Validation is optional - continue even if it fails
+            if validation_result.get("success"):
+                result["validation_stats"] = validation_result.get("stats", {})
+                result["steps_completed"].append("answer_validation")
+                # Use validated answers if available
+                validated_answers = validation_result.get("validated_answers", [])
+                if validated_answers:
+                    session_state[SessionKeys.DRAFT_ANSWERS] = validated_answers
+            else:
+                result["steps_completed"].append("answer_validation_skipped")
+            
+            session_state = validation_result.get("session_state", session_state)
+            
+            # Step 4.6: Check Compliance (NEW - validates regulatory claims)
+            session_state[SessionKeys.CURRENT_STEP] = "checking_compliance"
+            logger.info("Step 4.6: Checking compliance claims...")
+            
+            compliance_result = self.compliance_checker.check_compliance(
+                session_state=session_state
+            )
+            
+            # Compliance check is optional
+            if compliance_result.get("success"):
+                result["compliance_stats"] = compliance_result.get("stats", {})
+                result["compliance_issues"] = compliance_result.get("compliance_issues", [])
+                result["steps_completed"].append("compliance_check")
+            else:
+                result["compliance_issues"] = []
+                result["steps_completed"].append("compliance_check_skipped")
+            
+            session_state = compliance_result.get("session_state", session_state)
+            
+            # Step 5: Identify Clarifications
             session_state[SessionKeys.CURRENT_STEP] = "identifying_clarifications"
-            logger.info("Step 4.5: Identifying clarification needs...")
+            logger.info("Step 5: Identifying clarification needs...")
             
             clarification_result = self.clarification_agent.analyze_questions(
                 confidence_threshold=0.5,
@@ -168,9 +249,9 @@ class OrchestratorAgent:
             
             session_state = clarification_result.get("session_state", session_state)
             
-            # Step 5: Review Answers
+            # Step 6: Review Answers
             session_state[SessionKeys.CURRENT_STEP] = "reviewing_answers"
-            logger.info("Step 5: Reviewing answers...")
+            logger.info("Step 6: Reviewing answers...")
             
             review_result = self.quality_reviewer.review_answers(
                 session_state=session_state
@@ -257,6 +338,6 @@ class OrchestratorAgent:
         return answer_result
 
 
-def get_orchestrator_agent() -> OrchestratorAgent:
+def get_orchestrator_agent(org_id: int = None) -> OrchestratorAgent:
     """Factory function to get the Orchestrator Agent."""
-    return OrchestratorAgent()
+    return OrchestratorAgent(org_id=org_id)

@@ -20,11 +20,62 @@ class QualityReviewerAgent:
     - Validates compliance requirements
     - Assigns final confidence scores
     - Flags issues for human review
+    - Multi-dimensional quality scoring (5 dimensions)
+    - Readability assessment
+    - Minimum threshold enforcement
     """
     
-    REVIEW_PROMPT = """Review this RFP answer for quality and accuracy.
+    # Multi-dimensional quality scoring (5 dimensions)
+    QUALITY_DIMENSIONS = {
+        'accuracy': {
+            'weight': 0.25,
+            'description': 'Factual correctness and knowledge base alignment',
+            'min_acceptable': 0.60
+        },
+        'completeness': {
+            'weight': 0.20,
+            'description': 'All parts of question addressed',
+            'min_acceptable': 0.70
+        },
+        'clarity': {
+            'weight': 0.20,
+            'description': 'Readability and understandability',
+            'min_acceptable': 0.60
+        },
+        'relevance': {
+            'weight': 0.20,
+            'description': 'Direct relevance to question asked',
+            'min_acceptable': 0.70
+        },
+        'tone': {
+            'weight': 0.15,
+            'description': 'Professional and confident language',
+            'min_acceptable': 0.60
+        }
+    }
+    
+    # Minimum thresholds for different actions
+    MINIMUM_THRESHOLDS = {
+        'auto_approve': 0.85,       # Auto-approve if above this
+        'human_review': 0.70,       # Require human review if below
+        'auto_reject': 0.40,        # Auto-reject if below this
+        'revision_required': 0.55   # Require revision before approval
+    }
+    
+    # Readability configuration
+    READABILITY_CONFIG = {
+        'target_grade_level': 10,       # Target 10th grade reading level
+        'max_grade_level': 14,          # Maximum acceptable grade level
+        'min_flesch_score': 45,         # Minimum Flesch Reading Ease
+        'max_sentence_length': 25,      # Max average words per sentence
+        'max_paragraph_length': 150     # Max words per paragraph
+    }
+
+    
+    REVIEW_PROMPT = """Review this RFP answer for quality, accuracy, and compliance.
 
 ## Question
+Category: {category}
 {question}
 
 ## Generated Answer
@@ -33,21 +84,42 @@ class QualityReviewerAgent:
 ## Context Used
 {context}
 
-## Review Criteria
-1. Accuracy: Does the answer align with the context provided?
-2. Completeness: Does it fully address the question?
-3. Tone: Is it professional and appropriate?
-4. Claims: Are all claims verifiable from context?
-5. Compliance: For security/compliance questions, are statements accurate?
+## Validation Results (if available)
+{validation_info}
+
+## Extended Review Criteria
+
+### Core Quality Checks
+1. **Accuracy**: Does the answer align with the knowledge context provided?
+2. **Completeness**: Does it fully address all parts of the question?
+3. **Tone**: Is it professional, confident, and appropriate for RFP responses?
+4. **Clarity**: Is it easy to understand without jargon overload?
+
+### Compliance & Risk Checks
+5. **Claim Verification**: Are all factual claims supported by the context?
+6. **Compliance Claims**: For security/compliance questions, are certifications accurate?
+7. **Over-promises**: Does it make commitments that may be hard to fulfill?
+8. **Competitor Mentions**: Does it inappropriately mention competitors?
+
+### Readability Checks
+9. **Length Appropriateness**: Is the answer length appropriate for the question?
+10. **Structure**: Is it well-organized with clear flow?
 
 Return JSON:
 {{
   "quality_score": 0.0-1.0,
+  "accuracy_score": 0.0-1.0,
+  "compliance_score": 0.0-1.0,
+  "readability_score": 0.0-1.0,
   "issues": ["issue1", "issue2"],
+  "issue_severity": {{"issue1": "critical|high|medium|low"}},
   "improvements": ["suggestion1", "suggestion2"],
   "verified_claims": true/false,
+  "unverified_claims": ["claim that lacks evidence"],
+  "compliance_concerns": ["any compliance issue found"],
   "needs_human_review": true/false,
   "review_reason": "why human review needed if applicable",
+  "recommended_action": "approve|revise|reject",
   "revised_answer": "optional improved answer if needed"
 }}
 
@@ -148,7 +220,9 @@ Return ONLY valid JSON."""
         question: str,
         answer: str,
         context: Dict,
-        initial_confidence: float
+        initial_confidence: float,
+        category: str = "general",
+        validation_info: Dict = None
     ) -> Dict:
         """Review a single answer."""
         client = self.config.client
@@ -162,10 +236,20 @@ Return ONLY valid JSON."""
             for item in knowledge_items
         ]) if knowledge_items else "No context available."
         
+        # Format validation info
+        validation_text = "No validation data available."
+        if validation_info:
+            validation_text = f"""
+Accuracy Score: {validation_info.get('accuracy_score', 'N/A')}
+Verified Claims: {validation_info.get('verified_claims', 0)}
+Unverified Claims: {validation_info.get('unverified_claims', 0)}"""
+        
         prompt = self.REVIEW_PROMPT.format(
             question=question,
             answer=answer,
-            context=context_text
+            context=context_text,
+            category=category,
+            validation_info=validation_text
         )
         
         try:
@@ -220,6 +304,6 @@ Return ONLY valid JSON."""
         }
 
 
-def get_quality_reviewer_agent() -> QualityReviewerAgent:
+def get_quality_reviewer_agent(org_id: int = None) -> QualityReviewerAgent:
     """Factory function to get Quality Reviewer Agent."""
-    return QualityReviewerAgent()
+    return QualityReviewerAgent(org_id=org_id)

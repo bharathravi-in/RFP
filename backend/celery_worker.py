@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from app import create_app
 from app.config import Config
 
@@ -19,10 +20,19 @@ def make_celery(app_name=__name__):
                 return self.run(*args, **kwargs)
     
     celery.Task = ContextTask
+    
+    # Configure Celery Beat schedule
+    celery.conf.beat_schedule = {
+        'check-deadlines-daily': {
+            'task': 'app.tasks.check_deadlines_task',
+            'schedule': crontab(hour=9, minute=0),  # Run at 9:00 AM daily
+        },
+    }
+    celery.conf.timezone = 'UTC'
+    
     return celery
 
 celery = make_celery()
 
 # Import tasks to register them
 from app import tasks  # noqa: F401, E402
-
