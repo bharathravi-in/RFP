@@ -29,6 +29,7 @@
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^2.30.0",
+    "docx-preview": "^0.3.7",
     "framer-motion": "^10.16.16",
     "lucide-react": "^0.561.0",
     "mermaid": "^10.6.1",
@@ -39,6 +40,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.21.1",
     "socket.io-client": "^4.8.3",
+    "xlsx": "^0.18.5",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

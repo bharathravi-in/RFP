@@ -101,6 +101,109 @@ def download_file(item_id):
     )
 
 
+@bp.route('/<int:item_id>/signed-url', methods=['GET'])
+@jwt_required()
+def get_signed_url(item_id):
+    """
+    Get a signed public URL for Microsoft Office Online Viewer.
+    
+    This endpoint uploads the file to Google Cloud Storage (if not already there)
+    and returns a signed URL that can be used with Microsoft Office Online Viewer
+    or Google Docs Viewer for proper preview with all features (e.g., Excel sheet tabs).
+    
+    Returns:
+        JSON with 'url' for Microsoft viewer: 
+        https://view.officeapps.live.com/op/embed.aspx?src={signed_url}
+    """
+    import os
+    from io import BytesIO
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    item = KnowledgeItem.query.get(item_id)
+    
+    if not item:
+        return jsonify({'error': 'Item not found'}), 404
+    
+    if item.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    if not item.file_data:
+        return jsonify({'error': 'File not available'}), 404
+    
+    # Check if GCS bucket is configured (works even if main storage is local)
+    bucket_name = os.environ.get('GCP_STORAGE_BUCKET') or os.environ.get('GOOGLE_CLOUD_BUCKET_NAME')
+    
+    current_app.logger.info(f"Signed URL request for item {item_id}, bucket: {bucket_name}")
+    
+    if not bucket_name:
+        return jsonify({
+            'error': 'Cloud storage not configured',
+            'message': 'Microsoft Office Viewer requires GCS bucket. Set GOOGLE_CLOUD_BUCKET_NAME or GCP_STORAGE_BUCKET environment variable.'
+        }), 400
+    
+    try:
+        from google.cloud import storage as gcs
+        
+        # Get credentials
+        creds_path = os.environ.get('GCP_STORAGE_CREDENTIALS') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        project_id = os.environ.get('GOOGLE_CLOUD_PROJECT_ID')
+        
+        if creds_path and os.path.exists(creds_path):
+            client = gcs.Client.from_service_account_json(creds_path)
+        else:
+            client = gcs.Client(project=project_id)
+        
+        bucket = client.bucket(bucket_name)
+        
+        # Create blob path for preview files
+        from datetime import datetime
+        date_prefix = datetime.utcnow().strftime('%Y/%m/%d')
+        file_ext = item.source_file.rsplit('.', 1)[-1] if item.source_file and '.' in item.source_file else 'bin'
+        blob_name = f"previews/{date_prefix}/{item_id}_{item.source_file or 'file'}"
+        
+        blob = bucket.blob(blob_name)
+        
+        # Upload file data to GCS
+        content_type = item.file_type or 'application/octet-stream'
+        blob.upload_from_string(item.file_data, content_type=content_type)
+        
+        # Generate signed URL (valid for 1 hour)
+        from datetime import timedelta
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(hours=1),
+            method="GET"
+        )
+        
+        # Build Microsoft viewer URL
+        from urllib.parse import quote
+        microsoft_viewer_url = f"https://view.officeapps.live.com/op/embed.aspx?src={quote(signed_url, safe='')}"
+        google_viewer_url = f"https://docs.google.com/gview?url={quote(signed_url, safe='')}&embedded=true"
+        
+        return jsonify({
+            'signed_url': signed_url,
+            'microsoft_viewer_url': microsoft_viewer_url,
+            'google_viewer_url': google_viewer_url,
+            'file_name': item.source_file or item.title,
+            'file_type': item.file_type,
+            'expires_in': 3600  # 1 hour in seconds
+        }), 200
+        
+    except ImportError:
+        return jsonify({
+            'error': 'GCS library not installed',
+            'message': 'Install google-cloud-storage: pip install google-cloud-storage'
+        }), 500
+    except Exception as e:
+        current_app.logger.error(f"Failed to generate signed URL: {e}")
+        return jsonify({
+            'error': 'Failed to generate signed URL',
+            'message': str(e)
+        }), 500
+
+
 @bp.route('/<int:item_id>/file', methods=['GET'])
 @jwt_required()
 def serve_file(item_id):

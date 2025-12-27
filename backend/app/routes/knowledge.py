@@ -52,6 +52,8 @@ def list_knowledge():
     query = KnowledgeItem.query.filter_by(
         organization_id=user.organization_id,
         is_active=True
+    ).filter(
+        KnowledgeItem.parent_id.is_(None)  # Exclude chunks, show only parent documents
     )
     
     if tag:
