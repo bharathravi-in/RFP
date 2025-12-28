@@ -475,9 +475,9 @@ export default function ProjectDetail() {
                                     <DocumentTextIcon className="h-5 w-5 text-primary" />
                                     RFP Documents ({documents.length})
                                 </h3>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                <div className={`space-y-2 ${documents.length > 5 ? 'max-h-[400px] overflow-y-auto' : ''}`}>
                                     {documents.map((doc) => (
-                                        <div key={doc.id} className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                                        <div key={doc.id} className="flex items-center gap-3 p-3 bg-background rounded-lg relative">
                                             <div className="h-8 w-8 rounded bg-white flex items-center justify-center border border-border">
                                                 <DocumentTextIcon className="h-4 w-4 text-text-muted" />
                                             </div>

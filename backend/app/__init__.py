@@ -26,6 +26,15 @@ def create_app(config_name=None):
         }
     })
     
+    # Initialize OpenTelemetry (if enabled via OTEL_ENABLED=true)
+    try:
+        from app.utils.telemetry import init_telemetry, get_telemetry_status
+        init_telemetry(app)
+    except ImportError:
+        pass  # Telemetry dependencies not installed, skip
+    except Exception as e:
+        print(f"Warning: Could not initialize telemetry: {e}")
+    
     # Register Socket.IO handlers
     from . import socket_events
     
@@ -73,11 +82,29 @@ def create_app(config_name=None):
     app.register_blueprint(ppt.bp, url_prefix='/api/ppt')  # PowerPoint generation
     app.register_blueprint(export_templates.bp, url_prefix='/api/export-templates')  # Export templates
 
+    # Enhancement features (usage tracking, cache, export)
+    from .routes import enhancements
+    app.register_blueprint(enhancements.bp)  # /api prefix defined in blueprint
+
+    # Document Chat
+    from .routes import document_chat
+    app.register_blueprint(document_chat.bp)  # Document-specific AI chat
+
+    # Knowledge Chat
+    from .routes import knowledge_chat
+    app.register_blueprint(knowledge_chat.bp, url_prefix='/api/knowledge')  # Knowledge-item AI chat
+
     
-    # Health check endpoint
+    # Health check endpoint with telemetry status
     @app.route('/api/health')
     def health_check():
-        return {'status': 'healthy', 'service': 'autorespond-api'}
+        response = {'status': 'healthy', 'service': 'autorespond-api'}
+        try:
+            from app.utils.telemetry import get_telemetry_status
+            response['telemetry'] = get_telemetry_status()
+        except ImportError:
+            response['telemetry'] = {'enabled': False}
+        return response
     
     # Auto-seed section types on first request
     @app.before_request

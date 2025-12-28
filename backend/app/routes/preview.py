@@ -28,11 +28,38 @@ def preview_file(item_id):
         return jsonify({'error': 'Access denied'}), 403
     
     # For manual entries, return content directly
-    if item.source_type == 'manual' or not item.file_data:
+    if item.source_type == 'manual':
         return jsonify({
             'type': 'text',
             'title': item.title,
             'content': item.content,
+            'metadata': item.item_metadata
+        }), 200
+    
+    # Get file data from database or GCP storage
+    file_data = item.file_data
+    
+    if not file_data and item.item_metadata:
+        # Check if stored in GCP
+        storage_type = item.item_metadata.get('storage_type')
+        file_id = item.item_metadata.get('file_id')
+        
+        if storage_type == 'gcp' and file_id:
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                current_app.logger.info(f"Downloading knowledge item {item_id} from GCP, file_id: {file_id}")
+                file_data, metadata = storage.download(file_id)
+                current_app.logger.info(f"Downloaded {len(file_data)} bytes from GCP")
+            except Exception as e:
+                current_app.logger.error(f"Failed to download from GCP: {e}")
+                pass
+    
+    if not file_data:
+        return jsonify({
+            'type': 'text',
+            'title': item.title,
+            'content': item.content or 'File content not available',
             'metadata': item.item_metadata
         }), 200
     
@@ -41,7 +68,7 @@ def preview_file(item_id):
     # For text files, decode and return content
     if file_type.startswith('text/') or (item.source_file and item.source_file.endswith(('.txt', '.md', '.csv'))):
         try:
-            content = item.file_data.decode('utf-8')
+            content = file_data.decode('utf-8')
             return jsonify({
                 'type': 'text',
                 'title': item.title,
@@ -129,7 +156,24 @@ def get_signed_url(item_id):
     if item.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    if not item.file_data:
+    # Get file data - from database or download from GCP
+    file_data = item.file_data
+    
+    if not file_data and item.item_metadata:
+        storage_type = item.item_metadata.get('storage_type')
+        file_id = item.item_metadata.get('file_id')
+        
+        if storage_type == 'gcp' and file_id:
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                current_app.logger.info(f"Downloading file for signed URL: {file_id}")
+                file_data, metadata = storage.download(file_id)
+                current_app.logger.info(f"Downloaded {len(file_data)} bytes for signed URL")
+            except Exception as e:
+                current_app.logger.error(f"Failed to download from GCP for signed URL: {e}")
+    
+    if not file_data:
         return jsonify({'error': 'File not available'}), 404
     
     # Check if GCS bucket is configured (works even if main storage is local)
@@ -167,7 +211,7 @@ def get_signed_url(item_id):
         
         # Upload file data to GCS
         content_type = item.file_type or 'application/octet-stream'
-        blob.upload_from_string(item.file_data, content_type=content_type)
+        blob.upload_from_string(file_data, content_type=content_type)
         
         # Generate signed URL (valid for 1 hour)
         from datetime import timedelta
@@ -255,7 +299,22 @@ def view_file(item_id):
     if item.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    if not item.file_data:
+    # Get file data from database or GCP storage
+    file_data = item.file_data
+    
+    if not file_data and item.item_metadata:
+        storage_type = item.item_metadata.get('storage_type')
+        file_id = item.item_metadata.get('file_id')
+        
+        if storage_type == 'gcp' and file_id:
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                file_data, metadata = storage.download(file_id)
+            except Exception as e:
+                current_app.logger.error(f"Failed to download from GCP: {e}")
+    
+    if not file_data:
         return jsonify({'error': 'No file data available'}), 404
     
     # Get file extension from source_file or file_type
@@ -272,7 +331,7 @@ def view_file(item_id):
     # PDF - return directly
     if file_ext == 'pdf':
         return Response(
-            item.file_data,
+            file_data,
             mimetype='application/pdf',
             headers={
                 'Content-Disposition': f'inline; filename="{item.source_file or item.title}"'
@@ -284,7 +343,7 @@ def view_file(item_id):
         try:
             import mammoth
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}')
-            temp_file.write(item.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             with open(temp_file.name, 'rb') as f:
@@ -319,7 +378,7 @@ def view_file(item_id):
         try:
             from openpyxl import load_workbook
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}')
-            temp_file.write(item.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             wb = load_workbook(temp_file.name)
@@ -367,7 +426,7 @@ def view_file(item_id):
         try:
             from pptx import Presentation
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_ext}')
-            temp_file.write(item.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             prs = Presentation(temp_file.name)
@@ -411,7 +470,7 @@ def view_file(item_id):
     # Text files - show as preformatted text
     if file_ext in ['txt', 'md', 'csv', 'json']:
         try:
-            content = item.file_data.decode('utf-8')
+            content = file_data.decode('utf-8')
             styled_html = f'''<!DOCTYPE html>
 <html>
 <head>

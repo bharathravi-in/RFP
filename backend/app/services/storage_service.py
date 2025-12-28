@@ -287,12 +287,21 @@ class GCPStorageProvider(StorageProvider):
         prefix: str = None,
         credentials_path: str = None
     ):
-        self.bucket_name = bucket_name or os.environ.get('GCP_STORAGE_BUCKET')
+        # Support multiple env var naming conventions
+        self.bucket_name = (
+            bucket_name or 
+            os.environ.get('GCP_STORAGE_BUCKET') or
+            os.environ.get('GOOGLE_CLOUD_BUCKET_NAME')
+        )
         self.prefix = prefix or os.environ.get('GCP_STORAGE_PREFIX', 'documents')
-        credentials_path = credentials_path or os.environ.get('GCP_STORAGE_CREDENTIALS')
+        credentials_path = (
+            credentials_path or 
+            os.environ.get('GCP_STORAGE_CREDENTIALS') or
+            os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        )
         
         if not self.bucket_name:
-            raise ValueError("GCP_STORAGE_BUCKET environment variable is required")
+            raise ValueError("GCP_STORAGE_BUCKET or GOOGLE_CLOUD_BUCKET_NAME environment variable is required")
         
         try:
             from google.cloud import storage
@@ -321,12 +330,40 @@ class GCPStorageProvider(StorageProvider):
         return f"{self.prefix}/{date_prefix}/{filename}"
     
     def _find_blob(self, file_id: str):
-        """Find a blob by file_id prefix."""
-        prefix = f"{self.prefix}/"
-        blobs = list(self.bucket.list_blobs(prefix=prefix))
-        for blob in blobs:
+        """Find a blob by file_id, searching across all known prefixes."""
+        # List of prefixes to search (in order of likelihood)
+        prefixes_to_search = [
+            self.prefix,  # Default prefix
+            os.environ.get('GCP_RFP_REQ_PREFIX', 'rfp_requirement'),
+            os.environ.get('GCP_KNOWLEDGE_PREFIX', 'knowledge'),
+            os.environ.get('GCP_RFP_PROPOSAL_PREFIX', 'rfp_proposal'),
+            'documents',
+        ]
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_prefixes = []
+        for p in prefixes_to_search:
+            if p and p not in seen:
+                seen.add(p)
+                unique_prefixes.append(p)
+        
+        # Search each prefix
+        for prefix in unique_prefixes:
+            blobs = list(self.bucket.list_blobs(prefix=f"{prefix}/"))
+            for blob in blobs:
+                if file_id in blob.name:
+                    logger.info(f"Found blob for file_id {file_id} at {blob.name}")
+                    return blob
+        
+        # Last resort: search entire bucket (slower but comprehensive)
+        logger.warning(f"File {file_id} not found in known prefixes, searching entire bucket...")
+        all_blobs = list(self.bucket.list_blobs())
+        for blob in all_blobs:
             if file_id in blob.name:
+                logger.info(f"Found blob for file_id {file_id} at {blob.name} (full bucket search)")
                 return blob
+        
         return None
     
     def upload(
@@ -380,6 +417,87 @@ class GCPStorageProvider(StorageProvider):
             extra={
                 'bucket': self.bucket_name,
                 'blob_name': blob_name,
+                **(metadata or {})
+            }
+        )
+    
+    def upload_with_path(
+        self,
+        file: BinaryIO,
+        original_filename: str,
+        prefix: str,
+        subfolder: str = None,
+        content_type: str = None,
+        metadata: Dict = None
+    ) -> StorageMetadata:
+        """
+        Upload file to GCP Storage with custom path structure.
+        
+        Args:
+            file: File to upload
+            original_filename: Original name of the file
+            prefix: Base prefix (e.g., 'knowledge', 'rfp_requirement', 'rfp_proposal')
+            subfolder: Optional subfolder (e.g., folder name or project ID)
+            content_type: MIME type
+            metadata: Additional metadata
+        
+        Returns:
+            StorageMetadata with file info
+        """
+        import hashlib
+        
+        file_id = self._generate_file_id()
+        extension = self._get_file_extension(original_filename)
+        
+        # Build path: {prefix}/{subfolder}/{date}/{file_id}.{ext}
+        date_prefix = datetime.utcnow().strftime('%Y/%m/%d')
+        filename = f"{file_id}.{extension}" if extension else file_id
+        
+        if subfolder:
+            blob_name = f"{prefix}/{subfolder}/{date_prefix}/{filename}"
+        else:
+            blob_name = f"{prefix}/{date_prefix}/{filename}"
+        
+        # Read file content and calculate checksum
+        file_content = file.read()
+        checksum = hashlib.sha256(file_content).hexdigest()
+        file_size = len(file_content)
+        
+        # Upload to GCS
+        blob = self.bucket.blob(blob_name)
+        content_type = content_type or mimetypes.guess_type(original_filename)[0] or 'application/octet-stream'
+        
+        blob.metadata = {
+            'original_filename': original_filename,
+            'file_id': file_id,
+            'checksum': checksum,
+            'prefix': prefix,
+            'subfolder': subfolder,
+            **(metadata or {})
+        }
+        
+        blob.upload_from_string(file_content, content_type=content_type)
+        
+        file_url = f"gs://{self.bucket_name}/{blob_name}"
+        
+        logger.info(f"Uploaded file {file_id} to {file_url} ({file_size} bytes)")
+        
+        return StorageMetadata(
+            file_id=file_id,
+            file_name=os.path.basename(blob_name),
+            original_filename=original_filename,
+            file_type=extension,
+            file_size=file_size,
+            file_url=file_url,
+            storage_type='gcp',
+            uploaded_at=datetime.utcnow(),
+            content_type=content_type,
+            checksum=checksum,
+            extra={
+                'bucket': self.bucket_name,
+                'blob_name': blob_name,
+                'prefix': prefix,
+                'subfolder': subfolder,
                 **(metadata or {})
             }
         )

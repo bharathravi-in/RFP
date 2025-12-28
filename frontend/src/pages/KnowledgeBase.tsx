@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     MagnifyingGlassIcon,
     FolderIcon,
@@ -12,6 +13,7 @@ import {
     DocumentIcon,
     ClockIcon,
     ChevronRightIcon,
+    ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import FolderTree from '../components/knowledge/FolderTree';
 import CreateFolderModal from '../components/knowledge/CreateFolderModal';
@@ -131,6 +133,7 @@ function FileIcon({ ext, config, size = 'md' }: { ext: string; config: typeof FI
 }
 
 export default function KnowledgeBasePage() {
+    const navigate = useNavigate();
     const [folders, setFolders] = useState<Folder[]>([]);
     const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
     const [items, setItems] = useState<KnowledgeItem[]>([]);
@@ -467,6 +470,13 @@ export default function KnowledgeBasePage() {
                                                 {/* Hover Actions */}
                                                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button
+                                                        onClick={(e) => { e.stopPropagation(); navigate(`/knowledge/${item.id}/chat`); }}
+                                                        className="p-1.5 bg-white rounded-full shadow-md hover:bg-primary/10"
+                                                        title="Chat with document"
+                                                    >
+                                                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5 text-primary" />
+                                                    </button>
+                                                    <button
                                                         onClick={(e) => { e.stopPropagation(); handleDownload(item); }}
                                                         className="p-1.5 bg-white rounded-full shadow-md hover:bg-gray-50"
                                                     >
@@ -521,6 +531,13 @@ export default function KnowledgeBasePage() {
                                                     {formatDate(item.created_at)}
                                                 </div>
                                                 <div className="col-span-1 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); navigate(`/knowledge/${item.id}/chat`); }}
+                                                        className="p-1.5 rounded hover:bg-primary/10"
+                                                        title="Chat with document"
+                                                    >
+                                                        <ChatBubbleLeftRightIcon className="h-4 w-4 text-primary" />
+                                                    </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleSelectItem(item); }}
                                                         className="p-1.5 rounded hover:bg-gray-200"

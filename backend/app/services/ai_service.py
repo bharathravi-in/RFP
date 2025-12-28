@@ -101,15 +101,10 @@ For product questions:
     
     @property
     def client(self):
-        """Lazy load the Google AI client (legacy fallback)."""
-        if self._client is None and self.api_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                self._client = genai.GenerativeModel(self.model_name)
-            except Exception as e:
-                logger.error(f"Failed to initialize AI client: {e}")
-        return self._client
+        """Legacy client property - disabled in favor of provider abstraction."""
+        # Legacy Google AI fallback removed - all LLM access should go through _get_provider
+        logger.debug("Legacy client disabled - using provider abstraction only")
+        return None
     
     def generate_answer(
         self,

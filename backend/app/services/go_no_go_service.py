@@ -34,17 +34,8 @@ def get_ai_client(org_id: int = None):
         except Exception as e:
             logger.warning(f"Could not load dynamic LLM: {e}")
     
-    # Fallback to legacy Google
-    try:
-        import google.generativeai as genai
-        api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
-        if api_key:
-            genai.configure(api_key=api_key)
-            model_name = os.environ.get('GOOGLE_MODEL', 'gemini-2.0-flash')
-            return genai.GenerativeModel(model_name)
-    except Exception as e:
-        logger.warning(f"Legacy Google init failed: {e}")
-    
+    # No fallback to legacy Google - service will use rule-based recommendation
+    logger.debug("No AI provider available for Go/No-Go, using rule-based analysis")
     return None
 
 

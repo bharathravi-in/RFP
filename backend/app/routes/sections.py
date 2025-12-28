@@ -1207,6 +1207,37 @@ def export_proposal(project_id):
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     
+    # Optionally upload to GCP if configured
+    try:
+        from app.services.storage_service import get_storage_service
+        storage = get_storage_service()
+        
+        if storage.storage_type == 'gcp':
+            rfp_proposal_prefix = os.environ.get('GCP_RFP_PROPOSAL_PREFIX', 'rfp_proposal')
+            project_subfolder = f"project_{project_id}"
+            
+            # Upload to GCP
+            buffer.seek(0)
+            storage_metadata = storage.provider.upload_with_path(
+                file=buffer,
+                original_filename=filename,
+                prefix=rfp_proposal_prefix,
+                subfolder=project_subfolder,
+                content_type=mimetype,
+                metadata={
+                    'project_id': project_id,
+                    'exported_by': user_id,
+                    'organization_id': user.organization_id,
+                    'export_type': format_type
+                }
+            )
+            current_app.logger.info(f"Proposal exported to GCP: {storage_metadata.file_url}")
+            
+            # Reset buffer position for download
+            buffer.seek(0)
+    except Exception as e:
+        current_app.logger.warning(f"Failed to upload proposal to GCP, still serving file: {e}")
+    
     return send_file(
         buffer,
         as_attachment=True,

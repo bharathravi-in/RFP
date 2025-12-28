@@ -200,8 +200,25 @@ def analyze_rfp_async():
             document = Document.query.get(document_id)
             if not document:
                 return jsonify({"error": "Document not found"}), 404
+            
+            # Auto-trigger parsing if no extracted text
             if not document.extracted_text:
-                return jsonify({"error": "Document has no extracted text"}), 400
+                logger.info(f"Document {document_id} has no extracted text, triggering parse...")
+                try:
+                    from app.routes.documents import _parse_document_internal
+                    parse_result = _parse_document_internal(document)
+                    if 'error' in parse_result:
+                        return jsonify({"error": f"Failed to parse document: {parse_result['error']}"}), 400
+                    # Refresh document after parsing
+                    from app.extensions import db
+                    db.session.refresh(document)
+                except Exception as e:
+                    logger.error(f"Failed to parse document {document_id}: {e}")
+                    return jsonify({"error": f"Document parsing failed: {str(e)}"}), 400
+            
+            if not document.extracted_text:
+                return jsonify({"error": "Document has no extracted text after parsing"}), 400
+            
             document_text = document.extracted_text
             org_id = data.get('org_id') or (document.project.organization_id if document.project else None)
             project_id = data.get('project_id') or (document.project_id if document.project_id else None)

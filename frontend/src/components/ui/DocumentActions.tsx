@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     EyeIcon,
     ArrowDownTrayIcon,
     EllipsisVerticalIcon,
     TrashIcon,
     ArrowPathIcon,
+    ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { documentsApi } from '@/api/client';
@@ -19,6 +21,7 @@ interface DocumentActionsProps {
     onReparse?: () => void;
     showDelete?: boolean;
     showReparse?: boolean;
+    showChat?: boolean;
     compact?: boolean;
 }
 
@@ -34,8 +37,10 @@ export default function DocumentActions({
     onReparse,
     showDelete = true,
     showReparse = false,
+    showChat = true,
     compact = false,
 }: DocumentActionsProps) {
+    const navigate = useNavigate();
     const [showPreview, setShowPreview] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -124,6 +129,15 @@ export default function DocumentActions({
                     >
                         <ArrowDownTrayIcon className="h-4 w-4" />
                     </button>
+                    {showChat && (
+                        <button
+                            onClick={() => navigate(`/documents/${documentId}/chat`)}
+                            className="p-2 rounded-lg hover:bg-blue-100 text-text-secondary hover:text-blue-600 transition-colors"
+                            title="Chat with document"
+                        >
+                            <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                        </button>
+                    )}
                     {(showDelete || showReparse) && (
                         <div className="relative">
                             <button
@@ -136,10 +150,10 @@ export default function DocumentActions({
                             {showMenu && (
                                 <>
                                     <div
-                                        className="fixed inset-0 z-10"
+                                        className="fixed inset-0 z-40"
                                         onClick={() => setShowMenu(false)}
                                     />
-                                    <div className="absolute right-0 mt-1 w-40 bg-surface rounded-lg shadow-lg border border-border z-20 py-1">
+                                    <div className="absolute right-0 top-full mt-1 w-40 bg-surface rounded-lg shadow-xl border border-border z-50 py-1">
                                         {showReparse && (
                                             <button
                                                 onClick={handleReparse}
@@ -195,6 +209,15 @@ export default function DocumentActions({
                     <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
                     Download
                 </button>
+                {showChat && (
+                    <button
+                        onClick={() => navigate(`/documents/${documentId}/chat`)}
+                        className="btn-primary btn-sm"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-4 w-4 mr-1" />
+                        Chat
+                    </button>
+                )}
                 {(showDelete || showReparse) && (
                     <div className="relative">
                         <button

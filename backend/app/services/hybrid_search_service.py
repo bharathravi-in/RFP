@@ -163,18 +163,20 @@ class QdrantHybridSearchService:
             embedding = self.dense_model.encode(text)
             return embedding.tolist()
         
-        # Fallback: try Google Generative AI
+        # Fallback: try embedding provider abstraction
         try:
-            import google.generativeai as genai
-            result = genai.embed_content(
-                model="models/embedding-001",
-                content=text,
-                task_type="retrieval_document"
-            )
-            return result['embedding']
+            from app.services.embedding_providers import EmbeddingProviderFactory
+            from flask import current_app
+            
+            api_key = current_app.config.get('GOOGLE_API_KEY')
+            if api_key:
+                provider = EmbeddingProviderFactory.create('google', api_key=api_key)
+                return provider.get_embedding(text)
         except Exception as e:
-            logger.warning(f"Failed to generate dense embedding: {e}")
-            return [0.0] * self.DENSE_DIMENSION
+            logger.warning(f"Failed to generate dense embedding via provider: {e}")
+        
+        # Return zero vector if all else fails
+        return [0.0] * self.DENSE_DIMENSION
     
     def _get_sparse_embedding(self, text: str) -> Tuple[List[int], List[float]]:
         """Generate sparse (BM25/TF-IDF) embedding for text."""
