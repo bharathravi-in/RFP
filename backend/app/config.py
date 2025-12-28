@@ -55,6 +55,15 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
+    
+    # Database Connection Pooling
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': int(os.getenv('DB_POOL_SIZE', 10)),
+        'pool_recycle': int(os.getenv('DB_POOL_RECYCLE', 1800)),  # 30 mins
+        'pool_pre_ping': True,  # Check connection validity before use
+        'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', 5)),
+        'pool_timeout': 30  # Wait time for connection
+    }
 
 
 class TestingConfig(Config):

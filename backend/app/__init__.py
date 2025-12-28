@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from .config import config
-from .extensions import db, migrate, jwt, cors, socketio
+from .extensions import db, migrate, jwt, cors, socketio, gzip
 
 
 def create_app(config_name=None):
@@ -17,6 +17,7 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
+    gzip.init_app(app)
     
     cors.init_app(app, resources={
         r"/api/*": {
@@ -94,6 +95,16 @@ def create_app(config_name=None):
     from .routes import knowledge_chat
     app.register_blueprint(knowledge_chat.bp, url_prefix='/api/knowledge')  # Knowledge-item AI chat
 
+    # Health check endpoints (enhanced)
+    from .routes import health, api_docs
+    app.register_blueprint(health.bp)  # /health, /ready, /metrics at root
+    app.register_blueprint(api_docs.bp, url_prefix='/api')  # /api/docs, /api/openapi.json
+
+    # Initialize middleware
+    from .middleware import init_error_handlers, init_request_logging, add_rate_limit_headers
+    init_error_handlers(app)
+    init_request_logging(app)
+    app.after_request(add_rate_limit_headers)
     
     # Health check endpoint with telemetry status
     @app.route('/api/health')
