@@ -75,9 +75,80 @@ export default function DiagramRenderer({
         cleaned = cleaned.replace(/↔/g, '<-->');
         cleaned = cleaned.replace(/➡/g, '-->');
         cleaned = cleaned.replace(/⬅/g, '<--');
+        cleaned = cleaned.replace(/⇒/g, '-->');
+        cleaned = cleaned.replace(/⇐/g, '<--');
 
         // Remove other problematic non-ASCII characters
         cleaned = cleaned.replace(/[^\x20-\x7E\n\r\t]/g, '');
+
+        // Fix malformed arrows that result from unicode removal
+        // <- > or < -> should become <-->
+        cleaned = cleaned.replace(/<-\s*>/g, '<-->');
+        cleaned = cleaned.replace(/<\s*->/g, '<-->');
+        cleaned = cleaned.replace(/<-\s+->/g, '<-->');
+        // - > should become -->
+        cleaned = cleaned.replace(/-\s+>/g, '-->');
+        // < - should become <--
+        cleaned = cleaned.replace(/<\s+-/g, '<--');
+        // Fix any remaining weird arrow patterns
+        cleaned = cleaned.replace(/--\s+>/g, '-->');
+        cleaned = cleaned.replace(/<\s+--/g, '<--');
+        // Fix patterns like "> D B" that result from mangled arrows
+        cleaned = cleaned.replace(/>\s+([A-Z])/g, '> $1');
+
+        // Fix colon-based labels (invalid syntax: "A --> B: label" should be "A -->|label| B")
+        cleaned = cleaned.replace(/(\S+)\s*(-->|<--|---)\s*(\S+):\s*([^\n]+)/g,
+            (_match, nodeA, arrow, nodeB, label) => {
+                // Clean the label
+                const cleanLabel = label.replace(/[^\w\s]/g, '').substring(0, 30).trim();
+                return `${nodeA} ${arrow}|${cleanLabel}| ${nodeB}`;
+            }
+        );
+
+        // Fix malformed connection lines with multiple arrows
+        // e.g., "A --> B --> C" should become "A --> B" and "B --> C"
+        const lines = cleaned.split('\n');
+        const fixedLines: string[] = [];
+
+        for (const line of lines) {
+            const stripped = line.trim();
+
+            // Skip empty lines, comments, or keywords
+            if (!stripped || stripped.startsWith('%') || stripped.startsWith('flowchart') ||
+                stripped.startsWith('graph') || stripped.startsWith('subgraph') || stripped === 'end') {
+                fixedLines.push(line);
+                continue;
+            }
+
+            // Count arrows in the line
+            const arrowCount = (stripped.match(/-->/g) || []).length +
+                (stripped.match(/<--/g) || []).length +
+                (stripped.match(/---/g) || []).length;
+
+            if (arrowCount > 1) {
+                // Multiple arrows - try to fix by splitting into valid connections
+                const parts = stripped.split(/(-->|<--|---)/);
+                if (parts.length >= 3) {
+                    let currentNode = parts[0].trim();
+                    for (let i = 1; i < parts.length; i += 2) {
+                        if (i + 1 < parts.length) {
+                            const arrow = parts[i];
+                            const nextNode = parts[i + 1].trim();
+                            // Only add valid looking nodes
+                            if (currentNode && nextNode && currentNode.length < 50 && nextNode.length < 50) {
+                                fixedLines.push(`    ${currentNode} ${arrow} ${nextNode}`);
+                            }
+                            currentNode = nextNode;
+                        }
+                    }
+                }
+                // Skip original line if we processed it
+            } else {
+                fixedLines.push(line);
+            }
+        }
+
+        cleaned = fixedLines.join('\n');
 
         // Clean node labels - this is the key fix for "NODE_STRING" errors
         // Clean labels inside square brackets [label]

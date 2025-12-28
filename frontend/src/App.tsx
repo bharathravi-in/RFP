@@ -21,6 +21,7 @@ import AnalyticsDeepDive from '@/pages/AnalyticsDeepDive';
 import CoPilotPage from '@/pages/CoPilotPage';
 import DocumentChatPage from '@/pages/DocumentChatPage';
 import KnowledgeChatPage from '@/pages/KnowledgeChatPage';
+import ProposalChatPage from '@/pages/ProposalChatPage';
 
 // Layout
 import PageLayout from '@/components/layout/PageLayout';
@@ -101,6 +102,16 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <KnowledgeChatPage />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* Proposal Chat - Full screen experience */}
+                <Route
+                    path="/projects/:id/proposal-chat"
+                    element={
+                        <ProtectedRoute>
+                            <ProposalChatPage />
                         </ProtectedRoute>
                     }
                 />

@@ -95,6 +95,10 @@ def create_app(config_name=None):
     from .routes import knowledge_chat
     app.register_blueprint(knowledge_chat.bp, url_prefix='/api/knowledge')  # Knowledge-item AI chat
 
+    # Proposal Chat
+    from .routes import proposal_chat
+    app.register_blueprint(proposal_chat.bp)  # Chat-style proposal generation
+
     # Health check endpoints (enhanced)
     from .routes import health, api_docs
     app.register_blueprint(health.bp)  # /health, /ready, /metrics at root

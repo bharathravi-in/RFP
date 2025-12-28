@@ -1,204 +1,128 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
 import DiagramRenderer from '@/components/diagrams/DiagramRenderer';
 
 interface SimpleMarkdownProps {
     content: string;
     className?: string;
-    renderMermaid?: boolean; // Enable mermaid diagram rendering
+    renderMermaid?: boolean;
 }
 
 /**
- * A simple markdown renderer that handles basic formatting without external dependencies.
+ * A markdown renderer using react-markdown for proper parsing.
  * Supports: bold, italic, headers, lists, code blocks, and optionally mermaid diagrams
  */
 export default function SimpleMarkdown({ content, className = '', renderMermaid = true }: SimpleMarkdownProps) {
     if (!content) return null;
 
-    // Process the content line by line
-    const lines = content.split('\n');
-    const elements: React.ReactNode[] = [];
-    let currentList: string[] = [];
-    let isInCodeBlock = false;
-    let codeBlockContent: string[] = [];
-    let codeBlockLanguage = ''; // Track the code block language for mermaid detection
+    // Check for mermaid code blocks and extract them
+    const parts: { type: 'markdown' | 'mermaid'; content: string }[] = [];
+    let remaining = content;
+    const mermaidPattern = /```mermaid\n([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let match;
 
-    const processInlineFormatting = (text: string): React.ReactNode[] => {
-        const parts: React.ReactNode[] = [];
-        let remaining = text;
-        let key = 0;
-
-        // Process bold and italic
-        const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\))/g;
-        let lastIndex = 0;
-        let match;
-
-        while ((match = pattern.exec(text)) !== null) {
-            // Add text before match
+    if (renderMermaid) {
+        while ((match = mermaidPattern.exec(content)) !== null) {
+            // Add markdown content before this mermaid block
             if (match.index > lastIndex) {
-                parts.push(text.slice(lastIndex, match.index));
+                parts.push({ type: 'markdown', content: content.slice(lastIndex, match.index) });
             }
-
-            if (match[2]) {
-                // Bold italic ***text***
-                parts.push(<strong key={key++}><em>{match[2]}</em></strong>);
-            } else if (match[3]) {
-                // Bold **text**
-                parts.push(<strong key={key++}>{match[3]}</strong>);
-            } else if (match[4]) {
-                // Italic *text*
-                parts.push(<em key={key++}>{match[4]}</em>);
-            } else if (match[5]) {
-                // Inline code `code`
-                parts.push(
-                    <code key={key++} className="px-1.5 py-0.5 rounded bg-gray-100 text-sm font-mono text-gray-800">
-                        {match[5]}
-                    </code>
-                );
-            } else if (match[6] && match[7]) {
-                // Link [text](url)
-                parts.push(
-                    <a key={key++} href={match[7]} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
-                        {match[6]}
-                    </a>
-                );
-            }
-
+            // Add mermaid block
+            parts.push({ type: 'mermaid', content: match[1] });
             lastIndex = match.index + match[0].length;
         }
+    }
 
-        // Add remaining text
-        if (lastIndex < text.length) {
-            parts.push(text.slice(lastIndex));
-        }
+    // Add remaining markdown content
+    if (lastIndex < content.length) {
+        parts.push({ type: 'markdown', content: content.slice(lastIndex) });
+    }
 
-        return parts.length > 0 ? parts : [text];
-    };
+    // If no mermaid blocks found, just render the whole content as markdown
+    if (parts.length === 0) {
+        parts.push({ type: 'markdown', content });
+    }
 
-    const flushList = () => {
-        if (currentList.length > 0) {
-            const isOrdered = /^\d+\./.test(currentList[0]);
-            const ListTag = isOrdered ? 'ol' : 'ul';
-            elements.push(
-                <ListTag key={elements.length} className={isOrdered ? 'list-decimal list-inside space-y-1 my-2' : 'list-disc list-inside space-y-1 my-2'}>
-                    {currentList.map((item, i) => (
-                        <li key={i} className="text-gray-700">
-                            {processInlineFormatting(item.replace(/^[\d]+\.\s*|^[-*]\s*/, ''))}
-                        </li>
-                    ))}
-                </ListTag>
-            );
-            currentList = [];
-        }
-    };
-
-    lines.forEach((line, index) => {
-        // Code block detection
-        if (line.startsWith('```')) {
-            if (isInCodeBlock) {
-                // End code block - check if it was mermaid
-                const codeContent = codeBlockContent.join('\n');
-                if (renderMermaid && codeBlockContent.length > 0 && line.startsWith('```') && elements.length > 0) {
-                    // Check if the opening was mermaid
-                    const lastElement = elements[elements.length - 1];
-                    if (lastElement && (lastElement as any).props?.['data-mermaid']) {
-                        // Already handled as mermaid
-                    }
-                }
-
-                // Check for mermaid by looking at the stored language
-                if (renderMermaid && codeBlockLanguage === 'mermaid') {
-                    elements.push(
-                        <div key={elements.length} className="my-4">
+    return (
+        <div className={`simple-markdown ${className}`}>
+            {parts.map((part, index) => {
+                if (part.type === 'mermaid') {
+                    return (
+                        <div key={index} className="my-4">
                             <DiagramRenderer
-                                code={codeContent}
+                                code={part.content}
                                 title=""
                                 showControls={false}
                             />
                         </div>
                     );
-                } else {
-                    elements.push(
-                        <pre key={elements.length} className="p-4 rounded-lg bg-gray-900 text-gray-100 overflow-x-auto my-3">
-                            <code>{codeContent}</code>
-                        </pre>
-                    );
                 }
-                codeBlockContent = [];
-                isInCodeBlock = false;
-                codeBlockLanguage = '';
-            } else {
-                flushList();
-                isInCodeBlock = true;
-                // Extract language from opening fence (e.g., ```mermaid)
-                codeBlockLanguage = line.slice(3).trim().toLowerCase();
-            }
-            return;
-        }
 
-        if (isInCodeBlock) {
-            codeBlockContent.push(line);
-            return;
-        }
-
-        // Headers
-        if (line.startsWith('### ')) {
-            flushList();
-            elements.push(
-                <h3 key={elements.length} className="text-lg font-semibold text-gray-800 mt-4 mb-2">
-                    {processInlineFormatting(line.slice(4))}
-                </h3>
-            );
-            return;
-        }
-        if (line.startsWith('## ')) {
-            flushList();
-            elements.push(
-                <h2 key={elements.length} className="text-xl font-semibold text-gray-800 mt-5 mb-2">
-                    {processInlineFormatting(line.slice(3))}
-                </h2>
-            );
-            return;
-        }
-        if (line.startsWith('# ')) {
-            flushList();
-            elements.push(
-                <h1 key={elements.length} className="text-2xl font-bold text-gray-900 mt-6 mb-3">
-                    {processInlineFormatting(line.slice(2))}
-                </h1>
-            );
-            return;
-        }
-
-        // Lists
-        if (/^[-*]\s/.test(line) || /^\d+\.\s/.test(line)) {
-            currentList.push(line);
-            return;
-        } else {
-            flushList();
-        }
-
-        // Horizontal rule
-        if (/^[-*_]{3,}$/.test(line.trim())) {
-            elements.push(<hr key={elements.length} className="my-4 border-gray-200" />);
-            return;
-        }
-
-        // Empty line
-        if (line.trim() === '') {
-            elements.push(<div key={elements.length} className="h-2" />);
-            return;
-        }
-
-        // Regular paragraph
-        elements.push(
-            <p key={elements.length} className="text-gray-700 mb-2 leading-relaxed">
-                {processInlineFormatting(line)}
-            </p>
-        );
-    });
-
-    // Flush any remaining list
-    flushList();
-
-    return <div className={`simple-markdown ${className}`}>{elements}</div>;
+                return (
+                    <ReactMarkdown
+                        key={index}
+                        components={{
+                            h1: ({ children }) => (
+                                <h1 className="text-2xl font-bold text-gray-900 mt-6 mb-3">{children}</h1>
+                            ),
+                            h2: ({ children }) => (
+                                <h2 className="text-xl font-semibold text-gray-800 mt-5 mb-2">{children}</h2>
+                            ),
+                            h3: ({ children }) => (
+                                <h3 className="text-lg font-semibold text-gray-800 mt-4 mb-2">{children}</h3>
+                            ),
+                            p: ({ children }) => (
+                                <p className="text-gray-700 mb-3 leading-relaxed">{children}</p>
+                            ),
+                            ul: ({ children }) => (
+                                <ul className="list-disc pl-6 space-y-2 my-3 text-gray-700">{children}</ul>
+                            ),
+                            ol: ({ children }) => (
+                                <ol className="list-decimal pl-6 space-y-2 my-3 text-gray-700">{children}</ol>
+                            ),
+                            li: ({ children }) => (
+                                <li className="leading-relaxed">{children}</li>
+                            ),
+                            strong: ({ children }) => (
+                                <strong className="font-semibold text-gray-900">{children}</strong>
+                            ),
+                            em: ({ children }) => (
+                                <em className="italic">{children}</em>
+                            ),
+                            code: ({ className, children }) => {
+                                // Check if this is a code block (has className with language)
+                                const isBlock = className?.includes('language-');
+                                if (isBlock) {
+                                    return (
+                                        <pre className="p-4 rounded-lg bg-gray-900 text-gray-100 overflow-x-auto my-3">
+                                            <code>{children}</code>
+                                        </pre>
+                                    );
+                                }
+                                return (
+                                    <code className="px-1.5 py-0.5 rounded bg-gray-100 text-sm font-mono text-gray-800">
+                                        {children}
+                                    </code>
+                                );
+                            },
+                            a: ({ href, children }) => (
+                                <a
+                                    href={href}
+                                    className="text-primary hover:underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {children}
+                                </a>
+                            ),
+                            hr: () => <hr className="my-4 border-gray-200" />,
+                        }}
+                    >
+                        {part.content}
+                    </ReactMarkdown>
+                );
+            })}
+        </div>
+    );
 }

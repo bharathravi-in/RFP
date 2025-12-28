@@ -2,7 +2,7 @@
 RFP Sections API Routes
 Handles section types, project sections, and content generation.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -1244,6 +1244,89 @@ def export_proposal(project_id):
         download_name=filename,
         mimetype=mimetype
     )
+
+
+@bp.route('/projects/<int:project_id>/export/proposal-preview', methods=['POST'])
+@jwt_required()
+def export_proposal_preview(project_id):
+    """Generate proposal and return preview URL for iframe viewing"""
+    import os
+    from app.services.export_service import generate_proposal_docx
+    from app.models import Question
+    
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get all sections in order
+    sections = RFPSection.query.filter_by(project_id=project_id)\
+        .order_by(RFPSection.order).all()
+    
+    # Get questions
+    questions = Question.query.filter_by(project_id=project_id).all()
+    
+    # Check for default DOCX template
+    from app.models import ExportTemplate
+    template_path = None
+    template = ExportTemplate.query.filter_by(
+        organization_id=user.organization_id,
+        template_type='docx',
+        is_default=True
+    ).first()
+    if template and os.path.exists(template.file_path):
+        template_path = template.file_path
+    
+    # Generate the DOCX
+    buffer = generate_proposal_docx(project, sections, True, questions, project.organization, template_path)
+    filename = f'{project.name.replace(" ", "_")}_proposal.docx'
+    mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    
+    # Try to upload to GCP and get signed URL
+    preview_url = None
+    try:
+        from app.services.storage_service import get_storage_service
+        storage = get_storage_service()
+        
+        if storage.storage_type == 'gcp':
+            rfp_proposal_prefix = os.environ.get('GCP_RFP_PROPOSAL_PREFIX', 'rfp_proposal')
+            project_subfolder = f"project_{project_id}/preview"
+            
+            # Upload to GCP
+            buffer.seek(0)
+            storage_metadata = storage.provider.upload_with_path(
+                file=buffer,
+                original_filename=filename,
+                prefix=rfp_proposal_prefix,
+                subfolder=project_subfolder,
+                content_type=mimetype,
+                metadata={
+                    'project_id': project_id,
+                    'exported_by': user_id,
+                    'organization_id': user.organization_id,
+                    'export_type': 'preview'
+                }
+            )
+            
+            # Get signed URL for viewing (1 hour expiry)
+            file_id = storage_metadata.file_id
+            preview_url = storage.provider.get_url(file_id, expiry_minutes=60)
+            current_app.logger.info(f"Proposal preview uploaded to GCP, signed URL generated: {file_id}")
+    except Exception as e:
+        current_app.logger.warning(f"Failed to upload proposal preview to GCP: {e}")
+    
+    return jsonify({
+        'success': True,
+        'preview_url': preview_url,
+        'filename': filename,
+        'sections_count': len(sections),
+        'project_name': project.name
+    })
 
 
 @bp.route('/projects/<int:project_id>/export/preview', methods=['GET'])
