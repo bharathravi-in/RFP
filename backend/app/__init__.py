@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from .config import config
-from .extensions import db, migrate, jwt, cors, socketio
+from .extensions import db, migrate, jwt, cors, socketio, gzip
 
 
 def create_app(config_name=None):
@@ -17,6 +17,7 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
+    gzip.init_app(app)
     
     cors.init_app(app, resources={
         r"/api/*": {
@@ -25,6 +26,15 @@ def create_app(config_name=None):
             "allow_headers": ["Content-Type", "Authorization"]
         }
     })
+    
+    # Initialize OpenTelemetry (if enabled via OTEL_ENABLED=true)
+    try:
+        from app.utils.telemetry import init_telemetry, get_telemetry_status
+        init_telemetry(app)
+    except ImportError:
+        pass  # Telemetry dependencies not installed, skip
+    except Exception as e:
+        print(f"Warning: Could not initialize telemetry: {e}")
     
     # Register Socket.IO handlers
     from . import socket_events
@@ -73,11 +83,43 @@ def create_app(config_name=None):
     app.register_blueprint(ppt.bp, url_prefix='/api/ppt')  # PowerPoint generation
     app.register_blueprint(export_templates.bp, url_prefix='/api/export-templates')  # Export templates
 
+    # Enhancement features (usage tracking, cache, export)
+    from .routes import enhancements
+    app.register_blueprint(enhancements.bp)  # /api prefix defined in blueprint
+
+    # Document Chat
+    from .routes import document_chat
+    app.register_blueprint(document_chat.bp)  # Document-specific AI chat
+
+    # Knowledge Chat
+    from .routes import knowledge_chat
+    app.register_blueprint(knowledge_chat.bp, url_prefix='/api/knowledge')  # Knowledge-item AI chat
+
+    # Proposal Chat
+    from .routes import proposal_chat
+    app.register_blueprint(proposal_chat.bp)  # Chat-style proposal generation
+
+    # Health check endpoints (enhanced)
+    from .routes import health, api_docs
+    app.register_blueprint(health.bp)  # /health, /ready, /metrics at root
+    app.register_blueprint(api_docs.bp, url_prefix='/api')  # /api/docs, /api/openapi.json
+
+    # Initialize middleware
+    from .middleware import init_error_handlers, init_request_logging, add_rate_limit_headers
+    init_error_handlers(app)
+    init_request_logging(app)
+    app.after_request(add_rate_limit_headers)
     
-    # Health check endpoint
+    # Health check endpoint with telemetry status
     @app.route('/api/health')
     def health_check():
-        return {'status': 'healthy', 'service': 'autorespond-api'}
+        response = {'status': 'healthy', 'service': 'autorespond-api'}
+        try:
+            from app.utils.telemetry import get_telemetry_status
+            response['telemetry'] = get_telemetry_status()
+        except ImportError:
+            response['telemetry'] = {'enabled': False}
+        return response
     
     # Auto-seed section types on first request
     @app.before_request

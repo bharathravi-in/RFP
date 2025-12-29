@@ -60,20 +60,11 @@ class QuestionExtractor:
             self._init_legacy_model()
     
     def _init_legacy_model(self):
-        """Initialize legacy Google model as fallback."""
-        try:
-            api_key = current_app.config.get('GOOGLE_API_KEY')
-            if api_key:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                self._legacy_model = genai.GenerativeModel(
-                    current_app.config.get('GOOGLE_MODEL', 'gemini-1.5-flash')
-                )
-                self.ai_enabled = True
-                logger.info("QuestionExtractor using legacy Google provider")
-        except Exception as e:
-            logger.warning(f"Legacy model init failed: {e}")
-            self._legacy_model = None
+        """Legacy fallback disabled - provider abstraction only."""
+        # Legacy Google AI fallback removed - all LLM access should go through llm_service_helper
+        # If no dynamic provider available, AI extraction will be disabled
+        logger.debug("Legacy model fallback disabled - using provider abstraction only")
+        self._legacy_model = None
     
     def _generate(self, prompt: str) -> str:
         """Generate content using configured provider."""

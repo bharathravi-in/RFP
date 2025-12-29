@@ -39,18 +39,9 @@ class SectionGenerationService:
         return self._llm_provider
     
     def _get_legacy_model(self):
-        """Fallback to legacy Google AI model."""
-        if self._legacy_model is None:
-            try:
-                import google.generativeai as genai
-                api_key = os.environ.get("GOOGLE_API_KEY")
-                if api_key:
-                    genai.configure(api_key=api_key)
-                    model_name = os.environ.get("GOOGLE_MODEL", "gemini-1.5-flash")
-                    self._legacy_model = genai.GenerativeModel(model_name)
-            except Exception as e:
-                print(f"Error initializing legacy AI model: {e}")
-        return self._legacy_model
+        """Legacy fallback disabled - provider abstraction only."""
+        # Legacy Google AI fallback removed - all LLM access should go through llm_service_helper
+        return None
     
     def _generate(self, prompt: str) -> str:
         """Generate content using configured LLM provider."""

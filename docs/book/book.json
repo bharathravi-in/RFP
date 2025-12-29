@@ -1,0 +1,18 @@
+{
+    "title": "RFP Pro Documentation",
+    "description": "AI-Powered RFP Response Platform",
+    "author": "QuadCrew Team",
+    "language": "en",
+    "gitbook": "3.2.3",
+    "plugins": [
+        "mermaid",
+        "theme-default"
+    ],
+    "pluginsConfig": {
+        "mermaid": {}
+    },
+    "structure": {
+        "readme": "README.md",
+        "summary": "SUMMARY.md"
+    }
+}

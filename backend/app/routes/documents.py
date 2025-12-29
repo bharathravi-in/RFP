@@ -77,17 +77,44 @@ def upload_document():
     # Use cloud-agnostic storage service
     try:
         from app.services.storage_service import get_storage_service
+        import os
         
         storage = get_storage_service()
-        storage_metadata = storage.upload(
-            file=file,
-            original_filename=original_filename,
-            metadata={
-                'project_id': int(project_id),
-                'uploaded_by': user_id,
-                'organization_id': user.organization_id
-            }
-        )
+        
+        # Check if using GCP with custom prefix
+        if storage.storage_type == 'gcp':
+            # Get organization name for folder structure
+            from app.models import Organization
+            org = Organization.query.get(user.organization_id)
+            org_name = org.name.lower().replace(' ', '_').replace('/', '_') if org else f"org_{user.organization_id}"
+            
+            rfp_req_prefix = os.environ.get('GCP_RFP_REQ_PREFIX', 'rfp_requirement')
+            # Structure: rfp_requirement/{org_name}/project_{project_id}/
+            org_project_subfolder = f"{org_name}/project_{project_id}"
+            
+            storage_metadata = storage.provider.upload_with_path(
+                file=file,
+                original_filename=original_filename,
+                prefix=rfp_req_prefix,
+                subfolder=org_project_subfolder,
+                metadata={
+                    'project_id': int(project_id),
+                    'uploaded_by': user_id,
+                    'organization_id': user.organization_id,
+                    'organization_name': org_name
+                }
+            )
+        else:
+            # Use default upload for local storage
+            storage_metadata = storage.upload(
+                file=file,
+                original_filename=original_filename,
+                metadata={
+                    'project_id': int(project_id),
+                    'uploaded_by': user_id,
+                    'organization_id': user.organization_id
+                }
+            )
         
         # Create document record with storage info
         document = Document(
@@ -218,7 +245,10 @@ def _parse_document_internal(document):
     try:
         # Write file data to temp file for processing
         temp_file_path = None
+        temp_file_created = False
+        
         if document.file_data:
+            # Legacy: file stored directly in database
             temp_file = tempfile.NamedTemporaryFile(
                 delete=False,
                 suffix=f'.{document.file_type}'
@@ -226,16 +256,54 @@ def _parse_document_internal(document):
             temp_file.write(document.file_data)
             temp_file.close()
             temp_file_path = temp_file.name
+            temp_file_created = True
+        elif (document.storage_type == 'gcp' or 
+              (document.file_metadata and document.file_metadata.get('storage', {}).get('storage_type') == 'gcp')) and document.file_id:
+            # GCP Storage: download from cloud storage
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                current_app.logger.info(f"Attempting to download document {document.id} from GCP, file_id: {document.file_id}")
+                file_content, metadata = storage.download(document.file_id)
+                
+                temp_file = tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=f'.{document.file_type}'
+                )
+                temp_file.write(file_content)
+                temp_file.close()
+                temp_file_path = temp_file.name
+                temp_file_created = True
+                current_app.logger.info(f"Downloaded document {document.id} from GCP storage, size: {len(file_content)} bytes")
+            except Exception as e:
+                current_app.logger.error(f"Failed to download from GCP: {e}")
+                document.status = 'failed'
+                document.error_message = f'Failed to download from cloud storage: {str(e)}'
+                db.session.commit()
+                return {'error': f'Cloud storage download failed: {str(e)}'}
+        elif document.storage_type == 'local' and document.file_id:
+            # Local storage service: get the local path
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                temp_file_path = storage.get_local_path(document.file_id)
+                current_app.logger.info(f"Using local storage path for document {document.id}: {temp_file_path}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to get local storage path: {e}")
         elif document.file_path:
+            # Legacy: direct file path
             temp_file_path = document.file_path
+            current_app.logger.info(f"Using legacy file_path for document {document.id}: {temp_file_path}")
         elif document.file_metadata and document.file_metadata.get('storage', {}).get('local_path'):
-            # Read from storage service path
+            # Legacy: storage service path from metadata
             storage_path = document.file_metadata['storage']['local_path']
             import os as path_os
             if path_os.path.exists(storage_path):
                 temp_file_path = storage_path
+                current_app.logger.info(f"Using file_metadata storage path for document {document.id}: {temp_file_path}")
         
         if not temp_file_path:
+            current_app.logger.error(f"No file data available for document {document.id}. storage_type={document.storage_type}, file_id={document.file_id}, has_file_data={document.file_data is not None}")
             document.status = 'failed'
             document.error_message = 'No file data available'
             db.session.commit()
@@ -246,8 +314,8 @@ def _parse_document_internal(document):
         doc_service = DocumentService()
         extracted_text = doc_service.extract_text(temp_file_path, document.file_type)
         
-        # Clean up temp file
-        if document.file_data and temp_file_path:
+        # Clean up temp file if we created one
+        if temp_file_created and temp_file_path:
             import os as temp_os
             try:
                 temp_os.unlink(temp_file_path)
@@ -416,6 +484,22 @@ def delete_document(document_id):
     if document.file_path and os.path.exists(document.file_path):
         os.remove(document.file_path)
     
+    # Delete associated chat sessions first (foreign key constraint)
+    try:
+        from ..models.document_chat import DocumentChatSession
+        DocumentChatSession.query.filter_by(document_id=document_id).delete()
+    except Exception as e:
+        current_app.logger.warning(f"Could not delete chat sessions: {e}")
+    
+    # Delete from cloud storage if applicable
+    try:
+        if document.storage_type == 'gcp' and document.file_id:
+            from app.services.storage_service import get_storage_service
+            storage = get_storage_service()
+            storage.delete(document.file_id)
+    except Exception as e:
+        current_app.logger.warning(f"Could not delete from cloud storage: {e}")
+    
     db.session.delete(document)
     db.session.commit()
     
@@ -498,13 +582,18 @@ def auto_build_proposal(document_id):
     }), 201
 
 
-@bp.route('/<int:document_id>/preview', methods=['GET'])
+@bp.route('/<int:document_id>/signed-url', methods=['GET'])
 @jwt_required()
-def preview_document(document_id):
-    """Get document content for preview/viewing."""
-    from flask import Response, send_file
-    import tempfile
-    import io
+def get_document_signed_url(document_id):
+    """
+    Get a signed public URL for Microsoft Office Online Viewer.
+    
+    For GCP-stored documents, generates a signed URL that can be used with:
+    - Microsoft Office Viewer: https://view.officeapps.live.com/op/embed.aspx?src={url}
+    - Google Docs Viewer: https://docs.google.com/gview?url={url}&embedded=true
+    """
+    from datetime import timedelta
+    from urllib.parse import quote
     
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
@@ -517,7 +606,136 @@ def preview_document(document_id):
     if document.project.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    if not document.file_data:
+    # Check if document is stored in GCP
+    if document.storage_type != 'gcp' or not document.file_id:
+        return jsonify({
+            'error': 'Document is not stored in cloud storage',
+            'message': 'Microsoft Office viewer requires cloud-stored documents'
+        }), 400
+    
+    try:
+        from google.cloud import storage as gcs
+        
+        bucket_name = os.environ.get('GCP_STORAGE_BUCKET') or os.environ.get('GOOGLE_CLOUD_BUCKET_NAME')
+        creds_path = os.environ.get('GCP_STORAGE_CREDENTIALS') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        if not bucket_name:
+            return jsonify({'error': 'GCP bucket not configured'}), 500
+        
+        if creds_path and os.path.exists(creds_path):
+            client = gcs.Client.from_service_account_json(creds_path)
+        else:
+            client = gcs.Client()
+        
+        bucket = client.bucket(bucket_name)
+        
+        # Get blob using file metadata
+        blob_name = None
+        if document.file_metadata and document.file_metadata.get('storage', {}).get('blob_name'):
+            blob_name = document.file_metadata['storage']['blob_name']
+        
+        if not blob_name:
+            # Try to find blob by file_id
+            from app.services.storage_service import get_storage_service
+            storage = get_storage_service()
+            blob = storage.provider._find_blob(document.file_id)
+            if blob:
+                blob_name = blob.name
+        
+        if not blob_name:
+            return jsonify({'error': 'Unable to locate file in GCP storage'}), 404
+        
+        blob = bucket.blob(blob_name)
+        
+        # Verify blob exists
+        if not blob.exists():
+            return jsonify({'error': 'File not found in GCP storage'}), 404
+        
+        # Generate signed URL (valid for 1 hour)
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(hours=1),
+            method="GET"
+        )
+        
+        # Build viewer URLs
+        microsoft_viewer_url = f"https://view.officeapps.live.com/op/embed.aspx?src={quote(signed_url, safe='')}"
+        google_viewer_url = f"https://docs.google.com/gview?url={quote(signed_url, safe='')}&embedded=true"
+        
+        return jsonify({
+            'signed_url': signed_url,
+            'microsoft_viewer_url': microsoft_viewer_url,
+            'google_viewer_url': google_viewer_url,
+            'file_name': document.original_filename,
+            'file_type': document.file_type,
+            'expires_in': 3600
+        }), 200
+        
+    except ImportError:
+        return jsonify({'error': 'GCS library not installed'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Failed to generate signed URL for document {document_id}: {e}")
+        return jsonify({'error': f'Failed to generate signed URL: {str(e)}'}), 500
+
+@bp.route('/<int:document_id>/preview', methods=['GET'])
+@jwt_required(optional=True, locations=['headers', 'query_string'])
+def preview_document(document_id):
+    """Get document content for preview/viewing.
+    
+    Supports both header-based and query string JWT for iframe embedding.
+    """
+    from flask import Response, send_file
+    import tempfile
+    import io
+    
+    # Get user from JWT (supports both header and query_string)
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = int(user_id)
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get file data from database or storage service
+    file_data = document.file_data
+    
+    if not file_data:
+        # Try to read from storage service (local path or cloud)
+        try:
+            from app.services.storage_service import get_storage_service
+            storage_service = get_storage_service()
+            
+            current_app.logger.info(f"Preview: document {document_id}, storage_type={document.storage_type}, file_id={document.file_id}")
+            
+            if storage_service and document.file_id:
+                # Use storage service download method
+                current_app.logger.info(f"Attempting to download from storage service...")
+                file_bytes, metadata = storage_service.download(document.file_id)
+                file_data = file_bytes
+                current_app.logger.info(f"Downloaded {len(file_data)} bytes from storage")
+            else:
+                # Fallback: check local path in metadata
+                storage_info = document.file_metadata.get('storage', {}) if document.file_metadata else {}
+                local_path = storage_info.get('local_path')
+                
+                if local_path and os.path.exists(local_path):
+                    with open(local_path, 'rb') as f:
+                        file_data = f.read()
+                    current_app.logger.info(f"Read from local path: {local_path}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to read file from storage: {e}", exc_info=True)
+            return jsonify({'error': f'Failed to load file: {str(e)}'}), 500
+    
+    if not file_data:
+        current_app.logger.error(f"No file data available for document {document_id}")
         return jsonify({'error': 'No file data available'}), 404
     
     file_type = document.file_type.lower()
@@ -525,7 +743,7 @@ def preview_document(document_id):
     # PDF - return directly
     if file_type == 'pdf':
         return Response(
-            document.file_data,
+            file_data,
             mimetype='application/pdf',
             headers={
                 'Content-Disposition': f'inline; filename="{document.original_filename}"'
@@ -537,7 +755,7 @@ def preview_document(document_id):
         try:
             import mammoth
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
-            temp_file.write(document.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             with open(temp_file.name, 'rb') as f:
@@ -573,7 +791,7 @@ def preview_document(document_id):
         try:
             from openpyxl import load_workbook
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
-            temp_file.write(document.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             wb = load_workbook(temp_file.name)
@@ -621,7 +839,7 @@ def preview_document(document_id):
         try:
             from pptx import Presentation
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
-            temp_file.write(document.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             prs = Presentation(temp_file.name)

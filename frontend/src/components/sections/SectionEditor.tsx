@@ -1041,8 +1041,8 @@ ${answer}
                                                     );
                                                 }
                                             } catch {
-                                                // If JSON parsing fails, show raw content
-                                                return content;
+                                                // If JSON parsing fails, render as markdown
+                                                return <SimpleMarkdown content={content} />;
                                             }
                                         }
                                         // Default narrative display - render as markdown

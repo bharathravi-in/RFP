@@ -266,14 +266,49 @@ def upload_to_folder(folder_id):
                         full_text = f"File: {filename}\n\n[Content could not be extracted. Download to view.]"
                     chunks = []
                 
+                # Upload to cloud storage if configured, otherwise store in DB
+                storage_type = 'database'
+                file_id = None
+                file_url = None
+                
+                try:
+                    from ..services.storage_service import get_storage_service
+                    storage = get_storage_service()
+                    
+                    # Check if using cloud storage (not local/database)
+                    if storage.storage_type == 'gcp':
+                        # Get knowledge prefix from env
+                        knowledge_prefix = os.environ.get('GCP_KNOWLEDGE_PREFIX', 'knowledge')
+                        
+                        # Use folder name as subfolder for organization
+                        folder_name = folder.name.replace(' ', '_').lower() if folder else 'default'
+                        
+                        # Reset file position for upload
+                        file.seek(0)
+                        storage_metadata = storage.provider.upload_with_path(
+                            file=file,
+                            original_filename=filename,
+                            prefix=knowledge_prefix,
+                            subfolder=folder_name,
+                            content_type=file.content_type,
+                            metadata={'folder_id': folder_id, 'organization_id': user.organization_id}
+                        )
+                        file_id = storage_metadata.file_id
+                        file_url = storage_metadata.file_url
+                        storage_type = 'gcp'
+                        logger.info(f"Uploaded {filename} to GCP: {file_url}")
+                except Exception as e:
+                    logger.warning(f"Cloud storage upload failed, falling back to DB storage: {e}")
+                    storage_type = 'database'
+                
                 # Create parent knowledge item (stores the full document)
                 parent_item = KnowledgeItem(
                     title=filename,
-                    content=full_text[:50000] if full_text else f"File: {filename}",  # Summary content
+                    content=full_text[:50000] if full_text else '',  # Always store extracted text for AI summaries
                     source_type='file',
                     source_file=filename,
                     file_type=file.content_type,
-                    file_data=file_content,  # Store binary in database
+                    file_data=file_content if storage_type == 'database' else None,  # Only store if not using cloud
                     file_size=file_size,
                     folder_id=folder_id,
                     geography=geography,
@@ -285,8 +320,11 @@ def upload_to_folder(folder_id):
                     item_metadata={
                         'total_chunks': len(chunks),
                         'total_pages': chunking_result.total_pages if chunks else 1,
-                        'total_words': chunking_result.total_words if chunks else len(full_text.split()),
-                        'chunking_method': 'docling' if chunks else 'basic'
+                        'total_words': chunking_result.total_words if chunks else len(full_text.split()) if full_text else 0,
+                        'chunking_method': 'docling' if chunks else 'basic',
+                        'storage_type': storage_type,
+                        'file_id': file_id,
+                        'file_url': file_url
                     }
                 )
                 db.session.add(parent_item)

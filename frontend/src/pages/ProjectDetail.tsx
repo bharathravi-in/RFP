@@ -70,6 +70,11 @@ export default function ProjectDetail() {
             setProject(projectRes.data.project);
             setQuestions(questionsRes.data.questions || []);
             setDocuments(documentsRes.data.documents || []);
+
+            // Cache project name for Breadcrumbs to avoid duplicate API calls
+            if (projectRes.data.project?.name) {
+                sessionStorage.setItem(`project-name-${id}`, projectRes.data.project.name);
+            }
         } catch {
             toast.error('Failed to load project');
             navigate('/projects');
@@ -78,9 +83,11 @@ export default function ProjectDetail() {
         }
     }, [id, navigate]);
 
+    // Load data when id changes - use id directly to prevent double calls
     useEffect(() => {
         loadProject();
-    }, [loadProject]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]); // Intentionally only depend on id to prevent duplicate calls
 
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (!id || acceptedFiles.length === 0) return;
@@ -475,9 +482,9 @@ export default function ProjectDetail() {
                                     <DocumentTextIcon className="h-5 w-5 text-primary" />
                                     RFP Documents ({documents.length})
                                 </h3>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                <div className={`space-y-2 ${documents.length > 5 ? 'max-h-[400px] overflow-y-auto' : ''}`}>
                                     {documents.map((doc) => (
-                                        <div key={doc.id} className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                                        <div key={doc.id} className="flex items-center gap-3 p-3 bg-background rounded-lg relative">
                                             <div className="h-8 w-8 rounded bg-white flex items-center justify-center border border-border">
                                                 <DocumentTextIcon className="h-4 w-4 text-text-muted" />
                                             </div>

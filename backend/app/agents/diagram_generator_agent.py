@@ -526,10 +526,65 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         code = code.replace('↔', '<-->')
         code = code.replace('➡', '-->')
         code = code.replace('⬅', '<--')
+        code = code.replace('⇒', '-->')
+        code = code.replace('⇐', '<--')
         
         # Remove other problematic Unicode characters (but keep basic punctuation)
-        # Keep alphanumeric, spaces, brackets, arrows, newlines, common punctuation
         code = re.sub(r'[^\x20-\x7E\n\r\t]', '', code)
+        
+        # Fix malformed connection lines with multiple arrows
+        # e.g., "KU --> WA Accesses KU --> MA" becomes "KU --> WA" and "KU --> MA"
+        lines = code.split('\n')
+        fixed_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip empty lines, comments, or keywords
+            if not stripped or stripped.startswith('%') or stripped.startswith('flowchart') or stripped.startswith('subgraph') or stripped == 'end':
+                fixed_lines.append(line)
+                continue
+            
+            # Fix colon-based labels (invalid syntax like "A --> B: label" should be "A -->|label| B")
+            # Pattern: NodeA --> NodeB: Some Label
+            colon_label_match = re.match(r'^(\s*)(\S+)\s*(-->|<--|---)\s*(\S+):\s*(.+)$', stripped)
+            if colon_label_match:
+                indent = colon_label_match.group(1)
+                node_a = colon_label_match.group(2)
+                arrow = colon_label_match.group(3)
+                node_b = colon_label_match.group(4)
+                label = colon_label_match.group(5).strip()
+                # Clean the label (remove special chars, limit length)
+                label = re.sub(r'[^\w\s]', '', label)
+                label = label[:30] if len(label) > 30 else label
+                fixed_lines.append(f"{indent}{node_a} {arrow}|{label}| {node_b}")
+                continue
+            
+            # Count arrows in the line
+            arrow_count = stripped.count('-->') + stripped.count('<--') + stripped.count('---')
+            
+            if arrow_count > 1:
+                # Multiple arrows - try to fix by splitting into valid connections
+                # This handles cases like "A --> B --> C" which should be "A --> B" and "B --> C"
+                parts = re.split(r'(-->|<--|---)', stripped)
+                if len(parts) >= 3:
+                    # Try to extract valid pairs
+                    current_node = parts[0].strip()
+                    for i in range(1, len(parts), 2):
+                        if i + 1 < len(parts):
+                            arrow = parts[i]
+                            next_node = parts[i + 1].strip()
+                            # Skip if node names contain invalid text
+                            if current_node and next_node and len(current_node) < 50 and len(next_node) < 50:
+                                fixed_lines.append(f"    {current_node} {arrow} {next_node}")
+                                current_node = next_node
+                else:
+                    # Can't fix, skip this line
+                    logger.warning(f"Skipping malformed line: {stripped}")
+            else:
+                fixed_lines.append(line)
+        
+        code = '\n'.join(fixed_lines)
         
         # Fix node labels - remove or escape problematic characters inside brackets
         def clean_node_label(match):
@@ -547,11 +602,13 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
             label = label.replace('"', '').replace("'", '')
             # 4. Remove ampersands
             label = label.replace('&', 'and')
-            # 5. Limit length
+            # 5. Remove arrows inside labels
+            label = label.replace('-->', '').replace('<--', '').replace('---', '')
+            # 6. Limit length
             label = label.strip()
             if len(label) > 30:
                 label = label[:27] + '...'
-            # 6. Remove multiple spaces
+            # 7. Remove multiple spaces
             label = re.sub(r'\s+', ' ', label)
             
             return f"{prefix}{label}{suffix}"
@@ -572,6 +629,9 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         # Fix empty subgraph names
         code = re.sub(r'subgraph\s*\n', 'subgraph Group\n', code)
         code = re.sub(r'subgraph\s*$', 'subgraph Group', code)
+        
+        # Fix invalid node IDs (must start with letter or underscore)
+        code = re.sub(r'^(\s*)(\d+)(\s*[\[\{])', r'\1node_\2\3', code, flags=re.MULTILINE)
         
         # Remove lines with only whitespace
         lines = code.split('\n')

@@ -13,8 +13,6 @@ import re
 from typing import Dict, List, Optional
 from flask import current_app
 
-import google.generativeai as genai
-
 from app import db
 from app.models import (
     Document, Project, Question, RFPSection, RFPSectionType,
@@ -91,14 +89,10 @@ class RFPAnalysisAgent:
         return self._provider
     
     def _get_legacy_model(self):
-        """Fallback to legacy Google AI model."""
-        if self._legacy_model is None and current_app.config.get('GOOGLE_API_KEY'):
-            import google.generativeai as genai
-            genai.configure(api_key=current_app.config['GOOGLE_API_KEY'])
-            self._legacy_model = genai.GenerativeModel(
-                current_app.config.get('GOOGLE_MODEL', 'gemini-1.5-flash')
-            )
-        return self._legacy_model
+        """Return None - legacy Google AI fallback removed in favor of provider abstraction."""
+        # Legacy fallback removed - all LLM access should go through llm_service_helper
+        logger.debug("Legacy model fallback disabled - using provider abstraction only")
+        return None
     
     def _generate(self, prompt: str) -> str:
         """Generate content using configured provider."""

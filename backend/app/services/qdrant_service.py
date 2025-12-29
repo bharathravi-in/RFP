@@ -7,7 +7,6 @@ import logging
 import hashlib
 from typing import List, Dict, Optional
 from flask import current_app
-import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
@@ -116,18 +115,18 @@ class QdrantService:
         if self.embedding_provider:
             return self.embedding_provider.get_embedding(text)
         else:
-            # Ultimate fallback to hardcoded Google AI
-            api_key = current_app.config.get('GOOGLE_API_KEY')
-            if not api_key:
-                raise ValueError("No embedding provider configured and GOOGLE_API_KEY not set")
+            # Try to initialize fallback provider if not yet done
+            if not hasattr(self, '_fallback_attempted'):
+                self._fallback_attempted = True
+                self._init_fallback_provider()
+                if self.embedding_provider:
+                    return self.embedding_provider.get_embedding(text)
             
-            genai.configure(api_key=api_key)
-            result = genai.embed_content(
-                model="models/text-embedding-004",
-                content=text,
-                task_type="retrieval_document"
+            # No provider available - raise clear error
+            raise ValueError(
+                "No embedding provider configured. "
+                "Please configure organization AI settings or set GOOGLE_API_KEY environment variable."
             )
-            return result['embedding']
     
     def _generate_point_id(self, item_id: int, org_id: int) -> str:
         """Generate unique point ID."""

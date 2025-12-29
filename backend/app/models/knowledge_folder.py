@@ -53,6 +53,13 @@ class KnowledgeFolder(db.Model):
     
     def to_dict(self, include_children=False, include_items=False):
         """Serialize folder to dictionary."""
+        from app.models import KnowledgeItem
+        
+        # Count only parent documents, not chunks
+        doc_count = self.items.filter_by(is_active=True).filter(
+            KnowledgeItem.parent_id.is_(None)
+        ).count()
+        
         data = {
             'id': self.id,
             'name': self.name,
@@ -63,7 +70,7 @@ class KnowledgeFolder(db.Model):
             'sort_order': self.sort_order,
             'is_global': self.is_global,  # NEW
             'category': self.category,  # NEW
-            'item_count': self.items.filter_by(is_active=True).count(),
+            'item_count': doc_count,
             'linked_project_count': self.linked_projects.count() if self.linked_projects else 0,  # NEW
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
@@ -77,9 +84,12 @@ class KnowledgeFolder(db.Model):
             ]
         
         if include_items:
+            # Filter out chunks (items with parent_id) - show only parent documents
             data['items'] = [
                 item.to_dict()
-                for item in self.items.filter_by(is_active=True).all()
+                for item in self.items.filter_by(is_active=True).filter(
+                    KnowledgeItem.parent_id.is_(None)
+                ).all()
             ]
         
         return data

@@ -12,3 +12,7 @@ jwt = JWTManager()
 cors = CORS()
 celery = Celery()  # Will be configured in app factory
 socketio = SocketIO()
+
+# Compression
+from flask_compress import Compress
+gzip = Compress()

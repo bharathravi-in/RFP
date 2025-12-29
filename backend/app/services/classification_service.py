@@ -151,18 +151,8 @@ class ClassificationService:
             except Exception as e:
                 logger.warning(f"Could not load dynamic LLM: {e}")
         
-        # Fallback to legacy Google
-        try:
-            api_key = current_app.config.get('GOOGLE_API_KEY')
-            if api_key:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
-                self.ai_enabled = True
-                logger.info("Classification using legacy Google provider")
-                return True
-        except Exception as e:
-            logger.warning(f"Legacy AI initialization failed: {e}")
+        # No legacy fallback - provider abstraction only
+        logger.debug("No dynamic LLM provider available, classification will use keyword-based only")
         return False
     
     def _generate(self, prompt: str) -> str:

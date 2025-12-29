@@ -467,6 +467,16 @@ export default function ProposalBuilder() {
                     </button>
                 </div>
 
+                {/* View Proposal */}
+                <button
+                    onClick={() => navigate(`/projects/${id}/proposal-chat`)}
+                    className="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors flex items-center gap-1.5"
+                    title="View and chat about the proposal"
+                >
+                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                    View Proposal
+                </button>
+
                 {/* Export */}
                 <div className="relative">
                     <button
