@@ -286,9 +286,9 @@ function AgentConfigForm({
     onSave: () => void;
 }) {
     const { user } = useAuthStore();
-    const [provider, setProvider] = useState(config?.provider || 'litellm');
-    const [model, setModel] = useState(config?.model || 'gemini-flash');
-    const [baseUrl, setBaseUrl] = useState(config?.base_url || 'https://litellm.tarento.dev');
+    const [provider, setProvider] = useState(config?.provider || '');
+    const [model, setModel] = useState(config?.model || '');
+    const [baseUrl, setBaseUrl] = useState(config?.base_url || '');
     const [temperature, setTemperature] = useState(config?.temperature ?? 0.7);
     const [maxTokens, setMaxTokens] = useState(config?.max_tokens ?? 4096);
     const [apiKey, setApiKey] = useState('');
@@ -303,17 +303,17 @@ function AgentConfigForm({
     useEffect(() => {
         console.log('AgentConfigForm: config changed', { agentType, config, provider: config?.provider });
         if (config) {
-            setProvider(config.provider || 'litellm');
-            setModel(config.model || 'gemini-flash');
-            setBaseUrl(config.base_url || 'https://litellm.tarento.dev');
+            setProvider(config.provider || '');
+            setModel(config.model || '');
+            setBaseUrl(config.base_url || '');
             setTemperature(config.temperature ?? 0.7);
             setMaxTokens(config.max_tokens ?? 4096);
             setUseDefaultKey(config.use_default_key ?? (agentType !== 'default'));
         } else {
-            // Reset to defaults
-            setProvider('litellm');
-            setModel('gemini-flash');
-            setBaseUrl('https://litellm.tarento.dev');
+            // No config - leave empty for new orgs
+            setProvider('');
+            setModel('');
+            setBaseUrl('');
             setTemperature(0.7);
             setMaxTokens(4096);
             setUseDefaultKey(agentType !== 'default');
@@ -435,6 +435,7 @@ function AgentConfigForm({
                         onChange={(e) => setProvider(e.target.value)}
                         className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:ring-2 focus:ring-primary/50"
                     >
+                        <option value="">Select a provider...</option>
                         {Object.entries(providers).map(([key, prov]) => (
                             <option key={key} value={key}>{prov.name}</option>
                         ))}
@@ -565,16 +566,18 @@ function AgentConfigForm({
                 )}
 
                 {/* API Key */}
-                {(!useDefaultKey || agentType === 'default') && (
+                {(!useDefaultKey || agentType === 'default') && provider && (
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium mb-1">
                             API Key {config && ' (leave blank to keep existing)'}
                         </label>
                         <input
                             type="password"
+                            name={`api-key-${agentType}-${Date.now()}`}
+                            autoComplete="off"
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
-                            placeholder={config ? '••••••••' : 'Enter API key'}
+                            placeholder={config?.id ? '••••••••' : 'Enter API key'}
                             className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:ring-2 focus:ring-primary/50"
                         />
                     </div>

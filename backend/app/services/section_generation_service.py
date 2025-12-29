@@ -39,18 +39,9 @@ class SectionGenerationService:
         return self._llm_provider
     
     def _get_legacy_model(self):
-        """Fallback to legacy Google AI model."""
-        if self._legacy_model is None:
-            try:
-                import google.generativeai as genai
-                api_key = os.environ.get("GOOGLE_API_KEY")
-                if api_key:
-                    genai.configure(api_key=api_key)
-                    model_name = os.environ.get("GOOGLE_MODEL", "gemini-1.5-flash")
-                    self._legacy_model = genai.GenerativeModel(model_name)
-            except Exception as e:
-                print(f"Error initializing legacy AI model: {e}")
-        return self._legacy_model
+        """Legacy fallback disabled - provider abstraction only."""
+        # Legacy Google AI fallback removed - all LLM access should go through llm_service_helper
+        return None
     
     def _generate(self, prompt: str) -> str:
         """Generate content using configured LLM provider."""
@@ -135,19 +126,19 @@ class SectionGenerationService:
         # Substitute variables in template
         prompt = template
         for key, value in inputs.items():
-            placeholder = '{{' + key + '}}'
+            placeholder = '{{' + key + '}}' 
             prompt = prompt.replace(placeholder, str(value) if value else '')
         
-        # Add context from knowledge base
+        # Add context from knowledge base - this is CRITICAL for quality
         if context:
-            context_text = "\n\n---\nRelevant Knowledge Base Context:\n"
+            context_text = "\n\n---\n## REFERENCE MATERIALS FROM KNOWLEDGE BASE\nUse the following approved content as your PRIMARY reference for format, style, and content:\n"
             for i, item in enumerate(context[:5], 1):  # Limit to top 5 items
                 title = item.get('title', 'Untitled')
                 content = item.get('content', item.get('content_preview', ''))
-                # Truncate long content
-                if len(content) > 500:
-                    content = content[:500] + '...'
-                context_text += f"\n[{i}] {title}:\n{content}\n"
+                # INCREASED from 500 to 2000 to capture more of proposal templates
+                if len(content) > 2000:
+                    content = content[:2000] + '...'
+                context_text += f"\n### [{i}] {title}:\n{content}\n"
             prompt = f"{prompt}\n{context_text}"
         
         # Add generation parameters
@@ -161,13 +152,21 @@ class SectionGenerationService:
                 param_text += f"\n- Format: {params['format']}"
             prompt = f"{prompt}\n{param_text}"
         
-        # Add system instructions
-        system_prompt = """You are an expert proposal writer helping create RFP responses.
-Write professional, compelling content that addresses the requirements.
-Be specific, use facts from the provided context when available.
-Maintain a confident but not arrogant tone."""
+        # Enhanced system instructions to use KB context as format reference
+        system_prompt = """You are an expert proposal writer helping create enterprise RFP responses.
+
+CRITICAL INSTRUCTIONS:
+1. If Reference Materials from Knowledge Base are provided above, you MUST follow their exact format, structure, and writing style
+2. Use specific facts, metrics, and details from the reference materials - do NOT invent or use placeholder text
+3. If a previous proposal template is provided, match its professional structure exactly
+4. Replace any placeholders with actual content - NEVER output [bracketed placeholders]
+5. Write in formal, confident consulting-grade English
+6. Include specific numbers, dates, and concrete details when available from context
+
+Generate the content now, following the reference format precisely:"""
         
         return f"{system_prompt}\n\n---\n\n{prompt}"
+
     
     def _calculate_confidence(
         self,

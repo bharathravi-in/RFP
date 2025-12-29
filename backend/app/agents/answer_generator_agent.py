@@ -55,6 +55,43 @@ class AnswerGeneratorAgent:
 - Reference documentation"""
     }
     
+    # Answer format templates
+    FORMAT_TEMPLATES = {
+        'paragraph': {
+            'description': 'Standard paragraph format for narrative answers',
+            'instruction': 'Write the answer in clear, flowing paragraphs. Each paragraph should focus on one main point.',
+            'best_for': ['explanations', 'descriptions', 'general responses']
+        },
+        'bullet': {
+            'description': 'Bullet point format for lists and features',
+            'instruction': 'Format the answer as bullet points. Start each point with a dash (-). Be concise but complete for each point.',
+            'best_for': ['features', 'requirements', 'capabilities', 'multiple items']
+        },
+        'numbered': {
+            'description': 'Numbered list for sequential steps or priorities',
+            'instruction': 'Format the answer as a numbered list (1., 2., 3.). Use for sequential information or ranked items.',
+            'best_for': ['processes', 'procedures', 'steps', 'prioritized items']
+        },
+        'table': {
+            'description': 'Tabular format for comparisons or structured data',
+            'instruction': 'Format the answer as a markdown table with clear headers. Use for comparisons or structured data.',
+            'best_for': ['comparisons', 'specifications', 'matrices', 'structured data']
+        },
+        'hybrid': {
+            'description': 'Mixed format with intro paragraph followed by bullet points',
+            'instruction': 'Start with 1-2 introductory sentences, then provide details as bullet points.',
+            'best_for': ['complex topics', 'detailed explanations', 'comprehensive responses']
+        }
+    }
+    
+    # Length estimation parameters  
+    LENGTH_PARAMS = {
+        'short': {'min_words': 30, 'max_words': 80, 'sentences': '1-2'},
+        'medium': {'min_words': 80, 'max_words': 200, 'sentences': '3-5'},
+        'long': {'min_words': 200, 'max_words': 500, 'sentences': '5-10'},
+        'comprehensive': {'min_words': 400, 'max_words': 1000, 'sentences': '8-15'}
+    }
+    
     GENERATION_PROMPT = """You are an expert RFP response writer. Think step-by-step to generate accurate, well-sourced answers.
 
 ## STEP 1: Understand the Question
@@ -310,6 +347,6 @@ Sources Used:
         }
 
 
-def get_answer_generator_agent() -> AnswerGeneratorAgent:
+def get_answer_generator_agent(org_id: int = None) -> AnswerGeneratorAgent:
     """Factory function to get Answer Generator Agent."""
-    return AnswerGeneratorAgent()
+    return AnswerGeneratorAgent(org_id=org_id)

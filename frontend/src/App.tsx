@@ -17,6 +17,11 @@ import KnowledgeBase from '@/pages/KnowledgeBase';
 import TemplatesManager from '@/pages/TemplatesManager';
 import Settings from '@/pages/Settings';
 import AnswerLibrary from '@/pages/AnswerLibrary';
+import AnalyticsDeepDive from '@/pages/AnalyticsDeepDive';
+import CoPilotPage from '@/pages/CoPilotPage';
+import DocumentChatPage from '@/pages/DocumentChatPage';
+import KnowledgeChatPage from '@/pages/KnowledgeChatPage';
+import ProposalChatPage from '@/pages/ProposalChatPage';
 
 // Layout
 import PageLayout from '@/components/layout/PageLayout';
@@ -81,6 +86,36 @@ function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/accept-invite" element={<AcceptInvite />} />
 
+                {/* Document Chat - Full screen experience */}
+                <Route
+                    path="/documents/:documentId/chat"
+                    element={
+                        <ProtectedRoute>
+                            <DocumentChatPage />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* Knowledge Chat - Full screen experience */}
+                <Route
+                    path="/knowledge/:itemId/chat"
+                    element={
+                        <ProtectedRoute>
+                            <KnowledgeChatPage />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* Proposal Chat - Full screen experience */}
+                <Route
+                    path="/projects/:id/proposal-chat"
+                    element={
+                        <ProtectedRoute>
+                            <ProposalChatPage />
+                        </ProtectedRoute>
+                    }
+                />
+
                 {/* Protected routes */}
                 <Route
                     path="/"
@@ -100,6 +135,8 @@ function App() {
                     <Route path="knowledge" element={<KnowledgeBase />} />
                     <Route path="templates" element={<TemplatesManager />} />
                     <Route path="library" element={<AnswerLibrary />} />
+                    <Route path="analytics" element={<AnalyticsDeepDive />} />
+                    <Route path="co-pilot" element={<CoPilotPage />} />
                     <Route path="settings" element={<Settings />} />
                 </Route>
 

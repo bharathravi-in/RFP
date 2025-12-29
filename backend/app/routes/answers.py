@@ -97,7 +97,8 @@ def generate_answer():
         length=length,
         similar_answers=similar_answers,
         question_category=question.category,
-        sub_category=question.sub_category
+        sub_category=question.sub_category,
+        org_id=user.organization_id
     )
     
     # Step 5: Create the answer record
@@ -235,7 +236,8 @@ def regenerate_answer():
             tone='professional',
             length='medium',
             question_category=question.category,
-            sub_category=question.sub_category
+            sub_category=question.sub_category,
+            org_id=user.organization_id
         )
         new_content = result['content']
     

@@ -216,6 +216,36 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
 
 Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid_code uses proper escaping for newlines (\\n)."""
 
+    CONTEXTUAL_DIAGRAM_PROMPT = """You are an expert technical visualizer. Analyze the following question and its knowledge context to create a Mermaid.js diagram that best illustrates the answer.
+
+**QUESTION:**
+{question}
+
+**KNOWLEDGE CONTEXT:**
+{context}
+
+**INSTRUCTIONS:**
+1. Choose the best diagram type (architecture, flowchart, sequence, or er).
+2. Create a Mermaid.js diagram that visually answers the question.
+3. Keep labels short and comply with all Mermaid syntax rules.
+4. If an architecture diagram, focus on components mentioned in the context.
+5. If a process, use a flowchart.
+
+**CRITICAL MERMAID SYNTAX RULES:**
+- Keep node labels SHORT (max 15 characters)
+- Use ONLY alphanumeric characters and spaces in labels
+- NO parentheses, colons, or special characters in labels
+
+**RESPOND WITH VALID JSON ONLY:**
+{{
+  "title": "Diagram title",
+  "description": "Brief description",
+  "mermaid_code": "mermaid syntax here",
+  "diagram_type": "architecture|flowchart|sequence|er",
+  "notes": "Explanation of the visualization"
+}}
+"""
+
     PROMPTS = {
         DiagramType.ARCHITECTURE: ARCHITECTURE_PROMPT,
         DiagramType.FLOWCHART: FLOWCHART_PROMPT,
@@ -225,10 +255,73 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         DiagramType.MINDMAP: MINDMAP_PROMPT,
     }
 
-    def __init__(self, org_id: int = None):
-        self.config = get_agent_config(org_id=org_id, agent_type='diagram_generation')
+    def __init__(self, org_id: int = None, config=None):
+        self.org_id = org_id
+        self.config = config or get_agent_config(org_id, agent_type='diagram_generation')
         self.name = "DiagramGeneratorAgent"
     
+    def generate_for_context(
+        self,
+        question: str,
+        context: str,
+        session_state: Dict = None
+    ) -> Dict:
+        """
+        Generate a diagram specifically for a question and its knowledge context.
+        
+        Args:
+            question: The RFP question being answered
+            context: The knowledge base context retrieved for this question
+            session_state: Shared state
+            
+        Returns:
+            Dictionary with diagram code and metadata
+        """
+        client = self.config.client
+        if not client:
+            return {"success": False, "error": "AI client not configured"}
+
+        prompt = self.CONTEXTUAL_DIAGRAM_PROMPT.format(
+            question=question,
+            context=context[:15000]
+        )
+
+        try:
+            # Re-use _generate_with_ai but with the custom prompt
+            # We bypass the standard diagram_type routing here
+            if self.config.is_adk_enabled:
+                from google import genai
+                response = client.models.generate_content(
+                    model=self.config.model_name,
+                    contents=prompt
+                )
+                response_text = response.text
+            else:
+                response = client.generate_content(prompt)
+                response_text = response.text
+            
+            # Clean and parse JSON
+            response_text = response_text.strip()
+            if response_text.startswith('```'):
+                response_text = re.sub(r'^```(?:json)?\s*\n?', '', response_text)
+                response_text = re.sub(r'\n?```\s*$', '', response_text)
+            
+            result = json.loads(response_text)
+            
+            # Sanitize and clean
+            if result.get("mermaid_code"):
+                result["mermaid_code"] = self._clean_mermaid_code(result["mermaid_code"])
+            
+            result["diagram_type_info"] = DIAGRAM_TYPE_INFO.get(result.get("diagram_type", "architecture"), {})
+            
+            return {
+                "success": True,
+                "diagram": result
+            }
+        except Exception as e:
+            logger.error(f"Contextual diagram generation failed: {e}")
+            return {"success": False, "error": str(e)}
+
     def generate_diagram(
         self,
         document_text: str,
@@ -433,49 +526,120 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         code = code.replace('↔', '<-->')
         code = code.replace('➡', '-->')
         code = code.replace('⬅', '<--')
+        code = code.replace('⇒', '-->')
+        code = code.replace('⇐', '<--')
         
-        # Remove other problematic Unicode characters
-        code = re.sub(r'[^\x00-\x7F]+', '', code)  # Remove non-ASCII
+        # Remove other problematic Unicode characters (but keep basic punctuation)
+        code = re.sub(r'[^\x20-\x7E\n\r\t]', '', code)
         
-        # Strategy: Be aggressive - remove ALL parenthetical content from the code
-        # This is safer than trying to parse complex mermaid syntax
+        # Fix malformed connection lines with multiple arrows
+        # e.g., "KU --> WA Accesses KU --> MA" becomes "KU --> WA" and "KU --> MA"
+        lines = code.split('\n')
+        fixed_lines = []
         
-        # Remove text in parentheses that appear inside square brackets (node labels)
-        # Match: [anything (parenthetical) anything] -> [anything anything]
-        code = re.sub(r'\(([^)]+)\)', '', code)  # Remove all parentheses content
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip empty lines, comments, or keywords
+            if not stripped or stripped.startswith('%') or stripped.startswith('flowchart') or stripped.startswith('subgraph') or stripped == 'end':
+                fixed_lines.append(line)
+                continue
+            
+            # Fix colon-based labels (invalid syntax like "A --> B: label" should be "A -->|label| B")
+            # Pattern: NodeA --> NodeB: Some Label
+            colon_label_match = re.match(r'^(\s*)(\S+)\s*(-->|<--|---)\s*(\S+):\s*(.+)$', stripped)
+            if colon_label_match:
+                indent = colon_label_match.group(1)
+                node_a = colon_label_match.group(2)
+                arrow = colon_label_match.group(3)
+                node_b = colon_label_match.group(4)
+                label = colon_label_match.group(5).strip()
+                # Clean the label (remove special chars, limit length)
+                label = re.sub(r'[^\w\s]', '', label)
+                label = label[:30] if len(label) > 30 else label
+                fixed_lines.append(f"{indent}{node_a} {arrow}|{label}| {node_b}")
+                continue
+            
+            # Count arrows in the line
+            arrow_count = stripped.count('-->') + stripped.count('<--') + stripped.count('---')
+            
+            if arrow_count > 1:
+                # Multiple arrows - try to fix by splitting into valid connections
+                # This handles cases like "A --> B --> C" which should be "A --> B" and "B --> C"
+                parts = re.split(r'(-->|<--|---)', stripped)
+                if len(parts) >= 3:
+                    # Try to extract valid pairs
+                    current_node = parts[0].strip()
+                    for i in range(1, len(parts), 2):
+                        if i + 1 < len(parts):
+                            arrow = parts[i]
+                            next_node = parts[i + 1].strip()
+                            # Skip if node names contain invalid text
+                            if current_node and next_node and len(current_node) < 50 and len(next_node) < 50:
+                                fixed_lines.append(f"    {current_node} {arrow} {next_node}")
+                                current_node = next_node
+                else:
+                    # Can't fix, skip this line
+                    logger.warning(f"Skipping malformed line: {stripped}")
+            else:
+                fixed_lines.append(line)
         
-        # Clean up multiple spaces left behind
-        code = re.sub(r'  +', ' ', code)
+        code = '\n'.join(fixed_lines)
         
-        # Clean up spaces before closing brackets
-        code = re.sub(r' +\]', ']', code)
-        code = re.sub(r' +\}', '}', code)
+        # Fix node labels - remove or escape problematic characters inside brackets
+        def clean_node_label(match):
+            prefix = match.group(1)  # Everything before the bracket content
+            label = match.group(2)   # Content inside brackets
+            suffix = match.group(3)  # Closing bracket
+            
+            # Clean the label:
+            # 1. Remove parentheses and their content
+            label = re.sub(r'\([^)]*\)', '', label)
+            # 2. Replace colons with dashes (except in URLs)
+            if 'http' not in label.lower():
+                label = label.replace(':', ' -')
+            # 3. Remove quotes
+            label = label.replace('"', '').replace("'", '')
+            # 4. Remove ampersands
+            label = label.replace('&', 'and')
+            # 5. Remove arrows inside labels
+            label = label.replace('-->', '').replace('<--', '').replace('---', '')
+            # 6. Limit length
+            label = label.strip()
+            if len(label) > 30:
+                label = label[:27] + '...'
+            # 7. Remove multiple spaces
+            label = re.sub(r'\s+', ' ', label)
+            
+            return f"{prefix}{label}{suffix}"
         
-        # Clean up spaces after opening brackets
-        code = re.sub(r'\[ +', '[', code)
-        code = re.sub(r'\{ +', '{', code)
+        # Clean square bracket labels: [label]
+        code = re.sub(r'(\[)([^\]]+)(\])', clean_node_label, code)
         
-        # Remove empty brackets
+        # Clean curly bracket labels: {label}
+        code = re.sub(r'(\{)([^\}]+)(\})', clean_node_label, code)
+        
+        # Clean double parentheses labels (mindmap root): ((label))
+        code = re.sub(r'(\(\()([^)]+)(\)\))', clean_node_label, code)
+        
+        # Fix empty brackets
         code = re.sub(r'\[\s*\]', '[Node]', code)
+        code = re.sub(r'\{\s*\}', '{Decision}', code)
         
         # Fix empty subgraph names
         code = re.sub(r'subgraph\s*\n', 'subgraph Group\n', code)
+        code = re.sub(r'subgraph\s*$', 'subgraph Group', code)
         
-        # Replace colons inside labels with dashes (except in time formats like 2024-01-01)
+        # Fix invalid node IDs (must start with letter or underscore)
+        code = re.sub(r'^(\s*)(\d+)(\s*[\[\{])', r'\1node_\2\3', code, flags=re.MULTILINE)
+        
+        # Remove lines with only whitespace
         lines = code.split('\n')
-        fixed_lines = []
-        for line in lines:
-            # Skip empty lines
-            if not line.strip():
-                continue
-            # Only fix colons inside square brackets
-            if '[' in line and ':' in line:
-                # Check if it's a gantt task definition (has date format)
-                if not re.search(r'\d{4}-\d{2}-\d{2}', line):
-                    # Replace colon in bracket content only
-                    line = re.sub(r'(\[[^:\]]*):([^\]]*\])', r'\1 -\2', line)
-            fixed_lines.append(line)
-        code = '\n'.join(fixed_lines)
+        lines = [line for line in lines if line.strip()]
+        
+        # Join back and clean up excessive newlines
+        code = '\n'.join(lines)
+        code = re.sub(r'\n{3,}', '\n\n', code)
         
         logger.info(f"AFTER sanitization: {code[:200]}")
         

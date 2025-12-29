@@ -12,24 +12,22 @@ import {
     XCircleIcon,
     ClockIcon,
     FlagIcon,
+    ViewColumnsIcon,
+    Squares2X2Icon,
+    CalendarIcon,
+    DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import EditProjectModal from '@/components/modals/EditProjectModal';
 import ProjectOutcomeModal from '@/components/ProjectOutcomeModal';
+import ProjectKanban from '@/components/projects/ProjectKanban';
 
 const statusFilters = [
     { value: 'all', label: 'All' },
     { value: 'draft', label: 'Draft' },
     { value: 'in_progress', label: 'In Progress' },
-    { value: 'review', label: 'In Review' },
-    { value: 'completed', label: 'Completed' },
-];
-
-const outcomeFilters = [
-    { value: 'all', label: 'All Outcomes' },
-    { value: 'won', label: '🏆 Won' },
-    { value: 'lost', label: '❌ Lost' },
-    { value: 'pending', label: '⏳ Pending' },
+    { value: 'review', label: 'Review' },
+    { value: 'completed', label: 'Done' },
 ];
 
 const OUTCOME_BADGE_CONFIG: Record<ProjectOutcome, { label: string; icon: typeof TrophyIcon; bgColor: string; textColor: string }> = {
@@ -39,15 +37,23 @@ const OUTCOME_BADGE_CONFIG: Record<ProjectOutcome, { label: string; icon: typeof
     abandoned: { label: 'Abandoned', icon: FlagIcon, bgColor: 'bg-gray-100', textColor: 'text-gray-700' },
 };
 
+const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+    draft: { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400' },
+    in_progress: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
+    review: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
+    completed: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' },
+};
+
 export default function Projects() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [outcomeFilter, setOutcomeFilter] = useState('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingProject, setEditingProject] = useState<Project | null>(null);
     const [outcomeProject, setOutcomeProject] = useState<Project | null>(null);
+    const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
+    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
     const loadProjects = useCallback(async () => {
         try {
@@ -67,93 +73,125 @@ export default function Projects() {
     const filteredProjects = projects.filter((project) => {
         const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
-        const matchesOutcome = outcomeFilter === 'all' || project.outcome === outcomeFilter;
-        return matchesSearch && matchesStatus && matchesOutcome;
+        return matchesSearch && matchesStatus;
     });
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'completed':
-                return 'badge-success';
-            case 'review':
-                return 'badge-warning';
-            case 'in_progress':
-                return 'badge-primary';
-            default:
-                return 'badge-neutral';
-        }
+    const formatDueDate = (dateStr: string | null | undefined): string => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) return 'Overdue';
+        if (diffDays === 0) return 'Today';
+        if (diffDays <= 7) return `${diffDays}d left`;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    // Stats
+    const stats = {
+        total: projects.length,
+        draft: projects.filter(p => p.status === 'draft').length,
+        inProgress: projects.filter(p => p.status === 'in_progress').length,
+        review: projects.filter(p => p.status === 'review').length,
+        completed: projects.filter(p => p.status === 'completed').length,
     };
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-4 animate-fade-in">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="section-title">Projects</h1>
-                    <p className="section-subtitle">
-                        Manage your RFP, RFI, and questionnaire responses
+                    <h1 className="text-xl font-semibold text-text-primary">Projects</h1>
+                    <p className="text-sm text-text-muted">
+                        {stats.total} total • {stats.inProgress + stats.review} active
                     </p>
                 </div>
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary self-start sm:self-auto">
+                <button onClick={() => setShowCreateModal(true)} className="btn-primary">
                     <PlusIcon className="h-5 w-5" />
-                    <span className="hidden xs:inline">New Project</span>
-                    <span className="xs:hidden">New</span>
+                    New Project
                 </button>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-muted" />
+            {/* Filters Bar */}
+            <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px] max-w-md">
+                    <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
                     <input
                         type="text"
                         placeholder="Search projects..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input pl-10"
+                        className="input pl-9 py-2 text-sm"
                     />
                 </div>
-                <div className="flex items-center gap-1 bg-surface border border-border rounded-button p-1 overflow-x-auto no-scrollbar">
+
+                {/* Status Pills */}
+                <div className="flex items-center gap-1 bg-background rounded-lg p-1">
                     {statusFilters.map((filter) => (
                         <button
                             key={filter.value}
                             onClick={() => setStatusFilter(filter.value)}
                             className={clsx(
-                                'px-3 py-1.5 rounded-badge text-sm font-medium transition-all whitespace-nowrap',
+                                'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
                                 statusFilter === filter.value
-                                    ? 'bg-primary text-white'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+                                    ? 'bg-primary text-white shadow-sm'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-surface'
                             )}
                         >
                             {filter.label}
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-1 bg-surface border border-border rounded-button p-1">
-                    {outcomeFilters.map((filter) => (
-                        <button
-                            key={filter.value}
-                            onClick={() => setOutcomeFilter(filter.value)}
-                            className={clsx(
-                                'px-3 py-1.5 rounded-badge text-sm font-medium transition-all whitespace-nowrap',
-                                outcomeFilter === filter.value
-                                    ? 'bg-amber-500 text-white'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
-                            )}
-                        >
-                            {filter.label}
-                        </button>
-                    ))}
+
+                {/* View Toggle */}
+                <div className="flex items-center gap-1 bg-background rounded-lg p-1">
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={clsx(
+                            'p-1.5 rounded-md transition-all',
+                            viewMode === 'grid'
+                                ? 'bg-primary text-white'
+                                : 'text-text-muted hover:text-text-primary'
+                        )}
+                        title="Grid View"
+                    >
+                        <Squares2X2Icon className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={() => setViewMode('kanban')}
+                        className={clsx(
+                            'p-1.5 rounded-md transition-all',
+                            viewMode === 'kanban'
+                                ? 'bg-primary text-white'
+                                : 'text-text-muted hover:text-text-primary'
+                        )}
+                        title="Kanban View"
+                    >
+                        <ViewColumnsIcon className="h-4 w-4" />
+                    </button>
                 </div>
             </div>
 
-            {/* Projects Grid */}
-            {isLoading ? (
-                <div className="cards-grid">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                        <div key={i} className="card animate-pulse">
-                            <div className="h-4 skeleton w-3/4 mb-4" />
-                            <div className="h-3 skeleton w-1/2 mb-6" />
+            {/* Content */}
+            {viewMode === 'kanban' ? (
+                <ProjectKanban
+                    projects={filteredProjects}
+                    onProjectUpdate={(updatedProject) => {
+                        setProjects(
+                            projects.map((p) =>
+                                p.id === updatedProject.id ? updatedProject : p
+                            )
+                        );
+                    }}
+                />
+            ) : isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                        <div key={i} className="card animate-pulse p-4">
+                            <div className="h-4 skeleton w-3/4 mb-3" />
+                            <div className="h-3 skeleton w-1/2 mb-4" />
                             <div className="h-2 skeleton w-full" />
                         </div>
                     ))}
@@ -175,103 +213,150 @@ export default function Projects() {
                     )}
                 </div>
             ) : (
-                <div className="cards-grid">
-                    {filteredProjects.map((project) => (
-                        <div
-                            key={project.id}
-                            className="group relative bg-surface border border-border rounded-xl overflow-hidden hover:shadow-lg hover:border-primary/50 transition-all duration-300"
-                        >
-                            {/* Gradient Header */}
-                            <div className="h-2 bg-gradient-to-r from-primary via-primary-dark to-primary" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {filteredProjects.map((project) => {
+                        const status = project.status || 'draft';
+                        const statusColor = STATUS_COLORS[status] || STATUS_COLORS.draft;
+                        const progress = Math.round(project.completion_percent || 0);
+                        const dueDate = formatDueDate(project.due_date);
 
-                            {/* Card Content */}
-                            <Link
-                                to={`/projects/${project.id}`}
-                                className="block p-6"
+                        return (
+                            <div
+                                key={project.id}
+                                className="group relative bg-surface border border-border rounded-lg overflow-hidden hover:shadow-md hover:border-primary/30 transition-all min-h-[140px]"
                             >
-                                {/* Icon and Title */}
-                                <div className="flex items-start gap-4 mb-4">
-                                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                                        <FolderIcon className="h-6 w-6 text-primary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-semibold text-lg text-text-primary group-hover:text-primary transition-colors mb-1 truncate">
+                                {/* Progress Bar at Top */}
+                                <div className="h-1 bg-gray-100">
+                                    <div
+                                        className={clsx(
+                                            'h-full transition-all duration-500',
+                                            progress === 100 ? 'bg-green-500' : 'bg-primary'
+                                        )}
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
+
+                                <Link to={`/projects/${project.id}`} className="block p-4">
+                                    {/* Header Row */}
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                        <h3 className="font-medium text-text-primary group-hover:text-primary transition-colors line-clamp-2 flex-1">
                                             {project.name}
                                         </h3>
-                                        <p className="text-xs text-text-muted">
+                                        <span className={clsx(
+                                            'flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium',
+                                            statusColor.bg,
+                                            statusColor.text
+                                        )}>
+                                            {status.replace('_', ' ')}
+                                        </span>
+                                    </div>
+
+                                    {/* Meta Row */}
+                                    <div className="flex items-center gap-3 text-xs text-text-muted mb-3">
+                                        <span className="flex items-center gap-1">
+                                            <DocumentTextIcon className="h-3.5 w-3.5" />
                                             {project.question_count || 0} questions
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Description */}
-                                {project.description && (
-                                    <p className="text-sm text-text-secondary line-clamp-2 mb-4 min-h-[40px]">
-                                        {project.description}
-                                    </p>
-                                )}
-
-                                {/* Progress Bar */}
-                                <div className="mb-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-medium text-text-muted">Progress</span>
-                                        <span className="text-xs font-semibold text-primary">
-                                            {Math.round(project.completion_percent)}%
                                         </span>
-                                    </div>
-                                    <div className="h-2 bg-background rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-gradient-to-r from-primary to-primary-dark rounded-full transition-all duration-500"
-                                            style={{ width: `${project.completion_percent}%` }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Footer with Status and Outcome */}
-                                <div className="flex items-center justify-between pt-4 border-t border-border">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`badge ${getStatusBadge(project.status)} text-xs`}>
-                                            {project.status.replace('_', ' ')}
-                                        </span>
-                                        {project.outcome && project.outcome !== 'pending' && (
+                                        {dueDate && (
                                             <span className={clsx(
-                                                'px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1',
+                                                'flex items-center gap-1',
+                                                dueDate === 'Overdue' && 'text-red-600 font-medium'
+                                            )}>
+                                                <CalendarIcon className="h-3.5 w-3.5" />
+                                                {dueDate}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Progress + Outcome Row */}
+                                    <div className="flex items-center justify-between">
+                                        <span className={clsx(
+                                            'text-sm font-semibold',
+                                            progress === 100 ? 'text-green-600' : 'text-primary'
+                                        )}>
+                                            {progress}%
+                                        </span>
+
+                                        {project.outcome && project.outcome !== 'pending' ? (
+                                            <span className={clsx(
+                                                'px-2 py-0.5 rounded text-xs font-medium',
                                                 OUTCOME_BADGE_CONFIG[project.outcome]?.bgColor,
                                                 OUTCOME_BADGE_CONFIG[project.outcome]?.textColor
                                             )}>
                                                 {OUTCOME_BADGE_CONFIG[project.outcome]?.label}
                                             </span>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setOutcomeProject(project);
+                                                }}
+                                                className="text-xs text-text-muted hover:text-primary transition-colors"
+                                            >
+                                                Set outcome
+                                            </button>
                                         )}
                                     </div>
+                                </Link>
+
+                                {/* Action Menu - Bottom right corner */}
+                                <div className="absolute bottom-2 right-2">
                                     <button
                                         onClick={(e) => {
                                             e.preventDefault();
-                                            setOutcomeProject(project);
+                                            e.stopPropagation();
+                                            setOpenMenuId(openMenuId === project.id ? null : project.id);
                                         }}
-                                        className="text-xs text-text-muted hover:text-primary transition-colors"
+                                        className="p-1 bg-gray-100 hover:bg-gray-200 rounded-md transition-all"
+                                        title="Project actions"
                                     >
-                                        {project.outcome === 'pending' || !project.outcome ? 'Mark Outcome' : 'Update'}
+                                        <EllipsisHorizontalIcon className="h-4 w-4 text-gray-500" />
                                     </button>
+                                    {openMenuId === project.id && (
+                                        <>
+                                            <div
+                                                className="fixed inset-0 z-10"
+                                                onClick={(e) => { e.preventDefault(); setOpenMenuId(null); }}
+                                            />
+                                            <div className="absolute right-0 bottom-full mb-1 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setEditingProject(project);
+                                                        setOpenMenuId(null);
+                                                    }}
+                                                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                                >
+                                                    ✏️ Edit
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        if (confirm('Are you sure you want to delete this project?')) {
+                                                            projectsApi.delete(project.id).then(() => {
+                                                                setProjects(projects.filter(p => p.id !== project.id));
+                                                                toast.success('Project deleted');
+                                                            }).catch(() => toast.error('Failed to delete'));
+                                                        }
+                                                        setOpenMenuId(null);
+                                                    }}
+                                                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                >
+                                                    🗑️ Delete
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                            </Link>
-
-                            {/* Edit Menu Button - Top Right */}
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    setEditingProject(project);
-                                }}
-                                className="absolute top-4 right-4 p-2 opacity-0 group-hover:opacity-100 hover:bg-background/80 backdrop-blur-sm rounded-lg transition-all z-10 shadow-sm"
-                                title="Edit project"
-                            >
-                                <EllipsisHorizontalIcon className="h-5 w-5 text-text-secondary hover:text-text-primary" />
-                            </button>
-                        </div>
-                    ))}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Create Project Modal */}
+            {/* Modals */}
             {showCreateModal && (
                 <CreateProjectModal
                     onClose={() => setShowCreateModal(false)}
@@ -282,7 +367,6 @@ export default function Projects() {
                 />
             )}
 
-            {/* Edit Project Modal */}
             {editingProject && (
                 <EditProjectModal
                     project={editingProject}
@@ -298,7 +382,6 @@ export default function Projects() {
                 />
             )}
 
-            {/* Project Outcome Modal */}
             {outcomeProject && (
                 <ProjectOutcomeModal
                     project={outcomeProject}
@@ -329,13 +412,12 @@ function CreateProjectModal({
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [clientName, setClientName] = useState('');
+    const [dueDate, setDueDate] = useState('');
+    const [estimatedValue, setEstimatedValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
-    // Knowledge Profiles
     const [availableProfiles, setAvailableProfiles] = useState<{ id: number; name: string; description?: string }[]>([]);
     const [selectedProfileIds, setSelectedProfileIds] = useState<number[]>([]);
 
-    // Fetch profiles from API
     useEffect(() => {
         import('@/api/client').then(({ default: api }) => {
             api.get('/knowledge/profiles').then(res => {
@@ -366,6 +448,10 @@ function CreateProjectModal({
             toast.error('Please select at least one Knowledge Profile');
             return;
         }
+        if (!dueDate) {
+            toast.error('Due date is required');
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -373,6 +459,7 @@ function CreateProjectModal({
                 name,
                 description,
                 client_name: clientName,
+                due_date: dueDate,
                 knowledge_profile_ids: selectedProfileIds,
             });
             toast.success('Project created!');
@@ -385,13 +472,12 @@ function CreateProjectModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-            <div className="bg-surface rounded-2xl shadow-modal w-full max-w-lg p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
-                <h2 className="text-xl font-semibold text-text-primary mb-6">Create New Project</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-surface rounded-xl shadow-modal w-full max-w-md p-6 animate-scale-in max-h-[90vh] overflow-y-auto">
+                <h2 className="text-lg font-semibold text-text-primary mb-4">Create New Project</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Basic Info */}
                     <div>
-                        <label className="block text-sm font-medium text-text-primary mb-2">
+                        <label className="block text-sm font-medium text-text-primary mb-1.5">
                             Project Name *
                         </label>
                         <input
@@ -404,7 +490,7 @@ function CreateProjectModal({
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-text-primary mb-2">
+                        <label className="block text-sm font-medium text-text-primary mb-1.5">
                             Client Name *
                         </label>
                         <input
@@ -413,43 +499,68 @@ function CreateProjectModal({
                             onChange={(e) => setClientName(e.target.value)}
                             className="input"
                             placeholder="e.g., Department of Health"
-                            required
                         />
                     </div>
+
+                    {/* Due Date and Value Row */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-sm font-medium text-text-primary mb-1.5">
+                                Due Date *
+                            </label>
+                            <input
+                                type="date"
+                                value={dueDate}
+                                onChange={(e) => setDueDate(e.target.value)}
+                                className="input"
+                                min={new Date().toISOString().split('T')[0]}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-text-primary mb-1.5">
+                                Est. Value <span className="text-text-muted font-normal">($)</span>
+                            </label>
+                            <input
+                                type="number"
+                                value={estimatedValue}
+                                onChange={(e) => setEstimatedValue(e.target.value)}
+                                className="input"
+                                placeholder="50000"
+                                min="0"
+                            />
+                        </div>
+                    </div>
+
                     <div>
-                        <label className="block text-sm font-medium text-text-primary mb-2">
-                            Description <span className="text-text-muted">(optional)</span>
+                        <label className="block text-sm font-medium text-text-primary mb-1.5">
+                            Description <span className="text-text-muted font-normal">(optional)</span>
                         </label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="input min-h-[80px] resize-none"
-                            placeholder="Brief description of this project..."
+                            className="input min-h-[60px] resize-none"
+                            placeholder="Brief description..."
                         />
                     </div>
 
-                    {/* Knowledge Profile Selection - Required */}
-                    <div className="border-t border-border pt-4 mt-4">
+                    <div className="border-t border-border pt-4">
                         <label className="block text-sm font-medium text-text-primary mb-2">
                             Knowledge Profile *
                         </label>
-                        <p className="text-xs text-text-muted mb-3">
-                            Select profiles to scope AI-generated answers to matching knowledge
-                        </p>
                         {availableProfiles.length === 0 ? (
                             <div className="text-sm text-text-muted bg-background p-3 rounded-lg">
-                                No knowledge profiles available. Create one in Settings → Knowledge Profiles.
+                                No profiles available. Create one in Settings.
                             </div>
                         ) : (
-                            <div className="space-y-2 max-h-40 overflow-y-auto bg-background p-3 rounded-lg">
+                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
                                 {availableProfiles.map((profile) => (
                                     <label
                                         key={profile.id}
                                         className={clsx(
-                                            'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors border',
+                                            'flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors',
                                             selectedProfileIds.includes(profile.id)
-                                                ? 'border-primary bg-primary/10'
-                                                : 'border-transparent hover:bg-surface'
+                                                ? 'bg-primary/10 border border-primary'
+                                                : 'bg-background hover:bg-surface border border-transparent'
                                         )}
                                     >
                                         <input
@@ -458,29 +569,19 @@ function CreateProjectModal({
                                             onChange={() => handleProfileToggle(profile.id)}
                                             className="checkbox"
                                         />
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm font-medium text-text-primary">{profile.name}</span>
-                                            {profile.description && (
-                                                <p className="text-xs text-text-muted truncate">{profile.description}</p>
-                                            )}
-                                        </div>
+                                        <span className="text-sm text-text-primary">{profile.name}</span>
                                     </label>
                                 ))}
                             </div>
                         )}
-                        {selectedProfileIds.length > 0 && (
-                            <p className="text-xs text-primary mt-2">
-                                {selectedProfileIds.length} profile{selectedProfileIds.length > 1 ? 's' : ''} selected
-                            </p>
-                        )}
                     </div>
 
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="btn-secondary flex-1">
                             Cancel
                         </button>
                         <button type="submit" disabled={isLoading} className="btn-primary flex-1">
-                            {isLoading ? 'Creating...' : 'Create Project'}
+                            {isLoading ? 'Creating...' : 'Create'}
                         </button>
                     </div>
                 </form>
@@ -488,5 +589,3 @@ function CreateProjectModal({
         </div>
     );
 }
-
-

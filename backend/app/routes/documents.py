@@ -44,7 +44,7 @@ def allowed_file(filename):
 @bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_document():
-    """Upload a document to a project."""
+    """Upload a document to a project with cloud-agnostic storage."""
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
@@ -71,26 +71,93 @@ def upload_document():
     if not allowed_file(file.filename):
         return jsonify({'error': f'File type not allowed. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
     
-    # Generate unique filename
     original_filename = secure_filename(file.filename)
     ext = original_filename.rsplit('.', 1)[1].lower()
-    unique_filename = f"{uuid.uuid4().hex}.{ext}"
     
-    # Read file content into memory
-    file_data = file.read()
-    file_size = len(file_data)
-    
-    # Create document record with file data in DB
-    document = Document(
-        filename=unique_filename,
-        original_filename=original_filename,
-        file_data=file_data,  # Store binary content in DB
-        file_type=ext,
-        file_size=file_size,
-        status='pending',
-        project_id=project_id,
-        uploaded_by=user_id
-    )
+    # Use cloud-agnostic storage service
+    try:
+        from app.services.storage_service import get_storage_service
+        import os
+        
+        storage = get_storage_service()
+        
+        # Check if using GCP with custom prefix
+        if storage.storage_type == 'gcp':
+            # Get organization name for folder structure
+            from app.models import Organization
+            org = Organization.query.get(user.organization_id)
+            org_name = org.name.lower().replace(' ', '_').replace('/', '_') if org else f"org_{user.organization_id}"
+            
+            rfp_req_prefix = os.environ.get('GCP_RFP_REQ_PREFIX', 'rfp_requirement')
+            # Structure: rfp_requirement/{org_name}/project_{project_id}/
+            org_project_subfolder = f"{org_name}/project_{project_id}"
+            
+            storage_metadata = storage.provider.upload_with_path(
+                file=file,
+                original_filename=original_filename,
+                prefix=rfp_req_prefix,
+                subfolder=org_project_subfolder,
+                metadata={
+                    'project_id': int(project_id),
+                    'uploaded_by': user_id,
+                    'organization_id': user.organization_id,
+                    'organization_name': org_name
+                }
+            )
+        else:
+            # Use default upload for local storage
+            storage_metadata = storage.upload(
+                file=file,
+                original_filename=original_filename,
+                metadata={
+                    'project_id': int(project_id),
+                    'uploaded_by': user_id,
+                    'organization_id': user.organization_id
+                }
+            )
+        
+        # Create document record with storage info
+        document = Document(
+            file_id=storage_metadata.file_id,
+            filename=storage_metadata.file_name,
+            original_filename=original_filename,
+            file_url=storage_metadata.file_url,
+            storage_type=storage_metadata.storage_type,
+            file_type=ext,
+            file_size=storage_metadata.file_size,
+            content_type=storage_metadata.content_type,
+            content_hash=storage_metadata.checksum,
+            status='pending',
+            embedding_status='pending',
+            project_id=int(project_id),
+            uploaded_by=user_id,
+            file_metadata={
+                'storage': storage_metadata.to_dict()
+            }
+        )
+        
+    except Exception as storage_error:
+        # Fallback to legacy DB storage if storage service fails
+        current_app.logger.warning(f"Storage service failed, using DB storage: {storage_error}")
+        
+        file.seek(0)  # Reset file position
+        file_data = file.read()
+        file_size = len(file_data)
+        unique_filename = f"{uuid.uuid4().hex}.{ext}"
+        
+        document = Document(
+            file_id=str(uuid.uuid4()),
+            filename=unique_filename,
+            original_filename=original_filename,
+            file_data=file_data,  # Store binary content in DB
+            storage_type='database',
+            file_type=ext,
+            file_size=file_size,
+            status='pending',
+            embedding_status='pending',
+            project_id=int(project_id),
+            uploaded_by=user_id
+        )
     
     db.session.add(document)
     db.session.commit()
@@ -103,10 +170,20 @@ def upload_document():
     except Exception as e:
         parse_result = {'error': str(e)}
     
+    # Trigger background embedding task
+    try:
+        from app.tasks import process_document_embeddings_task
+        process_document_embeddings_task.delay(document.id, user.organization_id)
+        embedding_triggered = True
+    except Exception as e:
+        current_app.logger.warning(f"Failed to trigger embedding task: {e}")
+        embedding_triggered = False
+    
     return jsonify({
         'message': 'Document uploaded and processing started',
         'document': document.to_dict(),
-        'parse_result': parse_result
+        'parse_result': parse_result,
+        'embedding_triggered': embedding_triggered
     }), 201
 
 
@@ -168,7 +245,10 @@ def _parse_document_internal(document):
     try:
         # Write file data to temp file for processing
         temp_file_path = None
+        temp_file_created = False
+        
         if document.file_data:
+            # Legacy: file stored directly in database
             temp_file = tempfile.NamedTemporaryFile(
                 delete=False,
                 suffix=f'.{document.file_type}'
@@ -176,21 +256,66 @@ def _parse_document_internal(document):
             temp_file.write(document.file_data)
             temp_file.close()
             temp_file_path = temp_file.name
+            temp_file_created = True
+        elif (document.storage_type == 'gcp' or 
+              (document.file_metadata and document.file_metadata.get('storage', {}).get('storage_type') == 'gcp')) and document.file_id:
+            # GCP Storage: download from cloud storage
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                current_app.logger.info(f"Attempting to download document {document.id} from GCP, file_id: {document.file_id}")
+                file_content, metadata = storage.download(document.file_id)
+                
+                temp_file = tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=f'.{document.file_type}'
+                )
+                temp_file.write(file_content)
+                temp_file.close()
+                temp_file_path = temp_file.name
+                temp_file_created = True
+                current_app.logger.info(f"Downloaded document {document.id} from GCP storage, size: {len(file_content)} bytes")
+            except Exception as e:
+                current_app.logger.error(f"Failed to download from GCP: {e}")
+                document.status = 'failed'
+                document.error_message = f'Failed to download from cloud storage: {str(e)}'
+                db.session.commit()
+                return {'error': f'Cloud storage download failed: {str(e)}'}
+        elif document.storage_type == 'local' and document.file_id:
+            # Local storage service: get the local path
+            try:
+                from app.services.storage_service import get_storage_service
+                storage = get_storage_service()
+                temp_file_path = storage.get_local_path(document.file_id)
+                current_app.logger.info(f"Using local storage path for document {document.id}: {temp_file_path}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to get local storage path: {e}")
         elif document.file_path:
+            # Legacy: direct file path
             temp_file_path = document.file_path
+            current_app.logger.info(f"Using legacy file_path for document {document.id}: {temp_file_path}")
+        elif document.file_metadata and document.file_metadata.get('storage', {}).get('local_path'):
+            # Legacy: storage service path from metadata
+            storage_path = document.file_metadata['storage']['local_path']
+            import os as path_os
+            if path_os.path.exists(storage_path):
+                temp_file_path = storage_path
+                current_app.logger.info(f"Using file_metadata storage path for document {document.id}: {temp_file_path}")
         
         if not temp_file_path:
+            current_app.logger.error(f"No file data available for document {document.id}. storage_type={document.storage_type}, file_id={document.file_id}, has_file_data={document.file_data is not None}")
             document.status = 'failed'
             document.error_message = 'No file data available'
             db.session.commit()
             return {'error': 'No file data available'}
+
         
         # Extract text from document
         doc_service = DocumentService()
         extracted_text = doc_service.extract_text(temp_file_path, document.file_type)
         
-        # Clean up temp file
-        if document.file_data and temp_file_path:
+        # Clean up temp file if we created one
+        if temp_file_created and temp_file_path:
             import os as temp_os
             try:
                 temp_os.unlink(temp_file_path)
@@ -214,17 +339,57 @@ def _parse_document_internal(document):
         extractor = QuestionExtractor()
         questions_data = extractor.extract_questions(extracted_text, use_ai=True)
         
-        # Create Question records
+        # Question category classification keywords
+        category_keywords = {
+            'security': ['security', 'encryption', 'authentication', 'password', 'access control', 
+                        'firewall', 'vulnerability', 'penetration', 'gdpr', 'hipaa', 'soc', 'iso 27001',
+                        'data protection', 'privacy', 'compliance', 'audit'],
+            'technical': ['technical', 'architecture', 'infrastructure', 'api', 'integration',
+                         'database', 'platform', 'cloud', 'mobile', 'system', 'software', 'hardware'],
+            'pricing': ['pricing', 'cost', 'fee', 'budget', 'payment', 'license', 'commercial'],
+            'implementation': ['implementation', 'timeline', 'schedule', 'phase', 'milestone', 
+                              'deployment', 'go-live', 'rollout', 'project plan'],
+            'support': ['support', 'maintenance', 'sla', 'service level', 'helpdesk', 'availability'],
+            'team': ['team', 'staff', 'resource', 'personnel', 'experience', 'qualification', 'resume'],
+            'training': ['training', 'documentation', 'manual', 'knowledge transfer', 'user guide'],
+            'references': ['reference', 'case study', 'past performance', 'similar project', 'client'],
+        }
+        
+        # Create Question records with category classification
         for q_data in questions_data:
+            # Classify question category based on content
+            q_text_lower = q_data['text'].lower()
+            detected_category = 'general'
+            detected_section = q_data.get('section', 'Q&A / Questionnaire')
+            
+            for category, keywords in category_keywords.items():
+                if any(kw in q_text_lower for kw in keywords):
+                    detected_category = category
+                    # Map category to appropriate section name  
+                    section_map = {
+                        'security': 'Security & Compliance',
+                        'technical': 'Technical Approach',
+                        'pricing': 'Pricing & Commercial',
+                        'implementation': 'Implementation Plan',
+                        'support': 'Support & Maintenance',
+                        'team': 'Team & Qualifications',
+                        'training': 'Training & Documentation',
+                        'references': 'References & Experience',
+                    }
+                    detected_section = section_map.get(category, detected_section)
+                    break
+            
             question = Question(
                 text=q_data['text'],
-                section=q_data.get('section', 'General'),
+                section=detected_section,
+                category=detected_category,
                 order=q_data.get('order', 0),
                 status='pending',
                 project_id=document.project_id,
                 document_id=document.id
             )
             db.session.add(question)
+
         
         # Update document status
         document.status = 'completed'
@@ -319,6 +484,22 @@ def delete_document(document_id):
     if document.file_path and os.path.exists(document.file_path):
         os.remove(document.file_path)
     
+    # Delete associated chat sessions first (foreign key constraint)
+    try:
+        from ..models.document_chat import DocumentChatSession
+        DocumentChatSession.query.filter_by(document_id=document_id).delete()
+    except Exception as e:
+        current_app.logger.warning(f"Could not delete chat sessions: {e}")
+    
+    # Delete from cloud storage if applicable
+    try:
+        if document.storage_type == 'gcp' and document.file_id:
+            from app.services.storage_service import get_storage_service
+            storage = get_storage_service()
+            storage.delete(document.file_id)
+    except Exception as e:
+        current_app.logger.warning(f"Could not delete from cloud storage: {e}")
+    
     db.session.delete(document)
     db.session.commit()
     
@@ -401,13 +582,18 @@ def auto_build_proposal(document_id):
     }), 201
 
 
-@bp.route('/<int:document_id>/preview', methods=['GET'])
+@bp.route('/<int:document_id>/signed-url', methods=['GET'])
 @jwt_required()
-def preview_document(document_id):
-    """Get document content for preview/viewing."""
-    from flask import Response, send_file
-    import tempfile
-    import io
+def get_document_signed_url(document_id):
+    """
+    Get a signed public URL for Microsoft Office Online Viewer.
+    
+    For GCP-stored documents, generates a signed URL that can be used with:
+    - Microsoft Office Viewer: https://view.officeapps.live.com/op/embed.aspx?src={url}
+    - Google Docs Viewer: https://docs.google.com/gview?url={url}&embedded=true
+    """
+    from datetime import timedelta
+    from urllib.parse import quote
     
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
@@ -420,7 +606,136 @@ def preview_document(document_id):
     if document.project.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
     
-    if not document.file_data:
+    # Check if document is stored in GCP
+    if document.storage_type != 'gcp' or not document.file_id:
+        return jsonify({
+            'error': 'Document is not stored in cloud storage',
+            'message': 'Microsoft Office viewer requires cloud-stored documents'
+        }), 400
+    
+    try:
+        from google.cloud import storage as gcs
+        
+        bucket_name = os.environ.get('GCP_STORAGE_BUCKET') or os.environ.get('GOOGLE_CLOUD_BUCKET_NAME')
+        creds_path = os.environ.get('GCP_STORAGE_CREDENTIALS') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        if not bucket_name:
+            return jsonify({'error': 'GCP bucket not configured'}), 500
+        
+        if creds_path and os.path.exists(creds_path):
+            client = gcs.Client.from_service_account_json(creds_path)
+        else:
+            client = gcs.Client()
+        
+        bucket = client.bucket(bucket_name)
+        
+        # Get blob using file metadata
+        blob_name = None
+        if document.file_metadata and document.file_metadata.get('storage', {}).get('blob_name'):
+            blob_name = document.file_metadata['storage']['blob_name']
+        
+        if not blob_name:
+            # Try to find blob by file_id
+            from app.services.storage_service import get_storage_service
+            storage = get_storage_service()
+            blob = storage.provider._find_blob(document.file_id)
+            if blob:
+                blob_name = blob.name
+        
+        if not blob_name:
+            return jsonify({'error': 'Unable to locate file in GCP storage'}), 404
+        
+        blob = bucket.blob(blob_name)
+        
+        # Verify blob exists
+        if not blob.exists():
+            return jsonify({'error': 'File not found in GCP storage'}), 404
+        
+        # Generate signed URL (valid for 1 hour)
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(hours=1),
+            method="GET"
+        )
+        
+        # Build viewer URLs
+        microsoft_viewer_url = f"https://view.officeapps.live.com/op/embed.aspx?src={quote(signed_url, safe='')}"
+        google_viewer_url = f"https://docs.google.com/gview?url={quote(signed_url, safe='')}&embedded=true"
+        
+        return jsonify({
+            'signed_url': signed_url,
+            'microsoft_viewer_url': microsoft_viewer_url,
+            'google_viewer_url': google_viewer_url,
+            'file_name': document.original_filename,
+            'file_type': document.file_type,
+            'expires_in': 3600
+        }), 200
+        
+    except ImportError:
+        return jsonify({'error': 'GCS library not installed'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Failed to generate signed URL for document {document_id}: {e}")
+        return jsonify({'error': f'Failed to generate signed URL: {str(e)}'}), 500
+
+@bp.route('/<int:document_id>/preview', methods=['GET'])
+@jwt_required(optional=True, locations=['headers', 'query_string'])
+def preview_document(document_id):
+    """Get document content for preview/viewing.
+    
+    Supports both header-based and query string JWT for iframe embedding.
+    """
+    from flask import Response, send_file
+    import tempfile
+    import io
+    
+    # Get user from JWT (supports both header and query_string)
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = int(user_id)
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    if document.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get file data from database or storage service
+    file_data = document.file_data
+    
+    if not file_data:
+        # Try to read from storage service (local path or cloud)
+        try:
+            from app.services.storage_service import get_storage_service
+            storage_service = get_storage_service()
+            
+            current_app.logger.info(f"Preview: document {document_id}, storage_type={document.storage_type}, file_id={document.file_id}")
+            
+            if storage_service and document.file_id:
+                # Use storage service download method
+                current_app.logger.info(f"Attempting to download from storage service...")
+                file_bytes, metadata = storage_service.download(document.file_id)
+                file_data = file_bytes
+                current_app.logger.info(f"Downloaded {len(file_data)} bytes from storage")
+            else:
+                # Fallback: check local path in metadata
+                storage_info = document.file_metadata.get('storage', {}) if document.file_metadata else {}
+                local_path = storage_info.get('local_path')
+                
+                if local_path and os.path.exists(local_path):
+                    with open(local_path, 'rb') as f:
+                        file_data = f.read()
+                    current_app.logger.info(f"Read from local path: {local_path}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to read file from storage: {e}", exc_info=True)
+            return jsonify({'error': f'Failed to load file: {str(e)}'}), 500
+    
+    if not file_data:
+        current_app.logger.error(f"No file data available for document {document_id}")
         return jsonify({'error': 'No file data available'}), 404
     
     file_type = document.file_type.lower()
@@ -428,7 +743,7 @@ def preview_document(document_id):
     # PDF - return directly
     if file_type == 'pdf':
         return Response(
-            document.file_data,
+            file_data,
             mimetype='application/pdf',
             headers={
                 'Content-Disposition': f'inline; filename="{document.original_filename}"'
@@ -440,7 +755,7 @@ def preview_document(document_id):
         try:
             import mammoth
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
-            temp_file.write(document.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             with open(temp_file.name, 'rb') as f:
@@ -476,7 +791,7 @@ def preview_document(document_id):
         try:
             from openpyxl import load_workbook
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
-            temp_file.write(document.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             wb = load_workbook(temp_file.name)
@@ -524,7 +839,7 @@ def preview_document(document_id):
         try:
             from pptx import Presentation
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{file_type}')
-            temp_file.write(document.file_data)
+            temp_file.write(file_data)
             temp_file.close()
             
             prs = Presentation(temp_file.name)
@@ -610,3 +925,178 @@ def download_document(document_id):
         }
     )
 
+
+@bp.route('/search', methods=['POST'])
+@jwt_required()
+def hybrid_search_documents():
+    """
+    Hybrid search across document chunks.
+    
+    Combines dense (semantic) and sparse (BM25 keyword) vectors
+    for comprehensive search results using Reciprocal Rank Fusion.
+    
+    Request body:
+        {
+            "query": "search query text",
+            "limit": 10,  // optional, default 10
+            "file_id": "uuid",  // optional, filter by specific document
+            "project_id": 123  // optional, filter by project (NOT YET IMPLEMENTED)
+        }
+    
+    Returns:
+        {
+            "results": [
+                {
+                    "chunk_id": "abc123",
+                    "file_id": "uuid",
+                    "page_number": 5,
+                    "content": "matched text...",
+                    "score": 0.95,
+                    "doc_url": "gs://bucket/path",
+                    "original_filename": "document.pdf",
+                    "metadata": {...}
+                }
+            ],
+            "query": "original query",
+            "total_results": 10
+        }
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+    
+    query = data.get('query', '').strip()
+    if not query:
+        return jsonify({'error': 'Query is required'}), 400
+    
+    limit = data.get('limit', 10)
+    file_id = data.get('file_id')
+    
+    try:
+        from app.services.hybrid_search_service import get_hybrid_search_service
+        
+        hybrid_search = get_hybrid_search_service(user.organization_id)
+        
+        if not hybrid_search.enabled:
+            return jsonify({
+                'error': 'Vector search not available',
+                'results': [],
+                'query': query
+            }), 503
+        
+        results = hybrid_search.hybrid_search(
+            query=query,
+            org_id=user.organization_id,
+            limit=limit,
+            file_id=file_id
+        )
+        
+        return jsonify({
+            'results': [r.to_dict() for r in results],
+            'query': query,
+            'total_results': len(results)
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Hybrid search failed: {e}")
+        return jsonify({
+            'error': f'Search failed: {str(e)}',
+            'results': [],
+            'query': query
+        }), 500
+
+
+@bp.route('/<int:document_id>/chunks', methods=['GET'])
+@jwt_required()
+def get_document_chunks(document_id):
+    """
+    Get all indexed chunks for a document.
+    
+    Returns:
+        {
+            "chunks": [...],
+            "total": 25,
+            "document_id": 123
+        }
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    project = Project.query.get(document.project_id)
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        from app.services.hybrid_search_service import get_hybrid_search_service
+        
+        hybrid_search = get_hybrid_search_service(user.organization_id)
+        
+        if not hybrid_search.enabled or not document.file_id:
+            return jsonify({
+                'chunks': [],
+                'total': 0,
+                'document_id': document_id
+            })
+        
+        chunks = hybrid_search.get_document_chunks(
+            file_id=document.file_id,
+            org_id=user.organization_id
+        )
+        
+        return jsonify({
+            'chunks': [c.to_dict() for c in chunks],
+            'total': len(chunks),
+            'document_id': document_id
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to get chunks for document {document_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<int:document_id>/reindex', methods=['POST'])
+@jwt_required()
+def reindex_document(document_id):
+    """
+    Trigger re-indexing of a document's embeddings.
+    
+    Useful when document chunking or embedding has failed
+    and needs to be retried.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    document = Document.query.get(document_id)
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    project = Project.query.get(document.project_id)
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        from app.tasks import reprocess_document_embeddings_task
+        
+        reprocess_document_embeddings_task.delay(document.id, user.organization_id)
+        
+        document.embedding_status = 'pending'
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Document reindexing triggered',
+            'document': document.to_dict()
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to trigger reindex for document {document_id}: {e}")
+        return jsonify({'error': str(e)}), 500

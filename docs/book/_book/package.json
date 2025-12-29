@@ -1,0 +1,14 @@
+{
+  "name": "rfp-pro-docs",
+  "version": "1.0.0",
+  "description": "RFP Pro Documentation",
+  "main": "index.js",
+  "scripts": {
+    "build": "honkit build",
+    "serve": "honkit serve"
+  },
+  "devDependencies": {
+    "honkit": "^6.1.4",
+    "honkit-plugin-mermaid": "^0.1.4"
+  }
+}

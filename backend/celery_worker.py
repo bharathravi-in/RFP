@@ -36,3 +36,7 @@ celery = make_celery()
 
 # Import tasks to register them
 from app import tasks  # noqa: F401, E402
+
+# Register async agent tasks
+from app.tasks import create_celery_tasks
+create_celery_tasks(celery)

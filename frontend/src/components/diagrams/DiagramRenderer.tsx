@@ -16,6 +16,7 @@ interface DiagramRendererProps {
     description?: string;
     className?: string;
     showControls?: boolean;
+    compact?: boolean;
 }
 
 // Initialize mermaid with dark mode support
@@ -45,6 +46,7 @@ export default function DiagramRenderer({
     description,
     className,
     showControls = true,
+    compact = false,
 }: DiagramRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [svgContent, setSvgContent] = useState<string>('');
@@ -60,6 +62,7 @@ export default function DiagramRenderer({
 
         // Convert escaped newlines to actual newlines
         cleaned = cleaned.replace(/\\n/g, '\n');
+        cleaned = cleaned.replace(/\\\\n/g, '\n');
 
         // Remove markdown code fences if present
         cleaned = cleaned.replace(/^```mermaid\n?/i, '');
@@ -72,13 +75,124 @@ export default function DiagramRenderer({
         cleaned = cleaned.replace(/↔/g, '<-->');
         cleaned = cleaned.replace(/➡/g, '-->');
         cleaned = cleaned.replace(/⬅/g, '<--');
-
-        // Fix colon issues in arrow labels (e.g., "A --> B : Label" should be "A -->|Label| B")
-        // Or remove problematic colons entirely
-        cleaned = cleaned.replace(/ : /g, ' ');  // Remove spaced colons
+        cleaned = cleaned.replace(/⇒/g, '-->');
+        cleaned = cleaned.replace(/⇐/g, '<--');
 
         // Remove other problematic non-ASCII characters
-        cleaned = cleaned.replace(/[^\x00-\x7F]/g, '');
+        cleaned = cleaned.replace(/[^\x20-\x7E\n\r\t]/g, '');
+
+        // Fix malformed arrows that result from unicode removal
+        // <- > or < -> should become <-->
+        cleaned = cleaned.replace(/<-\s*>/g, '<-->');
+        cleaned = cleaned.replace(/<\s*->/g, '<-->');
+        cleaned = cleaned.replace(/<-\s+->/g, '<-->');
+        // - > should become -->
+        cleaned = cleaned.replace(/-\s+>/g, '-->');
+        // < - should become <--
+        cleaned = cleaned.replace(/<\s+-/g, '<--');
+        // Fix any remaining weird arrow patterns
+        cleaned = cleaned.replace(/--\s+>/g, '-->');
+        cleaned = cleaned.replace(/<\s+--/g, '<--');
+        // Fix patterns like "> D B" that result from mangled arrows
+        cleaned = cleaned.replace(/>\s+([A-Z])/g, '> $1');
+
+        // Fix colon-based labels (invalid syntax: "A --> B: label" should be "A -->|label| B")
+        cleaned = cleaned.replace(/(\S+)\s*(-->|<--|---)\s*(\S+):\s*([^\n]+)/g,
+            (_match, nodeA, arrow, nodeB, label) => {
+                // Clean the label
+                const cleanLabel = label.replace(/[^\w\s]/g, '').substring(0, 30).trim();
+                return `${nodeA} ${arrow}|${cleanLabel}| ${nodeB}`;
+            }
+        );
+
+        // Fix malformed connection lines with multiple arrows
+        // e.g., "A --> B --> C" should become "A --> B" and "B --> C"
+        const lines = cleaned.split('\n');
+        const fixedLines: string[] = [];
+
+        for (const line of lines) {
+            const stripped = line.trim();
+
+            // Skip empty lines, comments, or keywords
+            if (!stripped || stripped.startsWith('%') || stripped.startsWith('flowchart') ||
+                stripped.startsWith('graph') || stripped.startsWith('subgraph') || stripped === 'end') {
+                fixedLines.push(line);
+                continue;
+            }
+
+            // Count arrows in the line
+            const arrowCount = (stripped.match(/-->/g) || []).length +
+                (stripped.match(/<--/g) || []).length +
+                (stripped.match(/---/g) || []).length;
+
+            if (arrowCount > 1) {
+                // Multiple arrows - try to fix by splitting into valid connections
+                const parts = stripped.split(/(-->|<--|---)/);
+                if (parts.length >= 3) {
+                    let currentNode = parts[0].trim();
+                    for (let i = 1; i < parts.length; i += 2) {
+                        if (i + 1 < parts.length) {
+                            const arrow = parts[i];
+                            const nextNode = parts[i + 1].trim();
+                            // Only add valid looking nodes
+                            if (currentNode && nextNode && currentNode.length < 50 && nextNode.length < 50) {
+                                fixedLines.push(`    ${currentNode} ${arrow} ${nextNode}`);
+                            }
+                            currentNode = nextNode;
+                        }
+                    }
+                }
+                // Skip original line if we processed it
+            } else {
+                fixedLines.push(line);
+            }
+        }
+
+        cleaned = fixedLines.join('\n');
+
+        // Clean node labels - this is the key fix for "NODE_STRING" errors
+        // Clean labels inside square brackets [label]
+        cleaned = cleaned.replace(/\[([^\]]+)\]/g, (_match, label) => {
+            let cleanLabel = label;
+            // Remove parentheses and their content
+            cleanLabel = cleanLabel.replace(/\([^)]*\)/g, '');
+            // Replace colons with dashes (except in URLs)
+            if (!cleanLabel.toLowerCase().includes('http')) {
+                cleanLabel = cleanLabel.replace(/:/g, ' -');
+            }
+            // Remove quotes
+            cleanLabel = cleanLabel.replace(/["']/g, '');
+            // Replace ampersands
+            cleanLabel = cleanLabel.replace(/&/g, 'and');
+            // Limit length
+            cleanLabel = cleanLabel.trim();
+            if (cleanLabel.length > 30) {
+                cleanLabel = cleanLabel.substring(0, 27) + '...';
+            }
+            // Clean up multiple spaces
+            cleanLabel = cleanLabel.replace(/\s+/g, ' ');
+            return `[${cleanLabel || 'Node'}]`;
+        });
+
+        // Clean labels inside curly brackets {label}
+        cleaned = cleaned.replace(/\{([^}]+)\}/g, (_match, label) => {
+            let cleanLabel = label;
+            cleanLabel = cleanLabel.replace(/\([^)]*\)/g, '');
+            if (!cleanLabel.toLowerCase().includes('http')) {
+                cleanLabel = cleanLabel.replace(/:/g, ' -');
+            }
+            cleanLabel = cleanLabel.replace(/["']/g, '');
+            cleanLabel = cleanLabel.replace(/&/g, 'and');
+            cleanLabel = cleanLabel.trim();
+            if (cleanLabel.length > 30) {
+                cleanLabel = cleanLabel.substring(0, 27) + '...';
+            }
+            cleanLabel = cleanLabel.replace(/\s+/g, ' ');
+            return `{${cleanLabel || 'Decision'}}`;
+        });
+
+        // Fix colon issues in arrow labels (e.g., "A --> B : Label" should be "A -->|Label| B")
+        cleaned = cleaned.replace(/ : /g, ' ');
 
         // Clean up multiple spaces
         cleaned = cleaned.replace(/  +/g, ' ');
@@ -257,10 +371,11 @@ export default function DiagramRenderer({
         <>
             <div className={clsx(
                 'rounded-lg border border-gray-200 bg-white shadow-sm',
+                compact && 'border-none shadow-none',
                 className
             )}>
                 {/* Header */}
-                {(title || showControls) && (
+                {!compact && (title || showControls) && (
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                         <div>
                             {title && (
@@ -331,7 +446,10 @@ export default function DiagramRenderer({
                 )}
 
                 {/* Diagram */}
-                <div className="p-4 min-h-[200px] max-h-[500px] overflow-auto">
+                <div className={clsx(
+                    'p-4 overflow-auto',
+                    compact ? 'min-h-[150px] max-h-[300px]' : 'min-h-[200px] max-h-[500px]'
+                )}>
                     {svgContent ? diagramContent : (
                         <div className="flex items-center justify-center h-40">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>

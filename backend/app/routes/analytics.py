@@ -419,3 +419,101 @@ def get_loss_reasons():
     
     return jsonify({'loss_reasons': reasons}), 200
 
+
+@bp.route('/content-performance', methods=['GET'])
+@jwt_required()
+def get_content_performance():
+    """Get performance metrics for library content."""
+    from ..models import AnswerLibraryItem
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+        
+    org_id = user.organization_id
+    
+    # Top used items
+    top_used = AnswerLibraryItem.query.filter_by(
+        organization_id=org_id,
+        is_active=True
+    ).order_by(AnswerLibraryItem.times_used.desc()).limit(10).all()
+    
+    # Highest helpfulness items
+    best_rated = AnswerLibraryItem.query.filter(
+        AnswerLibraryItem.organization_id == org_id,
+        AnswerLibraryItem.is_active == True,
+        AnswerLibraryItem.times_used > 0
+    ).order_by(
+        (AnswerLibraryItem.times_helpful / AnswerLibraryItem.times_used).desc()
+    ).limit(10).all()
+    
+    # Category performance
+    category_stats = db.session.query(
+        AnswerLibraryItem.category,
+        func.count(AnswerLibraryItem.id),
+        func.sum(AnswerLibraryItem.times_used),
+        func.sum(AnswerLibraryItem.times_helpful)
+    ).filter(
+        AnswerLibraryItem.organization_id == org_id,
+        AnswerLibraryItem.is_active == True
+    ).group_by(AnswerLibraryItem.category).all()
+    
+    categories = []
+    for cat, count, used, helpful in category_stats:
+        if cat:
+            categories.append({
+                'category': cat,
+                'count': count,
+                'total_usage': used or 0,
+                'total_helpful': helpful or 0,
+                'helpfulness_rate': round((helpful or 0) / max(used or 1, 1) * 100, 1)
+            })
+    
+    return jsonify({
+        'top_used': [item.to_dict() for item in top_used],
+        'best_rated': [item.to_dict() for item in best_rated],
+        'category_performance': categories
+    }), 200
+
+
+@bp.route('/win-loss-deep-dive', methods=['GET'])
+@jwt_required()
+def win_loss_deep_dive():
+    """Deep dive into win/loss factors."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+        
+    org_id = user.organization_id
+    
+    def get_dimension_stats(column):
+        results = db.session.query(
+            column,
+            func.count(Project.id).label('total'),
+            func.sum(db.case((Project.outcome == 'won', 1), else_=0)).label('won'),
+            func.sum(db.case((Project.outcome == 'lost', 1), else_=0)).label('lost')
+        ).filter(
+            Project.organization_id == org_id,
+            column.isnot(None)
+        ).group_by(column).all()
+        
+        return [
+            {
+                'name': name,
+                'total': total,
+                'won': won,
+                'lost': lost,
+                'win_rate': round(won / max(won + lost, 1) * 100, 1) if (won + lost) > 0 else None
+            }
+            for name, total, won, lost in results
+        ]
+
+    return jsonify({
+        'by_client_type': get_dimension_stats(Project.client_type),
+        'by_industry': get_dimension_stats(Project.industry),
+        'by_geography': get_dimension_stats(Project.geography)
+    }), 200
+

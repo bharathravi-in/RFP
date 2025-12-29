@@ -200,8 +200,25 @@ def analyze_rfp_async():
             document = Document.query.get(document_id)
             if not document:
                 return jsonify({"error": "Document not found"}), 404
+            
+            # Auto-trigger parsing if no extracted text
             if not document.extracted_text:
-                return jsonify({"error": "Document has no extracted text"}), 400
+                logger.info(f"Document {document_id} has no extracted text, triggering parse...")
+                try:
+                    from app.routes.documents import _parse_document_internal
+                    parse_result = _parse_document_internal(document)
+                    if 'error' in parse_result:
+                        return jsonify({"error": f"Failed to parse document: {parse_result['error']}"}), 400
+                    # Refresh document after parsing
+                    from app.extensions import db
+                    db.session.refresh(document)
+                except Exception as e:
+                    logger.error(f"Failed to parse document {document_id}: {e}")
+                    return jsonify({"error": f"Document parsing failed: {str(e)}"}), 400
+            
+            if not document.extracted_text:
+                return jsonify({"error": "Document has no extracted text after parsing"}), 400
+            
             document_text = document.extracted_text
             org_id = data.get('org_id') or (document.project.organization_id if document.project else None)
             project_id = data.get('project_id') or (document.project_id if document.project_id else None)
@@ -718,3 +735,572 @@ def analyze_multiple_documents():
     except Exception as e:
         logger.error(f"Multi-document analysis failed: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# ===============================
+# Pricing Calculator Routes (NEW)
+# ===============================
+
+@agents_bp.route('/calculate-pricing', methods=['POST'])
+def calculate_pricing():
+    """
+    Calculate pricing for a proposal.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide project_data directly
+        "project_data": {
+            "name": "Project Name",
+            "client_name": "Client",
+            "description": "..."
+        },
+        "sections": [{"title": "...", "content": "..."}],
+        "complexity": "low|medium|high|very_high",
+        "duration_weeks": int (optional)
+    }
+    
+    Returns pricing breakdown with effort and cost estimates.
+    """
+    from app.agents import get_pricing_calculator_agent
+    from app.models import Project, Organization, RFPSection, Question
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    project_data = data.get('project_data', {})
+    sections_data = data.get('sections', [])
+    questions = data.get('questions', [])
+    organization = None
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        # Try to get currency from project's knowledge profiles
+        profile_currency = None
+        if hasattr(project, 'knowledge_profiles') and project.knowledge_profiles:
+            for profile in project.knowledge_profiles:
+                if profile.currencies and len(profile.currencies) > 0:
+                    # Use the first currency from the first profile that has currencies
+                    profile_currency = profile.currencies[0]
+                    break
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+            'description': project.description,
+            'currency': project.currency or profile_currency,  # Include project currency or profile currency
+        }
+        
+        # Get sections
+        sections = RFPSection.query.filter_by(project_id=project_id).all()
+        sections_data = [{'title': s.title, 'content': s.content or ''} for s in sections]
+        
+        # Get questions
+        questions_objs = Question.query.filter_by(project_id=project_id).all()
+        questions = [{'id': q.id, 'text': q.text} for q in questions_objs]
+        
+        # Get organization
+        if project.organization_id:
+            organization = Organization.query.get(project.organization_id)
+            org_id = project.organization_id
+        else:
+            org_id = data.get('org_id')
+    else:
+        org_id = data.get('org_id')
+        if org_id:
+            organization = Organization.query.get(org_id)
+    
+    # Get currency - prefer project currency, then org settings, then default
+    currency = project_data.get('currency') or data.get('currency') or 'USD'
+    
+    logger.info(f"Calculating pricing with currency: {currency}")
+    
+    try:
+        agent = get_pricing_calculator_agent(org_id=org_id)
+        result = agent.calculate_pricing(
+            project_data=project_data,
+            sections=sections_data,
+            questions=questions,
+            organization=organization,
+            complexity=data.get('complexity', 'medium'),
+            duration_weeks=data.get('duration_weeks'),
+            currency=currency  # Pass currency to agent
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Pricing calculation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+@agents_bp.route('/estimate-effort', methods=['POST'])
+def estimate_effort():
+    """
+    Quick effort estimation from requirements list.
+    
+    Request body:
+    {
+        "requirements": ["Requirement 1", "Requirement 2"],
+        "complexity": "low|medium|high|very_high"
+    }
+    
+    Returns quick effort and cost estimate.
+    """
+    from app.agents import get_pricing_calculator_agent
+    
+    data = request.get_json() or {}
+    
+    requirements = data.get('requirements', [])
+    if not requirements:
+        return jsonify({"error": "No requirements provided"}), 400
+    
+    complexity = data.get('complexity', 'medium')
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_pricing_calculator_agent(org_id=org_id)
+        result = agent.estimate_effort(
+            requirements=requirements,
+            complexity=complexity
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Effort estimation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===============================
+# Legal Review Routes (NEW)
+# ===============================
+
+@agents_bp.route('/legal-review', methods=['POST'])
+def legal_review():
+    """
+    Perform legal review of proposal sections.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide sections directly
+        "sections": [{"title": "...", "content": "..."}],
+        "project_data": {"name": "...", "client_name": "..."},
+        "check_mode": "full|quick|compliance_only"
+    }
+    
+    Returns legal review findings and recommendations.
+    """
+    from app.agents import get_legal_review_agent
+    from app.models import Project, Organization, RFPSection
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    sections_data = data.get('sections', [])
+    project_data = data.get('project_data', {})
+    vendor_profile = data.get('vendor_profile', {})
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+        }
+        
+        # Get sections
+        sections = RFPSection.query.filter_by(project_id=project_id).all()
+        sections_data = [{'title': s.title, 'content': s.content or ''} for s in sections]
+        
+        # Get vendor profile from organization
+        if project.organization_id:
+            org = Organization.query.get(project.organization_id)
+            if org and org.settings:
+                vendor_profile = org.settings.get('vendor_profile', {})
+            org_id = project.organization_id
+        else:
+            org_id = data.get('org_id')
+    else:
+        org_id = data.get('org_id')
+    
+    if not sections_data:
+        return jsonify({"error": "No sections to review"}), 400
+    
+    try:
+        agent = get_legal_review_agent(org_id=org_id)
+        result = agent.review_proposal(
+            sections=sections_data,
+            project_data=project_data,
+            vendor_profile=vendor_profile,
+            check_mode=data.get('check_mode', 'full')
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Legal review failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/legal-quick-check', methods=['POST'])
+def legal_quick_check():
+    """
+    Quick legal check on a single piece of content.
+    
+    Request body:
+    {
+        "content": "Text to check for legal risks"
+    }
+    
+    Returns quick risk assessment.
+    """
+    from app.agents import get_legal_review_agent
+    
+    data = request.get_json() or {}
+    
+    content = data.get('content', '')
+    if not content:
+        return jsonify({"error": "No content provided"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_legal_review_agent(org_id=org_id)
+        result = agent.quick_check(content=content)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Legal quick check failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===============================
+# Win Theme Routes (NEW)
+# ===============================
+
+@agents_bp.route('/generate-win-themes', methods=['POST'])
+def generate_win_themes():
+    """
+    Generate win themes and differentiators for a proposal.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide project_data directly
+        "project_data": {"name": "...", "client_name": "...", "description": "..."},
+        "rfp_requirements": ["Requirement 1", "Requirement 2"],
+        "evaluation_criteria": ["Criteria 1", "Criteria 2"]
+    }
+    
+    Returns win themes, differentiators, and value propositions.
+    """
+    from app.agents import get_win_theme_agent
+    from app.models import Project, Organization
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    project_data = data.get('project_data', {})
+    vendor_profile = data.get('vendor_profile', {})
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+            'description': project.description,
+        }
+        
+        # Get vendor profile from organization
+        if project.organization_id:
+            org = Organization.query.get(project.organization_id)
+            if org and org.settings:
+                vendor_profile = org.settings.get('vendor_profile', {})
+            org_id = project.organization_id
+        else:
+            org_id = data.get('org_id')
+    else:
+        org_id = data.get('org_id')
+    
+    try:
+        agent = get_win_theme_agent(org_id=org_id)
+        result = agent.generate_win_themes(
+            project_data=project_data,
+            rfp_requirements=data.get('rfp_requirements', []),
+            vendor_profile=vendor_profile,
+            evaluation_criteria=data.get('evaluation_criteria'),
+            competitor_info=data.get('competitor_info')
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Win theme generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/apply-themes-to-section', methods=['POST'])
+def apply_themes_to_section():
+    """
+    Apply win themes to enhance a section.
+    
+    Request body:
+    {
+        "section_content": "Current section content",
+        "section_name": "Executive Summary",
+        "win_themes": [{"theme_title": "...", "sections_to_apply": [...]}]
+    }
+    
+    Returns enhanced section content.
+    """
+    from app.agents import get_win_theme_agent
+    
+    data = request.get_json() or {}
+    
+    section_content = data.get('section_content', '')
+    section_name = data.get('section_name', '')
+    win_themes = data.get('win_themes', [])
+    
+    if not section_content or not win_themes:
+        return jsonify({"error": "section_content and win_themes required"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_win_theme_agent(org_id=org_id)
+        enhanced = agent.apply_themes_to_section(
+            section_content=section_content,
+            win_themes=win_themes,
+            section_name=section_name
+        )
+        return jsonify({"enhanced_content": enhanced})
+    except Exception as e:
+        logger.error(f"Theme application failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===============================
+# Competitive Analysis Routes (NEW)
+# ===============================
+
+@agents_bp.route('/competitive-analysis', methods=['POST'])
+def competitive_analysis():
+    """
+    Perform competitive analysis for a proposal.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide project_data directly
+        "project_data": {"name": "...", "client_name": "..."},
+        "rfp_requirements": ["Requirement 1"],
+        "known_competitors": ["Competitor A"],
+        "industry": "Technology"
+    }
+    
+    Returns competitive landscape, strategies, and counter-objections.
+    """
+    from app.agents import get_competitive_analysis_agent
+    from app.models import Project, Organization
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    project_data = data.get('project_data', {})
+    vendor_profile = data.get('vendor_profile', {})
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+            'description': project.description,
+        }
+        
+        # Get vendor profile from organization
+        if project.organization_id:
+            org = Organization.query.get(project.organization_id)
+            if org and org.settings:
+                vendor_profile = org.settings.get('vendor_profile', {})
+            org_id = project.organization_id
+        else:
+            org_id = data.get('org_id')
+    else:
+        org_id = data.get('org_id')
+    
+    try:
+        agent = get_competitive_analysis_agent(org_id=org_id)
+        result = agent.analyze_competition(
+            project_data=project_data,
+            vendor_profile=vendor_profile,
+            rfp_requirements=data.get('rfp_requirements', []),
+            known_competitors=data.get('known_competitors'),
+            industry=data.get('industry')
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Competitive analysis failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/counter-objections', methods=['POST'])
+def generate_counter_objections():
+    """
+    Generate responses to specific objections.
+    
+    Request body:
+    {
+        "objections": ["Objection 1", "Objection 2"],
+        "vendor_profile": {...}
+    }
+    
+    Returns objection-response pairs.
+    """
+    from app.agents import get_competitive_analysis_agent
+    
+    data = request.get_json() or {}
+    
+    objections = data.get('objections', [])
+    if not objections:
+        return jsonify({"error": "No objections provided"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_competitive_analysis_agent(org_id=org_id)
+        result = agent.generate_counter_objections(
+            objections=objections,
+            vendor_profile=data.get('vendor_profile')
+        )
+        return jsonify({"counter_objections": result})
+    except Exception as e:
+        logger.error(f"Counter objection generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===============================
+# Strategy Persistence Routes
+# ===============================
+
+@agents_bp.route('/strategy/<int:project_id>', methods=['GET'])
+def get_project_strategy(project_id: int):
+    """
+    Get saved strategy data for a project.
+    
+    Returns all saved strategy insights (win themes, competitive analysis, pricing, legal review).
+    """
+    from app.models import ProjectStrategy, Project
+    
+    # Verify project exists
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    # Get or create strategy record
+    strategy = ProjectStrategy.query.filter_by(project_id=project_id).first()
+    
+    if strategy:
+        return jsonify({
+            "success": True,
+            "strategy": strategy.to_dict()
+        })
+    else:
+        # No strategy data yet
+        return jsonify({
+            "success": True,
+            "strategy": None
+        })
+
+
+@agents_bp.route('/strategy/<int:project_id>/win-themes', methods=['POST'])
+def save_win_themes(project_id: int):
+    """
+    Save win themes data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_win_themes(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Win themes saved"
+    })
+
+
+@agents_bp.route('/strategy/<int:project_id>/competitive-analysis', methods=['POST'])
+def save_competitive_analysis(project_id: int):
+    """
+    Save competitive analysis data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_competitive_analysis(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Competitive analysis saved"
+    })
+
+
+@agents_bp.route('/strategy/<int:project_id>/pricing', methods=['POST'])
+def save_pricing(project_id: int):
+    """
+    Save pricing data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_pricing(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Pricing saved"
+    })
+
+
+@agents_bp.route('/strategy/<int:project_id>/legal-review', methods=['POST'])
+def save_legal_review(project_id: int):
+    """
+    Save legal review data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_legal_review(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Legal review saved"
+    })

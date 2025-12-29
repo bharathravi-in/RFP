@@ -101,15 +101,10 @@ For product questions:
     
     @property
     def client(self):
-        """Lazy load the Google AI client (legacy fallback)."""
-        if self._client is None and self.api_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                self._client = genai.GenerativeModel(self.model_name)
-            except Exception as e:
-                logger.error(f"Failed to initialize AI client: {e}")
-        return self._client
+        """Legacy client property - disabled in favor of provider abstraction."""
+        # Legacy Google AI fallback removed - all LLM access should go through _get_provider
+        logger.debug("Legacy client disabled - using provider abstraction only")
+        return None
     
     def generate_answer(
         self,
@@ -184,11 +179,17 @@ For product questions:
             # Build source citations
             sources = self._build_sources(context, similar_answers)
             
+            # Phase 4: Suggest a diagram if the question is technical
+            suggested_diagram = None
+            if question_category in ['technical', 'architecture', 'product']:
+                suggested_diagram = self._suggest_diagram(question, context, org_id)
+
             return {
                 'content': content,
                 'confidence_score': confidence,
                 'sources': sources,
                 'flags': flags,
+                'suggested_diagram': suggested_diagram,
                 'generation_params': {
                     'tone': tone,
                     'length': length,
@@ -208,6 +209,23 @@ For product questions:
                 'flags': ['generation_error'],
                 'generation_params': {}
             }
+
+    def _suggest_diagram(self, question: str, context: List[Dict], org_id: int = None) -> Optional[Dict]:
+        """Suggest a diagram based on question and context."""
+        try:
+            from app.agents.diagram_generator_agent import get_diagram_generator_agent
+            
+            # Combine context for the agent
+            context_text = "\n".join([c.get('content', '') for c in context[:3]])
+            
+            agent = get_diagram_generator_agent(org_id=org_id)
+            result = agent.generate_for_context(question, context_text)
+            
+            if result.get('success'):
+                return result.get('diagram')
+        except Exception as e:
+            logger.error(f"Diagram suggestion failed: {e}")
+        return None
     
     def _build_prompt(
         self,

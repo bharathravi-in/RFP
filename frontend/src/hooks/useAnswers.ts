@@ -11,7 +11,7 @@ interface UseAnswerReturn {
     regenerate: (action: 'shorten' | 'expand' | 'improve_tone') => Promise<Answer | null>;
     updateContent: (content: string) => Promise<Answer | null>;
     review: (action: 'approve' | 'reject', reason?: string) => Promise<Answer | null>;
-    addComment: (text: string, position?: number) => Promise<void>;
+    addComment: (text: string, position?: { start: number; end: number }) => Promise<void>;
 }
 
 export function useAnswer(question: Question | null): UseAnswerReturn {
@@ -115,7 +115,7 @@ export function useAnswer(question: Question | null): UseAnswerReturn {
         }
     }, [answer]);
 
-    const addComment = useCallback(async (text: string, position?: number): Promise<void> => {
+    const addComment = useCallback(async (text: string, position?: { start: number; end: number }): Promise<void> => {
         if (!answer) return;
 
         try {

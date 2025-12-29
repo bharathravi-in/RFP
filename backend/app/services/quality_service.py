@@ -6,7 +6,6 @@ Evaluates generated answers for quality, completeness, and accuracy.
 import re
 import logging
 from typing import Dict, List, Optional, Tuple
-import google.generativeai as genai
 from flask import current_app
 
 logger = logging.getLogger(__name__)
@@ -44,14 +43,11 @@ class QualityScorer:
         return self._provider
     
     def _get_legacy_model(self):
-        """Fallback to legacy Google AI model."""
-        if self._legacy_model is None and current_app.config.get('GOOGLE_API_KEY'):
-            import google.generativeai as genai
-            genai.configure(api_key=current_app.config['GOOGLE_API_KEY'])
-            self._legacy_model = genai.GenerativeModel(
-                current_app.config.get('GOOGLE_MODEL', 'gemini-1.5-pro')
-            )
-        return self._legacy_model
+        """Return None - legacy Google AI fallback removed in favor of provider abstraction."""
+        # Legacy fallback removed - all LLM access should go through llm_service_helper
+        # If _get_provider fails, AI scoring will use rule-based fallback
+        logger.debug("Legacy model fallback disabled - using provider abstraction only")
+        return None
     
     def _generate(self, prompt: str) -> str:
         """Generate content using configured provider."""

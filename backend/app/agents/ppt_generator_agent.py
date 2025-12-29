@@ -1,17 +1,17 @@
 """
 PPT Generator Agent - AI-powered PowerPoint presentation generation
 Generates professional proposal presentations from RFP data
+
+Uses configured LLM provider (LiteLLM/Google/OpenAI) from organization settings.
 """
 import os
 import json
 import logging
-import google.generativeai as genai
 from typing import Dict, List, Any, Optional
 
-logger = logging.getLogger(__name__)
+from .config import AgentConfig
 
-# Configure Gemini
-genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+logger = logging.getLogger(__name__)
 
 
 class PPTGeneratorAgent:
@@ -76,7 +76,17 @@ Generate a JSON response with the following structure:
 - Use executive, confident, concise tone
 - Focus on clarity, outcomes, and value
 - Suggest relevant visuals for each slide
-- Include speaker notes where helpful
+
+## Speaker Notes (MANDATORY for every slide):
+- Include detailed speaker notes in the "notes" field for EVERY slide
+- Notes should include:
+  * Key talking points to expand on bullets
+  * Data points and metrics to mention
+  * Transition phrases to next slide
+  * Potential questions to anticipate
+- Write notes as if coaching a presenter
+- Notes should be 3-5 sentences per slide
+- Example: "Emphasize that our team has successfully delivered X similar projects. Mention specific client names if audience permits. Transition to next slide by highlighting the implementation approach."
 
 ## Proposal Data:
 {proposal_data}
@@ -90,9 +100,87 @@ Generate the complete slide deck JSON now:"""
         'startup': "Use energetic, dynamic language with focus on innovation and disruption."
     }
 
+    # Comprehensive slide layout definitions
+    SLIDE_LAYOUTS = {
+        'title': {
+            'name': 'Title Slide',
+            'description': 'Opening slide with proposal title and client name',
+            'placeholders': ['title', 'subtitle', 'date', 'logo'],
+            'layout_index': 0
+        },
+        'title_content': {
+            'name': 'Title and Content',
+            'description': 'Standard slide with title and bullet points',
+            'placeholders': ['title', 'bullets'],
+            'layout_index': 1
+        },
+        'section_header': {
+            'name': 'Section Header',
+            'description': 'Section divider with section title',
+            'placeholders': ['title', 'subtitle'],
+            'layout_index': 2
+        },
+        'two_column': {
+            'name': 'Two Column',
+            'description': 'Side-by-side comparison layout',
+            'placeholders': ['title', 'left_content', 'right_content'],
+            'layout_index': 3
+        },
+        'comparison': {
+            'name': 'Comparison',
+            'description': 'Before/after or option comparison',
+            'placeholders': ['title', 'item1_title', 'item1_content', 'item2_title', 'item2_content'],
+            'layout_index': 4
+        },
+        'content_with_caption': {
+            'name': 'Content with Caption',
+            'description': 'Visual with explanatory caption',
+            'placeholders': ['title', 'content', 'caption'],
+            'layout_index': 5
+        },
+        'picture_with_caption': {
+            'name': 'Picture with Caption',
+            'description': 'Image-focused slide with text overlay',
+            'placeholders': ['title', 'image_placeholder', 'caption'],
+            'layout_index': 6
+        },
+        'blank': {
+            'name': 'Blank',
+            'description': 'Empty slide for custom content',
+            'placeholders': [],
+            'layout_index': 7
+        },
+        'quote': {
+            'name': 'Quote',
+            'description': 'Client testimonial or key quote',
+            'placeholders': ['quote_text', 'attribution'],
+            'layout_index': 8
+        },
+        'metrics': {
+            'name': 'Key Metrics',
+            'description': 'Dashboard-style metrics display',
+            'placeholders': ['title', 'metric1', 'metric2', 'metric3', 'metric4'],
+            'layout_index': 9
+        },
+        'timeline_slide': {
+            'name': 'Timeline',
+            'description': 'Project phases and milestones',
+            'placeholders': ['title', 'phases'],
+            'layout_index': 10
+        },
+        'team_grid': {
+            'name': 'Team Grid',
+            'description': 'Team member photos and roles',
+            'placeholders': ['title', 'team_members'],
+            'layout_index': 11
+        }
+    }
+
     def __init__(self, org_id: int = None):
         self.org_id = org_id
-        self.model = genai.GenerativeModel(os.getenv('GOOGLE_MODEL', 'gemini-1.5-flash'))
+        # Use AgentConfig for proper LiteLLM/provider support
+        self.config = AgentConfig(org_id=org_id, agent_type='ppt_generator')
+        logger.info(f"PPT Generator initialized with provider: {self.config.provider}, model: {self.config.model_name}")
     
     def generate_ppt_content(
         self,
@@ -134,24 +222,25 @@ Generate the complete slide deck JSON now:"""
                 prompt += f"\n\nBranding Guidelines: {json.dumps(branding)}"
             
             logger.info(f"Generating PPT content for project: {project_data.get('name', 'Unknown')}")
+            logger.info(f"Using provider: {self.config.provider}, model: {self.config.model_name}")
             
-            # Generate with Gemini
-            response = self.model.generate_content(
+            # Generate using configured provider (LiteLLM, Google, etc.)
+            response_text = self.config.generate_content(
                 prompt,
-                generation_config=genai.GenerationConfig(
-                    temperature=0.7,
-                    max_output_tokens=8000,
-                )
+                temperature=0.7,
+                max_tokens=8000
             )
             
             # Parse the response
-            result = self._parse_response(response.text)
+            result = self._parse_response(response_text)
             
             return {
                 'success': True,
                 'slides': result.get('slides', []),
                 'slide_count': len(result.get('slides', [])),
                 'style': style,
+                'provider': self.config.provider,
+                'model': self.config.model_name,
             }
             
         except Exception as e:
@@ -175,7 +264,7 @@ Generate the complete slide deck JSON now:"""
             'client_name': project_data.get('client_name', 'Client'),
             'project_name': project_data.get('name', 'Proposal'),
             'industry': project_data.get('industry', ''),
-            'deadline': project_data.get('deadline', ''),
+            'deadline': project_data.get('due_date', ''),
             'created_date': project_data.get('created_at', ''),
         }
         
@@ -264,7 +353,7 @@ Generate the complete slide deck JSON now:"""
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse PPT JSON: {e}")
-            logger.error(f"Raw response text: {response_text}")
+            logger.error(f"Raw response text: {response_text[:500]}...")
             
             # Attempt to sanitize common syntax errors
             try:
@@ -307,8 +396,13 @@ Return JSON:
 }}"""
         
         try:
-            response = self.model.generate_content(prompt)
-            return self._parse_response(response.text)
+            response_text = self.config.generate_content(prompt)
+            return self._parse_response(response_text)
         except Exception as e:
             logger.error(f"Single slide generation error: {e}")
             return {'title': slide_type.title(), 'bullets': []}
+
+
+def get_ppt_generator_agent(org_id: int = None) -> PPTGeneratorAgent:
+    """Factory function to get PPT Generator Agent."""
+    return PPTGeneratorAgent(org_id=org_id)

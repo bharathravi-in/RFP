@@ -2,7 +2,7 @@
 RFP Sections API Routes
 Handles section types, project sections, and content generation.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -691,6 +691,83 @@ def generate_section_content(section_id):
         generation_params=generation_params,
     )
     
+    # Post-process: Replace common placeholders with actual values
+    content = result['content']
+    
+    # Get company name from organization
+    organization = user.organization
+    company_name = organization.name if organization else 'Our Company'
+    
+    # Get vendor profile for additional company info
+    vendor_profile = {}
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        if vendor_profile.get('company_name'):
+            company_name = vendor_profile['company_name']
+    
+    # Replace common placeholders
+    placeholder_replacements = {
+        # Company name variations
+        '[Company Name]': company_name,
+        '[company name]': company_name,
+        '[COMPANY NAME]': company_name,
+        '[Your Company Name]': company_name,
+        '[Your Company]': company_name,
+        '[Our Company]': company_name,
+        '[Our Company Name]': company_name,
+        '[Vendor Name]': company_name,
+        '{{company_name}}': company_name,
+        '{{Company_Name}}': company_name,
+        '{{organization_name}}': company_name,
+        # Client/Project name variations
+        '[Client Name]': project.client_name or project.name or 'the client',
+        '[CLIENT NAME]': project.client_name or project.name or 'the client',
+        '[Client Contact Name]': project.client_name or 'the client representative',
+        '[Client Contact Name/Client Name]': project.client_name or project.name or 'the client',
+        '[Project Name]': project.name or 'this project',
+        '[PROJECT NAME]': project.name or 'this project',
+        '{{project_name}}': project.name or 'this project',
+        '{{Project_Name}}': project.name or 'this project',
+        # RFP references
+        '[RFP Title/Number]': project.name or 'this RFP',
+        '[RFP Title]': project.name or 'this RFP',
+        '[RFP Number]': project.name or 'this RFP',
+        '{{rfp_title}}': project.name or 'this RFP',
+        # Vendor profile info
+        '[Your Industry/Core Expertise]': vendor_profile.get('industry', 'technology solutions'),
+        '[Your Title]': 'Proposal Manager',
+        '[Your Name]': vendor_profile.get('contact_name', 'The Proposal Team'),
+        '[Number]': str(vendor_profile.get('years_in_business', '10+')),
+        '{{years_in_business}}': str(vendor_profile.get('years_in_business', '10+')),
+        # Date placeholder
+        '{{current_date}}': datetime.utcnow().strftime('%B %d, %Y'),
+    }
+    
+    for placeholder, value in placeholder_replacements.items():
+        content = content.replace(placeholder, value)
+    
+    # Comprehensive regex-based cleanup for remaining placeholders
+    import re
+    
+    # Remove instruction-like brackets [briefly mention...], [e.g., ...]
+    content = re.sub(r'\[briefly\s+[^\]]+\]', '', content)
+    content = re.sub(r'\[mention\s+[^\]]+\]', '', content)
+    content = re.sub(r'\[e\.g\.,?\s*[^\]]+\]', '', content)
+    content = re.sub(r'\[insert\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\[add\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\[include\s+[^\]]+\]', '', content, flags=re.IGNORECASE)
+    
+    # Replace remaining {{...}} template variables with empty or generic text
+    content = re.sub(r'\{\{[^}]+\}\}', '', content)
+    
+    # Replace remaining [Something Name] patterns that look like placeholders
+    content = re.sub(r'\[Your [^\]]+\]', company_name, content)
+    content = re.sub(r'\[Our [^\]]+\]', company_name, content)
+    
+    result['content'] = content
+
+
+    
     # Update section
     section.content = result['content']
     section.confidence_score = result['confidence_score']
@@ -845,6 +922,36 @@ def regenerate_section(section_id):
         section_type_slug=section.section_type.slug,
         context=context,
     )
+    
+    # Post-process: Replace common placeholders with actual values
+    content = result['content']
+    organization = user.organization
+    company_name = organization.name if organization else 'Our Company'
+    
+    # Get vendor profile for additional company info
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        if vendor_profile.get('company_name'):
+            company_name = vendor_profile['company_name']
+    
+    # Replace common placeholders
+    placeholder_replacements = {
+        '[Company Name]': company_name,
+        '[company name]': company_name,
+        '[COMPANY NAME]': company_name,
+        '{{company_name}}': company_name,
+        '[Your Company]': company_name,
+        '[Our Company]': company_name,
+        '[Vendor Name]': company_name,
+        '[Client Name]': project.client_name or 'the client',
+        '[CLIENT NAME]': project.client_name or 'the client',
+        '[Project Name]': project.name or 'this project',
+    }
+    
+    for placeholder, value in placeholder_replacements.items():
+        content = content.replace(placeholder, value)
+    
+    result['content'] = content
     
     section.content = result['content']
     section.confidence_score = result['confidence_score']
@@ -1083,10 +1190,53 @@ def export_proposal(project_id):
         filename = f'{project.name.replace(" ", "_")}_proposal.xlsx'
         mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     else:
-        # Pass organization for vendor visibility section
-        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization)
+        # Check for default DOCX template
+        import os
+        from app.models import ExportTemplate
+        template_path = None
+        template = ExportTemplate.query.filter_by(
+            organization_id=user.organization_id,
+            template_type='docx',
+            is_default=True
+        ).first()
+        if template and os.path.exists(template.file_path):
+            template_path = template.file_path
+        
+        # Pass organization and template for vendor visibility section
+        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization, template_path)
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    
+    # Optionally upload to GCP if configured
+    try:
+        from app.services.storage_service import get_storage_service
+        storage = get_storage_service()
+        
+        if storage.storage_type == 'gcp':
+            rfp_proposal_prefix = os.environ.get('GCP_RFP_PROPOSAL_PREFIX', 'rfp_proposal')
+            project_subfolder = f"project_{project_id}"
+            
+            # Upload to GCP
+            buffer.seek(0)
+            storage_metadata = storage.provider.upload_with_path(
+                file=buffer,
+                original_filename=filename,
+                prefix=rfp_proposal_prefix,
+                subfolder=project_subfolder,
+                content_type=mimetype,
+                metadata={
+                    'project_id': project_id,
+                    'exported_by': user_id,
+                    'organization_id': user.organization_id,
+                    'export_type': format_type
+                }
+            )
+            current_app.logger.info(f"Proposal exported to GCP: {storage_metadata.file_url}")
+            
+            # Reset buffer position for download
+            buffer.seek(0)
+    except Exception as e:
+        current_app.logger.warning(f"Failed to upload proposal to GCP, still serving file: {e}")
     
     return send_file(
         buffer,
@@ -1094,6 +1244,89 @@ def export_proposal(project_id):
         download_name=filename,
         mimetype=mimetype
     )
+
+
+@bp.route('/projects/<int:project_id>/export/proposal-preview', methods=['POST'])
+@jwt_required()
+def export_proposal_preview(project_id):
+    """Generate proposal and return preview URL for iframe viewing"""
+    import os
+    from app.services.export_service import generate_proposal_docx
+    from app.models import Question
+    
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get all sections in order
+    sections = RFPSection.query.filter_by(project_id=project_id)\
+        .order_by(RFPSection.order).all()
+    
+    # Get questions
+    questions = Question.query.filter_by(project_id=project_id).all()
+    
+    # Check for default DOCX template
+    from app.models import ExportTemplate
+    template_path = None
+    template = ExportTemplate.query.filter_by(
+        organization_id=user.organization_id,
+        template_type='docx',
+        is_default=True
+    ).first()
+    if template and os.path.exists(template.file_path):
+        template_path = template.file_path
+    
+    # Generate the DOCX
+    buffer = generate_proposal_docx(project, sections, True, questions, project.organization, template_path)
+    filename = f'{project.name.replace(" ", "_")}_proposal.docx'
+    mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    
+    # Try to upload to GCP and get signed URL
+    preview_url = None
+    try:
+        from app.services.storage_service import get_storage_service
+        storage = get_storage_service()
+        
+        if storage.storage_type == 'gcp':
+            rfp_proposal_prefix = os.environ.get('GCP_RFP_PROPOSAL_PREFIX', 'rfp_proposal')
+            project_subfolder = f"project_{project_id}/preview"
+            
+            # Upload to GCP
+            buffer.seek(0)
+            storage_metadata = storage.provider.upload_with_path(
+                file=buffer,
+                original_filename=filename,
+                prefix=rfp_proposal_prefix,
+                subfolder=project_subfolder,
+                content_type=mimetype,
+                metadata={
+                    'project_id': project_id,
+                    'exported_by': user_id,
+                    'organization_id': user.organization_id,
+                    'export_type': 'preview'
+                }
+            )
+            
+            # Get signed URL for viewing (1 hour expiry)
+            file_id = storage_metadata.file_id
+            preview_url = storage.provider.get_url(file_id, expiry_minutes=60)
+            current_app.logger.info(f"Proposal preview uploaded to GCP, signed URL generated: {file_id}")
+    except Exception as e:
+        current_app.logger.warning(f"Failed to upload proposal preview to GCP: {e}")
+    
+    return jsonify({
+        'success': True,
+        'preview_url': preview_url,
+        'filename': filename,
+        'sections_count': len(sections),
+        'project_name': project.name
+    })
 
 
 @bp.route('/projects/<int:project_id>/export/preview', methods=['GET'])
@@ -1137,4 +1370,208 @@ def export_preview(project_id):
             for s in sections
         ],
     })
+
+
+# ============================================================
+# Q&A to Section Bridge Endpoints (NEW)
+# ============================================================
+
+@bp.route('/projects/<int:project_id>/sections/populate-from-qa', methods=['POST'])
+@jwt_required()
+def populate_sections_from_qa(project_id):
+    """
+    Populate proposal sections with Q&A answers.
+    
+    This bridges the gap between the Q&A workflow and Proposal Builder.
+    Maps approved Q&A answers to relevant proposal sections.
+    
+    Request body (optional):
+    {
+        "create_qa_section": true,  // Create Q&A Responses section if missing
+        "inject_into_sections": true,  // Inject Q&A context into narrative sections
+        "use_ai_mapping": false  // Use AI for intelligent mapping (slower)
+    }
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json() or {}
+    create_qa_section = data.get('create_qa_section', True)
+    inject_into_sections = data.get('inject_into_sections', False)
+    use_ai_mapping = data.get('use_ai_mapping', False)
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    result = {
+        'project_id': project_id,
+        'qa_section': None,
+        'sections_updated': [],
+        'mapping': {}
+    }
+    
+    # 1. Populate Q&A Responses section
+    if create_qa_section:
+        qa_section = bridge_service.populate_qa_responses_section(
+            project_id, 
+            create_if_missing=True
+        )
+        if qa_section:
+            result['qa_section'] = qa_section.to_dict()
+    
+    # 2. Get Q&A-to-section mapping
+    mapping = bridge_service.map_answers_to_sections(
+        project_id, 
+        use_ai_mapping=use_ai_mapping
+    )
+    result['mapping'] = {
+        slug: len(answers) for slug, answers in mapping.items()
+    }
+    
+    # 3. Inject Q&A context into narrative sections
+    if inject_into_sections:
+        existing_sections = RFPSection.query.filter_by(project_id=project_id).all()
+        for section in existing_sections:
+            if section.section_type and section.section_type.slug != 'qa_responses':
+                section_slug = section.section_type.slug
+                relevant_answers = mapping.get(section_slug, [])
+                if relevant_answers:
+                    inject_result = bridge_service.inject_qa_context_into_section(
+                        section.id, 
+                        qa_answers=relevant_answers
+                    )
+                    if inject_result.get('success') and inject_result.get('count', 0) > 0:
+                        result['sections_updated'].append({
+                            'section_id': section.id,
+                            'section_title': section.title,
+                            'qa_count': inject_result['count']
+                        })
+    
+    return jsonify({
+        'success': True,
+        'message': f"Populated {len(result.get('sections_updated', []))} sections with Q&A content",
+        **result
+    })
+
+
+@bp.route('/projects/<int:project_id>/sections/qa-mapping-preview', methods=['GET'])
+@jwt_required()
+def preview_qa_section_mapping(project_id):
+    """
+    Preview how Q&A answers would map to proposal sections.
+    
+    Returns a preview without making any changes.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    preview = bridge_service.get_section_qa_mapping_preview(project_id)
+    
+    return jsonify({
+        'success': True,
+        'preview': preview
+    })
+
+
+@bp.route('/sections/<int:section_id>/inject-qa', methods=['POST'])
+@jwt_required()
+def inject_qa_into_section(section_id):
+    """
+    Inject relevant Q&A answers into a specific section.
+    
+    Request body (optional):
+    {
+        "question_ids": [1, 2, 3]  // Specific questions to inject (optional)
+    }
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    if section.project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json() or {}
+    question_ids = data.get('question_ids')
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    # If specific question IDs provided, filter answers
+    qa_answers = None
+    if question_ids:
+        all_qa = bridge_service.get_project_qa_answers(section.project_id)
+        qa_answers = [qa for qa in all_qa if qa['question_id'] in question_ids]
+    
+    result = bridge_service.inject_qa_context_into_section(
+        section_id,
+        qa_answers=qa_answers
+    )
+    
+    # Refresh section
+    db.session.refresh(section)
+    
+    return jsonify({
+        **result,
+        'section': section.to_dict() if result.get('success') else None
+    })
+
+
+@bp.route('/projects/<int:project_id>/sections/populate-qa-section', methods=['POST'])
+@jwt_required()
+def create_qa_responses_section(project_id):
+    """
+    Create or update the Q&A Responses section with all approved answers.
+    
+    This creates a formatted section containing all Q&A from the project.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    from app.services.qa_section_bridge_service import get_qa_section_bridge_service
+    bridge_service = get_qa_section_bridge_service()
+    
+    qa_section = bridge_service.populate_qa_responses_section(
+        project_id,
+        create_if_missing=True
+    )
+    
+    if qa_section:
+        return jsonify({
+            'success': True,
+            'message': 'Q&A Responses section populated',
+            'section': qa_section.to_dict()
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'No Q&A answers found to populate'
+        })
 

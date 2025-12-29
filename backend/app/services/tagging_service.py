@@ -57,12 +57,12 @@ Generate tags:"""
         self._is_adk = False
     
     def _init_client(self):
-        """Initialize the Gemini client."""
+        """Initialize the LLM client using provider abstraction."""
         if self._client is not None:
             return
         
         try:
-            # Try getting org-specific config first
+            # Try getting org-specific config first (preferred)
             if self.org_id:
                 from app.agents.config import get_agent_config
                 config = get_agent_config(org_id=self.org_id, agent_type='answer_generation')
@@ -73,16 +73,18 @@ Generate tags:"""
         except Exception:
             pass
         
-        # Fallback to environment variable
-        import os
-        import google.generativeai as genai
-        
-        api_key = os.getenv('GOOGLE_API_KEY')
-        if api_key:
-            genai.configure(api_key=api_key)
-            self._client = genai.GenerativeModel('gemini-1.5-flash')
-            self._model_name = 'gemini-1.5-flash'
-            self._is_adk = False
+        # Fallback to llm_service_helper with environment config
+        try:
+            from app.services.llm_service_helper import get_llm_provider
+            # Try to get a provider without org_id (uses env config)
+            if self.org_id:
+                provider = get_llm_provider(self.org_id, 'tagging')
+                self._client = provider
+                self._model_name = getattr(provider, 'model', 'unknown')
+                self._is_adk = False
+        except Exception as e:
+            logger.warning(f"Could not initialize LLM provider: {e}")
+            self._client = None
     
     def generate_tags(
         self,

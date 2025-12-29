@@ -23,7 +23,64 @@ class AnswerValidatorAgent:
     - Calculates factual accuracy score
     - Flags unverified claims for review
     - Suggests revisions to remove hallucinations
+    - Validates numeric claims (percentages, SLAs, timelines)
+    - Checks consistency across multiple answers
     """
+    
+    # Patterns for detecting numeric claims that need verification
+    NUMERIC_CLAIM_PATTERNS = {
+        'percentage': {
+            'pattern': r'(\d+(?:\.\d+)?)\s*%',
+            'examples': ['99.9% uptime', '100% compliance'],
+            'risk': 'high'
+        },
+        'sla_time': {
+            'pattern': r'(\d+)\s*(?:minute|hour|day)s?\s+(?:response|resolution|SLA)',
+            'examples': ['4 hour response time', '24-hour resolution'],
+            'risk': 'high'
+        },
+        'quantity': {
+            'pattern': r'(?:over|more than|approximately|nearly|about)?\s*(\d+(?:,\d{3})*)\s+(?:customer|client|project|year|employee)',
+            'examples': ['over 500 customers', '1,000 projects delivered'],
+            'risk': 'medium'
+        },
+        'year_established': {
+            'pattern': r'(?:since|established|founded|operating).*?(\d{4})',
+            'examples': ['Since 1995', 'Established in 2005'],
+            'risk': 'medium'
+        },
+        'guarantee': {
+            'pattern': r'(?:guarantee|guaranteed|ensure|100%)',
+            'examples': ['guaranteed delivery', '100% satisfaction'],
+            'risk': 'critical'
+        },
+        'certification_date': {
+            'pattern': r'(?:certified|compliant).*?(\d{4})',
+            'examples': ['SOC 2 certified since 2020'],
+            'risk': 'high'
+        }
+    }
+    
+    # Claim severity levels
+    CLAIM_SEVERITY = {
+        'critical': ['guarantee', 'compliance', 'certification', '100%', 'zero'],
+        'high': ['uptime', 'sla', 'response time', 'security', 'encryption'],
+        'medium': ['experience', 'customers', 'projects', 'years'],
+        'low': ['approach', 'methodology', 'process']
+    }
+    
+    # Patterns for cross-answer consistency checks
+    CONSISTENCY_CHECK_PATTERNS = [
+        'company name',
+        'established',
+        'employees',
+        'customers',
+        'certifications',
+        'headquarters',
+        'response time',
+        'uptime'
+    ]
+
     
     CLAIM_EXTRACTION_PROMPT = """Analyze this RFP answer and extract all factual claims that can be verified.
 

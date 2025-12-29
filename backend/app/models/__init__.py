@@ -23,6 +23,15 @@ from .answer_library import AnswerLibraryItem
 from .notification import Notification
 from .comment import Comment
 from .activity_log import ActivityLog
+from .copilot import CoPilotSession, CoPilotMessage
+from .export_template import ExportTemplate
+from .project_strategy import ProjectStrategy
+
+# LLM Usage Tracking (from services, not a model file but registered here for convenience)
+# Note: LLMUsage is defined in app/services/llm_usage.py
+
+# Document Chat
+from .document_chat import DocumentChatSession, DocumentChatMessage
 
 __all__ = [
     'User',
@@ -73,6 +82,11 @@ __all__ = [
     'ActivityLog',
     # Feedback Learning (AI improvement)
     'FeedbackLearning',
+    # Co-Pilot Chat
+    'CoPilotSession',
+    'CoPilotMessage',
+    # Export Templates
+    'ExportTemplate',
+    # Project Strategy
+    'ProjectStrategy',
 ]
-
-

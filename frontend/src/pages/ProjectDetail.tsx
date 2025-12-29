@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { projectsApi, documentsApi, questionsApi } from '@/api/client';
+import { projectsApi, documentsApi, questionsApi, agentsApi, sectionsApi } from '@/api/client';
 import { Project, Document, Question } from '@/types';
 import toast from 'react-hot-toast';
 import { useDropzone } from 'react-dropzone';
@@ -11,6 +11,13 @@ import {
     SparklesIcon,
     ChatBubbleLeftRightIcon,
     ScaleIcon,
+    ChevronDownIcon,
+    ChevronUpIcon,
+    BookOpenIcon,
+    CheckCircleIcon,
+    PlayIcon,
+    EyeIcon,
+    ClockIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import WorkflowStepper from '@/components/ui/WorkflowStepper';
@@ -18,6 +25,15 @@ import KnowledgeProfileSidebar from '@/components/knowledge/KnowledgeProfileSide
 import UploadProgressModal, { UploadState } from '@/components/upload/UploadProgressModal';
 import DocumentActions from '@/components/ui/DocumentActions';
 import GoNoGoWizard from '@/components/gng/GoNoGoWizard';
+
+type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'completed';
+
+const STATUS_CONFIG: Record<ProjectStatus, { label: string; color: string; bgColor: string; icon: typeof PlayIcon }> = {
+    draft: { label: 'Draft', color: 'text-gray-600', bgColor: 'bg-gray-100', icon: ClockIcon },
+    in_progress: { label: 'In Progress', color: 'text-blue-600', bgColor: 'bg-blue-100', icon: PlayIcon },
+    review: { label: 'In Review', color: 'text-amber-600', bgColor: 'bg-amber-100', icon: EyeIcon },
+    completed: { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-100', icon: CheckCircleIcon },
+};
 
 export default function ProjectDetail() {
     const { id } = useParams<{ id: string }>();
@@ -27,6 +43,7 @@ export default function ProjectDetail() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
+    const [showWorkflow, setShowWorkflow] = useState(false);
 
     // Upload progress modal state
     const [showProgressModal, setShowProgressModal] = useState(false);
@@ -53,6 +70,11 @@ export default function ProjectDetail() {
             setProject(projectRes.data.project);
             setQuestions(questionsRes.data.questions || []);
             setDocuments(documentsRes.data.documents || []);
+
+            // Cache project name for Breadcrumbs to avoid duplicate API calls
+            if (projectRes.data.project?.name) {
+                sessionStorage.setItem(`project-name-${id}`, projectRes.data.project.name);
+            }
         } catch {
             toast.error('Failed to load project');
             navigate('/projects');
@@ -61,9 +83,11 @@ export default function ProjectDetail() {
         }
     }, [id, navigate]);
 
+    // Load data when id changes - use id directly to prevent double calls
     useEffect(() => {
         loadProject();
-    }, [loadProject]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]); // Intentionally only depend on id to prevent duplicate calls
 
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (!id || acceptedFiles.length === 0) return;
@@ -74,104 +98,191 @@ export default function ProjectDetail() {
         setUploadPercent(0);
 
         let shouldNavigateToProposal = false;
-        let totalSectionsCreated = 0;
 
-        const totalFiles = acceptedFiles.length;
-
-        // Each file gets an equal share of the 0-95% progress
-        // Final 5% is reserved for completion
-        const progressPerFile = 95 / totalFiles;
-
-        // Helper to calculate progress for a file at a specific phase
-        // Phases within a file: uploading(0-20%), parsing(20-40%), analyzing(40-70%), extracting(70-90%), building(90-100%)
-        const calculateProgress = (fileIndex: number, phasePercent: number) => {
-            const fileBaseProgress = fileIndex * progressPerFile;
-            const phaseProgress = (phasePercent / 100) * progressPerFile;
-            return Math.round(fileBaseProgress + phaseProgress);
+        // Map agent progress phases to UI states
+        const AGENT_STEP_MAP: Record<string, UploadState> = {
+            'document_analysis': 'document_analysis',
+            'analyzing': 'document_analysis',
+            'question_extraction': 'question_extraction',
+            'extracting': 'question_extraction',
+            'knowledge_retrieval': 'knowledge_retrieval',
+            'retrieving': 'knowledge_retrieval',
+            'answer_generation': 'answer_generation',
+            'generating': 'answer_generation',
+            'answer_validation': 'answer_validation',
+            'validating': 'answer_validation',
+            'compliance_check': 'compliance_check',
+            'checking': 'compliance_check',
+            'clarification': 'clarification',
+            'quality_review': 'quality_review',
+            'reviewing': 'quality_review',
         };
 
         try {
-            // Process all files
             for (let fileIndex = 0; fileIndex < acceptedFiles.length; fileIndex++) {
                 const file = acceptedFiles[fileIndex];
-                setCurrentFileName(`${file.name} (${fileIndex + 1}/${totalFiles})`);
+                setCurrentFileName(`${file.name} (${fileIndex + 1}/${acceptedFiles.length})`);
 
                 try {
-                    // Phase 1: Uploading (0-20% of this file's share)
+                    // Step 1: Upload document
                     setUploadState('uploading');
-                    setUploadPercent(calculateProgress(fileIndex, 5));
-
+                    setUploadPercent(5);
                     const uploadResult = await documentsApi.upload(Number(id), file);
                     const uploadedDoc = uploadResult.data.document;
 
-                    // Phase 2: Parsing (20-40% of this file's share)
+                    // Step 2: Parse document
                     setUploadState('parsing');
-                    setUploadPercent(calculateProgress(fileIndex, 25));
+                    setUploadPercent(10);
 
-                    // Auto-analyze the document after upload
+                    // Step 3: Start async orchestrator analysis (full 11-agent pipeline)
+                    setUploadState('document_analysis');
+                    setUploadPercent(15);
+
                     try {
-                        // Phase 3: Analyzing (40-70% of this file's share)
-                        setUploadState('analyzing');
-                        setUploadPercent(calculateProgress(fileIndex, 50));
+                        // Start async job
+                        const asyncResult = await agentsApi.analyzeRfpAsync(uploadedDoc.id, {
+                            tone: 'professional',
+                            length: 'medium'
+                        });
+
+                        const jobId = asyncResult.data.job_id;
+
+                        // Poll for job status
+                        let jobComplete = false;
+                        let pollCount = 0;
+                        const maxPolls = 180; // 3 minutes max (1s intervals)
+
+                        while (!jobComplete && pollCount < maxPolls) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            pollCount++;
+
+                            try {
+                                const statusResult = await agentsApi.getJobStatus(jobId);
+                                const status = statusResult.data.status;
+
+                                if (status === 'PROGRESS' && statusResult.data.progress) {
+                                    // Update UI based on agent progress
+                                    const progress = statusResult.data.progress;
+                                    const step = progress.step || progress.current_step || '';
+                                    const percent = progress.percent || progress.progress || 0;
+
+                                    // Map step to UI state
+                                    const uiState = AGENT_STEP_MAP[step.toLowerCase()] || 'document_analysis';
+                                    setUploadState(uiState);
+                                    setUploadPercent(Math.min(15 + (percent * 0.7), 85));
+                                }
+
+                                if (status === 'SUCCESS') {
+                                    jobComplete = true;
+
+                                    // Analysis complete - now build sections
+                                    setUploadState('building_sections');
+                                    setUploadPercent(90);
+
+                                    // Auto-build proposal sections from analysis result
+                                    const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+
+                                    if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
+                                        const sectionIds = analysisResult.data.suggested_sections
+                                            .filter((s: any) => s.selected !== false)
+                                            .map((s: any) => s.section_type_id);
+
+                                        if (sectionIds.length > 0) {
+                                            await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
+                                        }
+                                    }
+
+                                    // Auto-populate Q&A section with generated answers
+                                    setUploadPercent(95);
+                                    try {
+                                        await sectionsApi.populateFromQA(Number(id), {
+                                            create_qa_section: true,
+                                            inject_into_sections: false,
+                                        });
+                                    } catch (qaError) {
+                                        console.warn('Q&A section population skipped:', qaError);
+                                    }
+
+                                    shouldNavigateToProposal = true;
+                                }
+
+                                if (status === 'FAILURE') {
+                                    throw new Error(statusResult.data.error || 'Analysis failed');
+                                }
+                            } catch (pollError) {
+                                console.warn('Job poll error:', pollError);
+                            }
+                        }
+
+                        if (!jobComplete) {
+                            // Fallback: If async job times out, use sync analysis
+                            console.warn('Async job timeout, falling back to sync analysis');
+                            const analysisResult = await documentsApi.analyze(uploadedDoc.id);
+
+                            if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
+                                const sectionIds = analysisResult.data.suggested_sections
+                                    .filter((s: any) => s.selected !== false)
+                                    .map((s: any) => s.section_type_id);
+
+                                if (sectionIds.length > 0) {
+                                    setUploadState('building_sections');
+                                    setUploadPercent(95);
+                                    await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
+                                    shouldNavigateToProposal = true;
+                                }
+                            }
+                        }
+
+                    } catch (asyncError) {
+                        // Fallback: Use sync analysis if async fails
+                        console.warn('Async analysis failed, using sync:', asyncError);
+                        setUploadState('document_analysis');
+                        setUploadPercent(50);
 
                         const analysisResult = await documentsApi.analyze(uploadedDoc.id);
 
-                        // Phase 4: Extracting questions (70-90% of this file's share)
-                        setUploadState('extracting_questions');
-                        setUploadPercent(calculateProgress(fileIndex, 80));
-
                         if (analysisResult.data.suggested_sections && analysisResult.data.suggested_sections.length > 0) {
-                            // Auto-build the proposal with suggested sections
                             const sectionIds = analysisResult.data.suggested_sections
                                 .filter((s: any) => s.selected !== false)
                                 .map((s: any) => s.section_type_id);
 
                             if (sectionIds.length > 0) {
-                                // Phase 5: Building sections (90-100% of this file's share)
                                 setUploadState('building_sections');
-                                setUploadPercent(calculateProgress(fileIndex, 95));
-
+                                setUploadPercent(90);
                                 await documentsApi.autoBuildProposal(uploadedDoc.id, sectionIds, true);
-                                totalSectionsCreated += sectionIds.length;
                                 shouldNavigateToProposal = true;
                             }
                         }
-
-                        // File complete - set to end of this file's progress share
-                        setUploadPercent(calculateProgress(fileIndex, 100));
-
-                    } catch (analysisError) {
-                        // Analysis failed but document uploaded - continue with next file
-                        toast.error(`Analysis failed for ${file.name}, but document uploaded successfully`);
                     }
-                } catch (uploadError) {
-                    // Upload failed - continue with next file
-                    toast.error(`Failed to upload ${file.name}`);
+
+                    setUploadPercent(100);
+
+                } catch (fileError) {
+                    console.error(`Error processing ${file.name}:`, fileError);
+                    toast.error(`Failed to process ${file.name}`);
                 }
             }
 
-            // All files complete (100%)
             setUploadState('complete');
             setUploadPercent(100);
-            setCurrentFileName(`${totalFiles} file${totalFiles > 1 ? 's' : ''} processed`);
+            setCurrentFileName(`${acceptedFiles.length} file${acceptedFiles.length > 1 ? 's' : ''} processed`);
 
             await loadProject();
 
-            // Wait a moment to show complete state before navigating
             setTimeout(() => {
                 setShowProgressModal(false);
 
-                // Navigate to proposal builder after all files are processed
                 if (shouldNavigateToProposal) {
                     toast.success(
-                        `✨ Auto-analyzed ${acceptedFiles.length} RFP(s) and created ${totalSectionsCreated} proposal sections with AI content!`,
+                        `✨ RFP analyzed with full AI pipeline! Q&A answers generated and proposal sections created.`,
                         { duration: 4000 }
                     );
                     navigate(`/projects/${id}/proposal`);
                 }
             }, 1500);
 
-        } catch {
+        } catch (error) {
+            console.error('Upload error:', error);
             setUploadState('error');
             toast.error('Failed to upload documents');
         } finally {
@@ -191,13 +302,9 @@ export default function ProjectDetail() {
         maxSize: 50 * 1024 * 1024,
     });
 
-    // Calculate these values before early returns to comply with Rules of Hooks
     const answeredQueries = questions.filter(q => q.status === 'answered' || q.status === 'approved').length;
 
-    // Calculate current workflow step
     const getCurrentStep = useMemo(() => {
-        // Knowledge profile and knowledge base are prerequisites (shown as complete for project context)
-        // Project creation is complete since we're in the project
         if (documents.length === 0) return 'upload';
         if (questions.length === 0) return 'analyze';
         if (questions.length > 0 && answeredQueries === 0) return 'sections';
@@ -208,16 +315,23 @@ export default function ProjectDetail() {
 
     const getCompletedSteps = useMemo(() => {
         const steps: string[] = [];
-        // Prerequisites are always complete when in a project
         steps.push('knowledge-profile', 'knowledge-base', 'create-project');
         if (documents.length > 0) steps.push('upload');
         if (questions.length > 0) steps.push('analyze', 'sections');
         if (answeredQueries === questions.length && questions.length > 0) steps.push('answer');
-        if (project?.status === 'completed') {
-            steps.push('export');
-        }
+        if (project?.status === 'completed') steps.push('export');
         return steps;
     }, [documents.length, questions.length, answeredQueries, project?.status]);
+
+    const updateStatus = async (newStatus: ProjectStatus) => {
+        try {
+            const response = await projectsApi.update(project!.id, { status: newStatus });
+            toast.success(`Status updated to ${STATUS_CONFIG[newStatus].label}`);
+            setProject(response.data.project);
+        } catch {
+            toast.error('Failed to update status');
+        }
+    };
 
     if (isLoading) {
         return (
@@ -231,248 +345,394 @@ export default function ProjectDetail() {
         return null;
     }
 
+    const currentStatus = (project.status || 'draft') as ProjectStatus;
+    const StatusIcon = STATUS_CONFIG[currentStatus]?.icon || ClockIcon;
+    const completionPercent = questions.length > 0 ? Math.round((answeredQueries / questions.length) * 100) : 0;
+
     return (
         <>
-            <div className="space-y-6 animate-fade-in">
-                {/* Workflow Progress */}
+            <div className="space-y-4 animate-fade-in">
+                {/* Compact Header */}
                 <div className="card">
-                    <h3 className="text-sm font-medium text-text-secondary mb-4">Workflow Progress</h3>
-                    <WorkflowStepper
-                        currentStep={getCurrentStep as 'knowledge-profile' | 'knowledge-base' | 'create-project' | 'upload' | 'analyze' | 'sections' | 'answer' | 'export'}
-                        completedSteps={getCompletedSteps}
-                        onStepClick={(stepId) => {
-                            if (stepId === 'knowledge-profile') navigate('/settings?tab=knowledge');
-                            else if (stepId === 'knowledge-base') navigate('/knowledge');
-                            else if (stepId === 'answer' || stepId === 'sections') navigate(`/projects/${id}/workspace`);
-                            else if (stepId === 'export') navigate(`/projects/${id}/proposal`);
-                        }}
-                    />
-                </div>
-
-                {/* Header */}
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => navigate('/projects')}
-                        className="p-2 rounded-lg hover:bg-background transition-colors"
-                    >
-                        <ArrowLeftIcon className="h-5 w-5 text-text-secondary" />
-                    </button>
-                    <div className="flex-1">
-                        <h1 className="text-2xl font-semibold text-text-primary">{project.name}</h1>
-                        {project.description && (
-                            <p className="text-text-secondary mt-1">{project.description}</p>
-                        )}
-                    </div>
-                    <Link
-                        to={`/projects/${id}/proposal`}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <SparklesIcon className="h-5 w-5" />
-                        Build Proposal
-                    </Link>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="card">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-primary-light flex items-center justify-center">
-                                <DocumentTextIcon className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-semibold text-text-primary">{documents.length}</p>
-                                <p className="text-sm text-text-muted">RFP Documents</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="card">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                                <ChatBubbleLeftRightIcon className="h-5 w-5 text-purple-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-semibold text-text-primary">{questions.length}</p>
-                                <p className="text-sm text-text-muted">Customer Queries</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="card">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-success-light flex items-center justify-center">
-                                <SparklesIcon className="h-5 w-5 text-success" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-semibold text-text-primary">{answeredQueries}/{questions.length}</p>
-                                <p className="text-sm text-text-muted">Queries Answered</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Go/No-Go Analysis Card */}
-                <div className="card border-2 border-dashed border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-                                <ScaleIcon className="h-6 w-6 text-white" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-gray-800">Go/No-Go Analysis</h3>
-                                <p className="text-sm text-gray-600">
-                                    {(project as any).go_no_go_status === 'go' ? (
-                                        <span className="text-green-600 font-medium">✓ Decision: GO ({Math.round((project as any).go_no_go_score || 0)}% win probability)</span>
-                                    ) : (project as any).go_no_go_status === 'no_go' ? (
-                                        <span className="text-red-600 font-medium">✗ Decision: NO-GO ({Math.round((project as any).go_no_go_score || 0)}% win probability)</span>
-                                    ) : (
-                                        'Pre-RFP evaluation with AI-powered win probability'
-                                    )}
-                                </p>
-                            </div>
-                        </div>
+                    <div className="flex items-center gap-4">
                         <button
-                            onClick={() => setShowGoNoGoWizard(true)}
-                            className={clsx(
-                                'px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2',
-                                (project as any).go_no_go_status !== 'pending'
-                                    ? 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-100'
-                                    : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-                            )}
+                            onClick={() => navigate('/projects')}
+                            className="p-2 rounded-lg hover:bg-background transition-colors"
                         >
-                            <SparklesIcon className="h-5 w-5" />
-                            {(project as any).go_no_go_status !== 'pending' ? 'View Analysis' : 'Run Analysis'}
+                            <ArrowLeftIcon className="h-5 w-5 text-text-secondary" />
                         </button>
-                    </div>
-                </div>
 
-                {/* Knowledge Context Section */}
-                {project.knowledge_profiles && project.knowledge_profiles.length > 0 && (
-                    <div className="card bg-primary-light/30 border border-primary/20">
-                        <div className="flex items-center gap-2 mb-3">
-                            <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                            </svg>
-                            <h3 className="font-medium text-text-primary">Knowledge Context</h3>
-                        </div>
-                        <p className="text-sm text-text-secondary mb-3">
-                            AI will use knowledge items from these profiles when generating proposals:
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                            {project.knowledge_profiles.map((profile: any) => (
-                                <button
-                                    key={profile.id}
-                                    onClick={() => {
-                                        setSelectedProfile(profile);
-                                        setIsProfileSidebarOpen(true);
-                                    }}
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-primary/20 text-sm hover:border-primary hover:shadow-sm transition-all cursor-pointer"
-                                >
-                                    <span className="font-medium text-primary">{profile.name}</span>
-                                    {profile.items_count !== undefined && (
-                                        <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 font-medium">
-                                            {profile.items_count} {profile.items_count === 1 ? 'doc' : 'docs'}
-                                        </span>
-                                    )}
-                                    {profile.geographies?.length > 0 && (
-                                        <span className="text-text-muted">• {profile.geographies.slice(0, 2).join(', ')}</span>
-                                    )}
-                                    <span className="text-xs text-text-muted">→</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Documents Section */}
-                <div>
-                    <h2 className="text-lg font-semibold text-text-primary mb-4">RFP Documents</h2>
-
-                    {/* Upload Zone */}
-                    <div
-                        {...getRootProps()}
-                        className={clsx(
-                            'card border-2 border-dashed cursor-pointer transition-all text-center py-8 mb-4',
-                            isDragActive
-                                ? 'border-primary bg-primary-light'
-                                : 'border-border hover:border-primary',
-                            isUploading && 'opacity-50 pointer-events-none'
-                        )}
-                    >
-                        <input {...getInputProps()} />
-                        <DocumentArrowUpIcon className="h-10 w-10 text-primary mx-auto mb-3" />
-                        <p className="text-text-primary font-medium">
-                            {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
-                        </p>
-                        <p className="text-sm text-text-secondary mt-1">
-                            PDF, DOCX, XLSX, PPTX up to 50MB
-                        </p>
-                        {isUploading && (
-                            <p className="text-sm text-primary mt-3">Uploading...</p>
-                        )}
-                    </div>
-
-                    {/* Document List */}
-                    {documents.length > 0 ? (
-                        <div className="space-y-3">
-                            {documents.map((doc) => (
-                                <div key={doc.id} className="card flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-lg bg-background flex items-center justify-center">
-                                        <DocumentTextIcon className="h-5 w-5 text-text-secondary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-text-primary truncate">
-                                            {doc.original_filename}
-                                        </p>
-                                        <p className="text-sm text-text-secondary">
-                                            {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {doc.question_count || 0} queries extracted
-                                        </p>
-                                    </div>
-                                    <span className={`badge ${doc.status === 'completed' ? 'badge-success' :
-                                        doc.status === 'processing' ? 'badge-warning' :
-                                            doc.status === 'failed' ? 'badge-error' :
-                                                'badge-neutral'
-                                        }`}>
-                                        {doc.status}
-                                    </span>
-                                    <DocumentActions
-                                        documentId={doc.id}
-                                        fileName={doc.original_filename}
-                                        fileType={doc.file_type || 'pdf'}
-                                        onDelete={loadProject}
-                                        onReparse={loadProject}
-                                        showDelete={true}
-                                        showReparse={true}
-                                        compact={true}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-text-secondary">
-                            No documents uploaded yet. Upload an RFP to get started.
-                        </div>
-                    )}
-                </div>
-
-                {/* Quick Action Card */}
-                {documents.length > 0 && questions.length > 0 && (
-                    <div className="card bg-gradient-to-r from-primary to-purple-600 text-white">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold">Ready to Build Your Proposal?</h3>
-                                <p className="text-white/80 mt-1">
-                                    {questions.length} customer queries extracted. Answer them and generate your proposal in the builder.
-                                </p>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-xl font-semibold text-text-primary truncate">{project.name}</h1>
+                                <span className={clsx(
+                                    'px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1',
+                                    STATUS_CONFIG[currentStatus]?.bgColor,
+                                    STATUS_CONFIG[currentStatus]?.color
+                                )}>
+                                    <StatusIcon className="h-3.5 w-3.5" />
+                                    {STATUS_CONFIG[currentStatus]?.label}
+                                </span>
                             </div>
+                            {project.description && (
+                                <p className="text-sm text-text-muted mt-0.5 truncate">{project.description}</p>
+                            )}
+                        </div>
+
+                        {/* Quick Stats */}
+                        <div className="hidden lg:flex items-center gap-6 px-4 py-2 bg-background rounded-lg">
+                            <div className="text-center">
+                                <p className="text-lg font-semibold text-text-primary">{documents.length}</p>
+                                <p className="text-xs text-text-muted">Docs</p>
+                            </div>
+                            <div className="h-8 w-px bg-border" />
+                            <div className="text-center">
+                                <p className="text-lg font-semibold text-text-primary">{questions.length}</p>
+                                <p className="text-xs text-text-muted">Queries</p>
+                            </div>
+                            <div className="h-8 w-px bg-border" />
+                            <div className="text-center">
+                                <p className="text-lg font-semibold text-primary">{completionPercent}%</p>
+                                <p className="text-xs text-text-muted">Complete</p>
+                            </div>
+                        </div>
+
+                        {documents.length > 0 ? (
                             <Link
                                 to={`/projects/${id}/proposal`}
-                                className="bg-white text-primary px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center gap-2"
+                                className="btn-primary flex items-center gap-2"
                             >
                                 <SparklesIcon className="h-5 w-5" />
-                                Open Builder
+                                <span className="hidden sm:inline">Build Proposal</span>
                             </Link>
+                        ) : (
+                            <button
+                                disabled
+                                className="btn-primary flex items-center gap-2 opacity-50 cursor-not-allowed"
+                                title="Upload RFP documents first"
+                            >
+                                <SparklesIcon className="h-5 w-5" />
+                                <span className="hidden sm:inline">Build Proposal</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Collapsible Workflow */}
+                    <div className="mt-4 pt-4 border-t border-border">
+                        <button
+                            onClick={() => setShowWorkflow(!showWorkflow)}
+                            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors w-full"
+                        >
+                            {showWorkflow ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
+                            <span>Workflow Progress</span>
+                            <div className="flex-1 mx-4 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-primary rounded-full transition-all duration-500"
+                                    style={{ width: `${getCompletedSteps.length / 8 * 100}%` }}
+                                />
+                            </div>
+                            <span className="text-xs">{getCompletedSteps.length}/8 steps</span>
+                        </button>
+                        {showWorkflow && (
+                            <div className="mt-4">
+                                <WorkflowStepper
+                                    currentStep={getCurrentStep as any}
+                                    completedSteps={getCompletedSteps}
+                                    onStepClick={(stepId) => {
+                                        if (stepId === 'knowledge-profile') navigate('/settings?tab=knowledge');
+                                        else if (stepId === 'knowledge-base') navigate('/knowledge');
+                                        else if (stepId === 'answer' || stepId === 'sections') navigate(`/projects/${id}/workspace`);
+                                        else if (stepId === 'export') navigate(`/projects/${id}/proposal`);
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Left Column - Documents (2/3 width) */}
+                    <div className="lg:col-span-2 space-y-4">
+                        {/* Upload Zone */}
+                        <div
+                            {...getRootProps()}
+                            className={clsx(
+                                'card border-2 border-dashed cursor-pointer transition-all text-center py-6',
+                                isDragActive
+                                    ? 'border-primary bg-primary-light'
+                                    : 'border-border hover:border-primary',
+                                isUploading && 'opacity-50 pointer-events-none'
+                            )}
+                        >
+                            <input {...getInputProps()} />
+                            <DocumentArrowUpIcon className="h-8 w-8 text-primary mx-auto mb-2" />
+                            <p className="text-text-primary font-medium">
+                                {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
+                            </p>
+                            <p className="text-xs text-text-muted mt-1">
+                                PDF, DOCX, XLSX, PPTX up to 50MB
+                            </p>
+                        </div>
+
+                        {/* Document List */}
+                        {documents.length > 0 && (
+                            <div className="card">
+                                <h3 className="font-medium text-text-primary mb-3 flex items-center gap-2">
+                                    <DocumentTextIcon className="h-5 w-5 text-primary" />
+                                    RFP Documents ({documents.length})
+                                </h3>
+                                <div className={`space-y-2 ${documents.length > 5 ? 'max-h-[400px] overflow-y-auto' : ''}`}>
+                                    {documents.map((doc) => (
+                                        <div key={doc.id} className="flex items-center gap-3 p-3 bg-background rounded-lg relative">
+                                            <div className="h-8 w-8 rounded bg-white flex items-center justify-center border border-border">
+                                                <DocumentTextIcon className="h-4 w-4 text-text-muted" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-text-primary truncate">
+                                                    {doc.original_filename}
+                                                </p>
+                                                <p className="text-xs text-text-muted">
+                                                    {(doc.file_size / 1024 / 1024).toFixed(1)} MB • {doc.question_count || 0} queries
+                                                </p>
+                                            </div>
+                                            <span className={clsx(
+                                                'px-2 py-0.5 rounded text-xs font-medium',
+                                                doc.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                    doc.status === 'processing' ? 'bg-amber-100 text-amber-700' :
+                                                        doc.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                                            )}>
+                                                {doc.status}
+                                            </span>
+                                            <DocumentActions
+                                                documentId={doc.id}
+                                                fileName={doc.original_filename}
+                                                fileType={doc.file_type || 'pdf'}
+                                                onDelete={loadProject}
+                                                onReparse={loadProject}
+                                                showDelete={true}
+                                                showReparse={true}
+                                                compact={true}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Action Card */}
+                        {documents.length > 0 && questions.length > 0 && (
+                            <div className="card bg-gradient-to-r from-primary to-purple-600 text-white">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="font-semibold">Ready to Build Your Proposal?</h3>
+                                        <p className="text-sm text-white/80 mt-0.5">
+                                            {answeredQueries}/{questions.length} queries answered
+                                        </p>
+                                    </div>
+                                    <Link
+                                        to={`/projects/${id}/proposal`}
+                                        className="bg-white text-primary px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        <SparklesIcon className="h-4 w-4" />
+                                        Open Builder
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Column - Sidebar (1/3 width) */}
+                    <div className="space-y-4">
+                        {/* Status & Actions Card */}
+                        <div className="card">
+                            <h3 className="font-medium text-text-primary mb-3">Status & Actions</h3>
+
+                            {/* Status Buttons */}
+                            <div className="space-y-2">
+                                {currentStatus === 'draft' && (
+                                    <>
+                                        {/* If documents exist - work has started, show appropriate button */}
+                                        {documents.length > 0 ? (
+                                            <>
+                                                {questions.length > 0 ? (
+                                                    // Both docs and questions exist - suggest submitting for review
+                                                    <button
+                                                        onClick={() => updateStatus('review')}
+                                                        className="w-full btn-primary text-sm flex items-center justify-center gap-2"
+                                                    >
+                                                        <EyeIcon className="h-4 w-4" />
+                                                        Submit for Review
+                                                    </button>
+                                                ) : (
+                                                    // Docs exist but no questions - continue working
+                                                    <button
+                                                        onClick={() => updateStatus('in_progress')}
+                                                        className="w-full btn-primary text-sm flex items-center justify-center gap-2"
+                                                    >
+                                                        <PlayIcon className="h-4 w-4" />
+                                                        Continue Working
+                                                    </button>
+                                                )}
+                                                <p className="text-xs text-amber-600 text-center mt-1">
+                                                    ⚠️ Work found but status is still Draft
+                                                </p>
+                                            </>
+                                        ) : (
+                                            // No documents yet
+                                            <button
+                                                disabled
+                                                className="w-full btn-primary text-sm flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
+                                                title="Upload RFP documents first"
+                                            >
+                                                <PlayIcon className="h-4 w-4" />
+                                                Start Working
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                                {currentStatus === 'in_progress' && (
+                                    <>
+                                        <button
+                                            onClick={() => updateStatus('review')}
+                                            disabled={questions.length === 0}
+                                            className={clsx(
+                                                "w-full btn-primary text-sm flex items-center justify-center gap-2",
+                                                questions.length === 0 && "opacity-50 cursor-not-allowed"
+                                            )}
+                                            title={questions.length === 0 ? "Analyze RFP to extract questions first" : ""}
+                                        >
+                                            <EyeIcon className="h-4 w-4" />
+                                            Submit for Review
+                                        </button>
+                                        <button
+                                            onClick={() => updateStatus('draft')}
+                                            className="w-full btn-secondary text-sm"
+                                        >
+                                            Back to Draft
+                                        </button>
+                                    </>
+                                )}
+                                {currentStatus === 'review' && (
+                                    <>
+                                        <button
+                                            onClick={() => updateStatus('completed')}
+                                            className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <CheckCircleIcon className="h-4 w-4" />
+                                            Mark Complete
+                                        </button>
+                                        <button
+                                            onClick={() => updateStatus('in_progress')}
+                                            className="w-full btn-secondary text-sm"
+                                        >
+                                            Back to In Progress
+                                        </button>
+                                    </>
+                                )}
+                                {currentStatus === 'completed' && (
+                                    <button
+                                        onClick={() => updateStatus('review')}
+                                        className="w-full btn-secondary text-sm"
+                                    >
+                                        Reopen for Review
+                                    </button>
+                                )}
+
+                                {/* Helper text when no documents */}
+                                {documents.length === 0 && (
+                                    <p className="text-xs text-text-muted text-center mt-2">
+                                        Upload documents to enable actions
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Go/No-Go Analysis */}
+                        <div className="card border border-amber-200 bg-amber-50/50">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                                    <ScaleIcon className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-medium text-gray-800">Go/No-Go Analysis</h3>
+                                    <p className="text-xs text-gray-600">
+                                        {(project as any).go_no_go_status === 'go' ? (
+                                            <span className="text-green-600 font-medium">GO ({Math.round((project as any).go_no_go_score || 0)}%)</span>
+                                        ) : (project as any).go_no_go_status === 'no_go' ? (
+                                            <span className="text-red-600 font-medium">NO-GO ({Math.round((project as any).go_no_go_score || 0)}%)</span>
+                                        ) : (
+                                            'Pre-RFP evaluation'
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowGoNoGoWizard(true)}
+                                className={clsx(
+                                    'w-full py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2',
+                                    (project as any).go_no_go_status !== 'pending'
+                                        ? 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-100'
+                                        : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                                )}
+                            >
+                                <SparklesIcon className="h-4 w-4" />
+                                {(project as any).go_no_go_status !== 'pending' ? 'View Analysis' : 'Run Analysis'}
+                            </button>
+                        </div>
+
+                        {/* Knowledge Context */}
+                        {project.knowledge_profiles && project.knowledge_profiles.length > 0 && (
+                            <div className="card bg-primary-light/30 border border-primary/20">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <BookOpenIcon className="h-5 w-5 text-primary" />
+                                    <h3 className="font-medium text-text-primary">Knowledge Context</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    {project.knowledge_profiles.map((profile: any) => (
+                                        <button
+                                            key={profile.id}
+                                            onClick={() => {
+                                                setSelectedProfile(profile);
+                                                setIsProfileSidebarOpen(true);
+                                            }}
+                                            className="w-full flex items-center justify-between p-2 rounded-lg bg-white border border-primary/10 text-sm hover:border-primary transition-all"
+                                        >
+                                            <span className="font-medium text-primary truncate">{profile.name}</span>
+                                            {profile.items_count !== undefined && (
+                                                <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 font-medium">
+                                                    {profile.items_count} docs
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mobile Stats */}
+                        <div className="lg:hidden card">
+                            <h3 className="font-medium text-text-primary mb-3">Project Stats</h3>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="text-center p-3 bg-background rounded-lg">
+                                    <DocumentTextIcon className="h-5 w-5 text-primary mx-auto mb-1" />
+                                    <p className="text-lg font-semibold">{documents.length}</p>
+                                    <p className="text-xs text-text-muted">Documents</p>
+                                </div>
+                                <div className="text-center p-3 bg-background rounded-lg">
+                                    <ChatBubbleLeftRightIcon className="h-5 w-5 text-purple-600 mx-auto mb-1" />
+                                    <p className="text-lg font-semibold">{questions.length}</p>
+                                    <p className="text-xs text-text-muted">Queries</p>
+                                </div>
+                                <div className="text-center p-3 bg-background rounded-lg">
+                                    <SparklesIcon className="h-5 w-5 text-green-600 mx-auto mb-1" />
+                                    <p className="text-lg font-semibold">{completionPercent}%</p>
+                                    <p className="text-xs text-text-muted">Complete</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
 
             {/* Knowledge Profile Sidebar */}

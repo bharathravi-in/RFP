@@ -1,7 +1,6 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ChevronRightIcon, HomeIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
-import { projectsApi } from '@/api/client';
 
 interface BreadcrumbItem {
     label: string;
@@ -13,16 +12,36 @@ export default function Breadcrumbs() {
     const { id } = useParams<{ id: string }>();
     const [projectName, setProjectName] = useState<string>('');
 
-    // Fetch project name if we're in a project context
+    // Get project name from sessionStorage (set by ProjectDetail) to avoid duplicate API calls
+    // This prevents Breadcrumbs and ProjectDetail from both fetching the same project
     useEffect(() => {
         if (id) {
-            projectsApi.get(Number(id))
-                .then(response => {
-                    setProjectName(response.data.project?.name || 'Project');
-                })
-                .catch(() => {
-                    setProjectName('Project');
-                });
+            // Try to get cached project name from sessionStorage
+            const cachedName = sessionStorage.getItem(`project-name-${id}`);
+            if (cachedName) {
+                setProjectName(cachedName);
+            } else {
+                // Fallback: use a generic label (ProjectDetail will set the correct name)
+                setProjectName('Project');
+
+                // Listen for storage changes (when ProjectDetail updates)
+                const handleStorage = () => {
+                    const name = sessionStorage.getItem(`project-name-${id}`);
+                    if (name) setProjectName(name);
+                };
+                window.addEventListener('storage', handleStorage);
+
+                // Also check after a short delay in case ProjectDetail sets it
+                const timeout = setTimeout(() => {
+                    const name = sessionStorage.getItem(`project-name-${id}`);
+                    if (name) setProjectName(name);
+                }, 100);
+
+                return () => {
+                    window.removeEventListener('storage', handleStorage);
+                    clearTimeout(timeout);
+                };
+            }
         }
     }, [id]);
 

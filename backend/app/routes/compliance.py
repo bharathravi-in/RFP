@@ -403,23 +403,35 @@ def extract_requirements_from_documents(project_id):
     
     # Use AI to extract requirements
     try:
-        import google.generativeai as genai
         from flask import current_app
         
-        # Check for API key (try both common names)
-        api_key = (
-            current_app.config.get('GOOGLE_API_KEY') or 
-            current_app.config.get('GEMINI_API_KEY') or 
-            os.environ.get('GOOGLE_API_KEY') or 
-            os.environ.get('GEMINI_API_KEY')
-        )
-        if not api_key:
-            return jsonify({'error': 'AI service not configured'}), 500
+        # Try dynamic LLM provider first
+        org_id = user.organization_id
+        model = None
         
-        genai.configure(api_key=api_key)
-        # Use configured model from environment
-        model_name = os.environ.get('GOOGLE_MODEL', 'gemini-2.0-flash')
-        model = genai.GenerativeModel(model_name)
+        try:
+            from app.services.llm_service_helper import get_llm_provider
+            model = get_llm_provider(org_id, 'compliance_extractor')
+            if model:
+                logger.info(f"Compliance extractor using dynamic provider: {model.provider_name}")
+        except Exception as e:
+            logger.warning(f"Could not load dynamic LLM: {e}")
+        
+        # Fallback to legacy Google
+        if not model:
+            import google.generativeai as genai
+            api_key = (
+                current_app.config.get('GOOGLE_API_KEY') or 
+                current_app.config.get('GEMINI_API_KEY') or 
+                os.environ.get('GOOGLE_API_KEY') or 
+                os.environ.get('GEMINI_API_KEY')
+            )
+            if not api_key:
+                return jsonify({'error': 'AI service not configured'}), 500
+            
+            genai.configure(api_key=api_key)
+            model_name = os.environ.get('GOOGLE_MODEL', 'gemini-2.0-flash')
+            model = genai.GenerativeModel(model_name)
         
         prompt = f"""Analyze this RFP (Request for Proposal) document and extract ALL specific requirements that a vendor must comply with.
 
