@@ -2,7 +2,7 @@ name: Deploy GitBook to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "documentation"]
     paths:
       - 'docs/book/**'
   workflow_dispatch:
