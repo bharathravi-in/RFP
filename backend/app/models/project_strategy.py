@@ -44,6 +44,10 @@ class ProjectStrategy(db.Model):
     legal_review = db.Column(db.JSON, nullable=True)  # Full legal review response
     legal_review_generated_at = db.Column(db.DateTime, nullable=True)
     
+    # Diagrams Data
+    diagrams = db.Column(db.JSON, nullable=True)  # List of generated diagrams
+    diagrams_generated_at = db.Column(db.DateTime, nullable=True)
+    
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -64,6 +68,8 @@ class ProjectStrategy(db.Model):
             'pricing_generated_at': self.pricing_generated_at.isoformat() if self.pricing_generated_at else None,
             'legal_review': self.legal_review,
             'legal_review_generated_at': self.legal_review_generated_at.isoformat() if self.legal_review_generated_at else None,
+            'diagrams': self.diagrams,
+            'diagrams_generated_at': self.diagrams_generated_at.isoformat() if self.diagrams_generated_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -100,4 +106,10 @@ class ProjectStrategy(db.Model):
         """Update legal review data."""
         self.legal_review = review_data
         self.legal_review_generated_at = datetime.utcnow()
+        db.session.commit()
+
+    def update_diagrams(self, diagrams_data: list):
+        """Update diagrams data."""
+        self.diagrams = diagrams_data
+        self.diagrams_generated_at = datetime.utcnow()
         db.session.commit()

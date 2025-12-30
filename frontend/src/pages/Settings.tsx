@@ -32,21 +32,27 @@ import PlatformTour from '@/components/onboarding/PlatformTour';
 
 const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
-const tabs = [
+// Tabs with role restrictions
+const allTabs = [
     { id: 'profile', name: 'Profile', icon: UserCircleIcon },
     { id: 'organization', name: 'Organization', icon: BuildingOfficeIcon },
-    { id: 'vendor', name: 'Vendor Profile', icon: BriefcaseIcon },
+    { id: 'vendor', name: 'Vendor Profile', icon: BriefcaseIcon, adminOnly: true },
     { id: 'knowledge', name: 'Knowledge Profiles', icon: FolderIcon },
     { id: 'dimensions', name: 'Filter Dimensions', icon: TagIcon },
     { id: 'security', name: 'Security', icon: KeyIcon },
     { id: 'notifications', name: 'Notifications', icon: BellIcon },
-    { id: 'ai', name: 'AI Settings', icon: CogIcon },
+    { id: 'ai', name: 'AI Settings', icon: CogIcon, adminOnly: true },
     { id: 'help', name: 'Help & Support', icon: QuestionMarkCircleIcon },
 ];
 
 export default function Settings() {
     const { user, organization, setUser, setOrganization } = useAuthStore();
     const [searchParams, setSearchParams] = useSearchParams();
+
+    // Filter tabs based on user role - hide admin-only tabs for non-admins
+    const isAdmin = user?.role === 'admin';
+    const tabs = allTabs.filter(tab => !tab.adminOnly || isAdmin);
+
     const tabFromUrl = searchParams.get('tab');
     const validTab = tabs.find(t => t.id === tabFromUrl)?.id || 'profile';
     const [activeTab, setActiveTab] = useState(validTab);
@@ -56,6 +62,7 @@ export default function Settings() {
     const [email, setEmail] = useState(user?.email || '');
     const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [expertiseTags, setExpertiseTags] = useState<string>(user?.expertise_tags?.join(', ') || '');
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
     const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -183,7 +190,8 @@ export default function Settings() {
         e.preventDefault();
         setIsSaving(true);
         try {
-            const response = await usersApi.updateProfile({ name, email });
+            const tagsArray = expertiseTags.split(',').map(tag => tag.trim()).filter(Boolean);
+            const response = await usersApi.updateProfile({ name, email, expertise_tags: tagsArray });
             setUser(response.data.user);
             toast.success('Profile updated successfully');
             setIsEditing(false);
@@ -498,6 +506,18 @@ export default function Settings() {
                                     <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!isEditing}
                                         className={clsx("input w-full", !isEditing && "bg-background cursor-not-allowed opacity-70")} />
                                 </div>
+                            </div>
+                            <div className="mt-6">
+                                <label className="block text-sm font-medium text-text-primary mb-2">Expertise Tags</label>
+                                <input
+                                    type="text"
+                                    value={expertiseTags}
+                                    onChange={(e) => setExpertiseTags(e.target.value)}
+                                    disabled={!isEditing}
+                                    placeholder="e.g. security, pricing, legal, cloud..."
+                                    className={clsx("input w-full", !isEditing && "bg-background cursor-not-allowed opacity-70")}
+                                />
+                                <p className="text-xs text-text-secondary mt-1">Separate with commas. These help AI suggest you for relevant tasks.</p>
                             </div>
                             {isEditing && (
                                 <div className="flex justify-end mt-6 pt-6 border-t border-border">

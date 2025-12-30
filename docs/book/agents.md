@@ -9,6 +9,18 @@ The **Agent Orchestrator** acts as the central nervous system of RFP Pro. It use
 2. **Assign Agents**: Route sub-tasks to the most appropriate specialized agents.
 3. **Consolidate Knowledge**: Aggregate results from multiple agents into a coherent final output.
 4. **Self-Correction**: Re-run agents if quality checks or compliance validations fail.
+5. **Contextual Routing**: Uses Gemini 2.0 to decide which subset of the 25+ agents are needed for a specific section (e.g., Legal agents for T&Cs, Technical agents for Architecture).
+
+### Strategic Decision Making
+
+The Orchestrator doesn't just route tasks; it makes strategic decisions based on the "Project Strategy" established in the initial phase. If a "Security-First" win theme is identified, the Orchestrator will automatically prioritize the **Security Analyst Agent** to provide detailed proof points for all relevant sections.
+
+### Self-Correction Loop
+
+RFP Pro implements a "Reflect and Correct" pattern:
+- **Phase A**: Agent generates initial content.
+- **Phase B**: A separate **Critic Agent** evaluates the content against compliance and tone guidelines.
+- **Phase C**: If the score is below threshold, a **Refinement Agent** receives the feedback and regenerates the content.
 
 ## Agent Categories & Workflow
 

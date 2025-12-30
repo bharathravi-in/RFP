@@ -25,6 +25,7 @@ import KnowledgeProfileSidebar from '@/components/knowledge/KnowledgeProfileSide
 import UploadProgressModal, { UploadState } from '@/components/upload/UploadProgressModal';
 import DocumentActions from '@/components/ui/DocumentActions';
 import GoNoGoWizard from '@/components/gng/GoNoGoWizard';
+import ProposalHealthDashboard from '@/components/analytics/ProposalHealthDashboard';
 
 type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'completed';
 
@@ -449,8 +450,13 @@ export default function ProjectDetail() {
                         )}
                     </div>
                 </div>
+            </div>
 
-                {/* Main Content Grid */}
+            {/* Main Content Grid */}
+            <div className="space-y-6">
+                {/* Health Dashboard Section (High Level) */}
+                <ProposalHealthDashboard projectId={Number(id)} />
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Left Column - Documents (2/3 width) */}
                     <div className="lg:col-span-2 space-y-4">

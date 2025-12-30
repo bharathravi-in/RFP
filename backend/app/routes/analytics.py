@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from ..extensions import db
-from ..models import User, Project, Question, Answer, Document, KnowledgeItem
+from ..models import User, Project, Question, Answer, Document, KnowledgeItem, RFPSection
 
 bp = Blueprint('analytics', __name__)
 
@@ -103,6 +103,110 @@ def get_dashboard_stats():
         },
         'recent_projects': [p.to_dict() for p in recent_projects],
         'activity': activity
+    }), 200
+
+
+@bp.route('/project-health/<int:project_id>', methods=['GET'])
+@jwt_required()
+def get_project_health(project_id):
+    """
+    Get detailed health metrics for a specific project.
+    
+    Returns:
+    - Completion %
+    - Owners breakdown
+    - SME bottlenecks
+    - Verification score average
+    - Due date status
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+        
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+        
+    # Check if user belongs to the same org
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    questions = Question.query.filter_by(project_id=project_id).all()
+    total_questions = len(questions)
+    
+    # Also get sections for proposal-based completion
+    sections = RFPSection.query.filter_by(project_id=project_id).all()
+    total_sections = len(sections)
+    approved_sections = sum(1 for s in sections if s.status == 'approved')
+    
+    # Use sections if no questions, otherwise use questions
+    if total_sections > 0 and total_questions == 0:
+        # Proposal-based workflow
+        completion_percentage = (approved_sections / total_sections) * 100
+        answered_count = approved_sections
+        total_items = total_sections
+        item_type = 'sections'
+    elif total_questions > 0:
+        # Q&A-based workflow
+        answered_count = sum(1 for q in questions if q.status in ['answered', 'approved'])
+        completion_percentage = (answered_count / total_questions) * 100
+        total_items = total_questions
+        item_type = 'questions'
+    else:
+        return jsonify({
+            'completion_percentage': 0,
+            'owners_breakdown': [],
+            'bottlenecks': [],
+            'verification_health': 0,
+            'project_name': project.name,
+            'status': project.status,
+            'due_date': project.due_date.isoformat() if project.due_date else None
+        }), 200
+
+    # Owners breakdown
+    owners_stats = {}
+    for q in questions:
+        owner_name = q.assignee.name if q.assignee else 'Unassigned'
+        owner_id = q.assigned_to or 0
+        
+        if owner_id not in owners_stats:
+            owners_stats[owner_id] = {
+                'name': owner_name,
+                'total': 0,
+                'answered': 0,
+                'pending': 0
+            }
+        
+        owners_stats[owner_id]['total'] += 1
+        if q.status in ['answered', 'approved']:
+            owners_stats[owner_id]['answered'] += 1
+        else:
+            owners_stats[owner_id]['pending'] += 1
+
+    owners_list = list(owners_stats.values())
+    
+    # Bottlenecks (more than 5 pending questions or 50% of project pending)
+    bottlenecks = [o for o in owners_list if o['pending'] > 5 and o['name'] != 'Unassigned']
+
+    # Verification Health
+    answers = db.session.query(Answer).join(Question).filter(Question.project_id == project_id).all()
+    verification_scores = [a.verification_score for a in answers if a.verification_score is not None]
+    avg_verification = sum(verification_scores) / len(verification_scores) if verification_scores else 0
+
+    return jsonify({
+        'project_id': project_id,
+        'project_name': project.name,
+        'completion_percentage': round(completion_percentage, 2),
+        'total_questions': total_items,
+        'answered_count': answered_count,
+        'item_type': item_type if 'item_type' in dir() else 'questions',
+        'owners_breakdown': owners_list,
+        'bottlenecks': bottlenecks,
+        'verification_health': round(avg_verification, 4),
+        'status': project.status,
+        'due_date': project.due_date.isoformat() if project.due_date else None
     }), 200
 
 

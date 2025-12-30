@@ -36,6 +36,10 @@ class AgentAIConfig(db.Model):
     # Additional settings
     config_metadata = db.Column(db.JSON, default=dict)  # Provider-specific settings
     
+    # Resilience settings
+    timeout_seconds = db.Column(db.Integer, default=60)  # Request timeout
+    max_retries = db.Column(db.Integer, default=3)       # Retry attempts on failure
+    
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -103,6 +107,8 @@ class AgentAIConfig(db.Model):
             'max_tokens': self.max_tokens,
             'use_default_key': self.use_default_key,
             'config_metadata': self.config_metadata,
+            'timeout_seconds': self.timeout_seconds,
+            'max_retries': self.max_retries,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

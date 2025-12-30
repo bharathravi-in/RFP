@@ -10,9 +10,11 @@ from app.agents import (
     get_orchestrator_agent,
     get_document_analyzer_agent,
     get_question_extractor_agent,
-    get_answer_generator_agent
+    get_answer_generator_agent,
+    get_expert_routing_agent,
+    get_content_freshness_agent
 )
-from app.models import Document
+from app.models import Document, User, RFPSection, Question, AnswerLibraryItem
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +177,120 @@ def generate_answers():
         return jsonify(result)
     except Exception as e:
         logger.error(f"Answer generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/suggest-owners', methods=['POST'])
+def suggest_owners():
+    """
+    Suggest owners for sections or questions based on user expertise.
+    
+    Request body:
+    {
+        "project_id": int,
+        "item_type": "section|question",
+        "org_id": int (optional)
+    }
+    """
+    data = request.get_json() or {}
+    project_id = data.get('project_id')
+    item_type = data.get('item_type', 'section')
+    org_id = data.get('org_id')
+
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+
+    try:
+        # Get users in organization
+        if not org_id:
+            from app.models import Project
+            project = Project.query.get(project_id)
+            if not project:
+                return jsonify({"error": "Project not found"}), 404
+            org_id = project.organization_id
+
+        users = User.query.filter_by(organization_id=org_id, is_active=True).all()
+        team_members = [u.to_dict() for u in users]
+
+        # Get items to route
+        scope_items = []
+        if item_type == 'section':
+            items = RFPSection.query.filter_by(project_id=project_id).all()
+            scope_items = [{'id': i.id, 'text': i.title, 'type': 'section'} for i in items]
+        else:
+            items = Question.query.filter_by(project_id=project_id).all()
+            scope_items = [{'id': i.id, 'text': i.text, 'type': 'question'} for i in items]
+
+        if not scope_items:
+            return jsonify({"success": True, "suggestions": [], "message": f"No {item_type}s found in project"}), 200
+
+        agent = get_expert_routing_agent(org_id=org_id)
+        result = agent.suggest_owners(scope_items=scope_items, team_members=team_members)
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Suggest owners failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/check-freshness', methods=['POST'])
+def check_freshness():
+    """
+    Check if library items are still fresh compared to project documents.
+    
+    Request body:
+    {
+        "project_id": int,
+        "library_item_ids": [int] (optional, defaults to all in org),
+        "org_id": int (optional)
+    }
+    """
+    data = request.get_json() or {}
+    project_id = data.get('project_id')
+    library_item_ids = data.get('library_item_ids', [])
+    org_id = data.get('org_id')
+
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+
+    try:
+        # Get project and documents
+        from app.models import Project
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        if not org_id:
+            org_id = project.organization_id
+
+        # Get documents text
+        documents = Document.query.filter_by(project_id=project_id).all()
+        if not documents:
+            return jsonify({"error": "No documents found in project to compare against"}), 400
+        
+        # Aggregate document content (first 50k chars for efficiency)
+        project_context = "\n\n".join([doc.content for doc in documents if doc.content])
+        if not project_context:
+             return jsonify({"error": "No content found in documents"}), 400
+
+        # Get library items
+        query = AnswerLibraryItem.query.filter_by(organization_id=org_id, is_active=True)
+        if library_item_ids:
+            query = query.filter(AnswerLibraryItem.id.in_(library_item_ids))
+        
+        library_items = query.all()
+        if not library_items:
+            return jsonify({"success": True, "audits": [], "message": "No library items found"}), 200
+
+        agent = get_content_freshness_agent(org_id=org_id)
+        result = agent.audit_content(
+            library_items=[item.to_dict() for item in library_items],
+            project_context=project_context
+        )
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Freshness check failed: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1304,3 +1420,105 @@ def save_legal_review(project_id: int):
         "success": True,
         "message": "Legal review saved"
     })
+
+
+@agents_bp.route('/strategy/<int:project_id>/diagrams', methods=['POST'])
+def save_diagrams(project_id: int):
+    """
+    Save diagrams data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_diagrams(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Diagrams saved"
+    })
+
+
+# ==========================================
+# Agent Resilience & Circuit Breaker Endpoints
+# ==========================================
+
+@agents_bp.route('/health/circuit-breakers', methods=['GET'])
+def get_circuit_breaker_status():
+    """
+    Get status of all agent circuit breakers.
+    
+    Returns:
+    {
+        "circuit_breakers": [
+            {
+                "agent": "answer_generator",
+                "state": "closed|open|half_open",
+                "failure_count": 0,
+                "success_count": 0,
+                "last_failure": 0.0
+            }
+        ]
+    }
+    """
+    from app.services.agent_resilience import get_resilience_service
+    
+    service = get_resilience_service()
+    
+    return jsonify({
+        "circuit_breakers": service.get_all_circuit_status(),
+        "config": {
+            "failure_threshold": service._circuit_config.failure_threshold,
+            "success_threshold": service._circuit_config.success_threshold,
+            "timeout_seconds": service._circuit_config.timeout_seconds
+        }
+    })
+
+
+@agents_bp.route('/health/circuit-breakers/<agent_name>', methods=['GET'])
+def get_agent_circuit_status(agent_name: str):
+    """Get circuit breaker status for a specific agent."""
+    from app.services.agent_resilience import get_resilience_service
+    
+    service = get_resilience_service()
+    return jsonify(service.get_circuit_status(agent_name))
+
+
+@agents_bp.route('/health/circuit-breakers/<agent_name>/reset', methods=['POST'])
+def reset_agent_circuit(agent_name: str):
+    """Manually reset a circuit breaker."""
+    from app.services.agent_resilience import get_resilience_service
+    
+    service = get_resilience_service()
+    service.reset_circuit(agent_name)
+    
+    return jsonify({
+        "success": True,
+        "message": f"Circuit breaker for {agent_name} has been reset",
+        "status": service.get_circuit_status(agent_name)
+    })
+
+
+@agents_bp.route('/health/timeouts', methods=['GET'])
+def get_agent_timeouts():
+    """Get timeout configuration for all agent types."""
+    from app.services.agent_resilience import get_resilience_service
+    
+    service = get_resilience_service()
+    config = service._timeout_config
+    
+    return jsonify({
+        "timeouts": {
+            "default": config.default_timeout,
+            "document_analysis": config.document_analysis,
+            "answer_generation": config.answer_generation,
+            "export_generation": config.export_generation,
+            "simple_validation": config.simple_validation
+        }
+    })
+

@@ -44,6 +44,8 @@ import SectionEditor from '@/components/sections/SectionEditor';
 import ComplianceMatrix from '@/components/compliance/ComplianceMatrix';
 import DiagramGenerator from '@/components/diagrams/DiagramGenerator';
 import { StrategyToolsPanel } from '@/components/strategy';
+import BatchRegenerateModal from '@/components/proposal/BatchRegenerateModal';
+import TemplateSelector from '@/components/export/TemplateSelector';
 import { sectionsApi, projectsApi, documentsApi, pptApi } from '@/api/client';
 
 // Section type styling configuration
@@ -181,6 +183,8 @@ export default function ProposalBuilder() {
     const [viewMode, setViewMode] = useState<'sections' | 'compliance' | 'diagrams' | 'strategy'>('sections');
     const [primaryDocumentId, setPrimaryDocumentId] = useState<number | null>(null);
     const [showKnowledgeContext, setShowKnowledgeContext] = useState(true);
+    const [showBatchRegenerate, setShowBatchRegenerate] = useState(false);
+    const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
     const loadProject = useCallback(async () => {
         if (!projectId) return;
@@ -511,9 +515,30 @@ export default function ProposalBuilder() {
                                 <PresentationChartBarIcon className="h-4 w-4 text-orange-500" />
                                 PowerPoint (.pptx)
                             </button>
+                            <hr className="my-1 border-gray-100" />
+                            <button
+                                onClick={() => {
+                                    setShowExportMenu(false);
+                                    setShowTemplateSelector(true);
+                                }}
+                                className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                            >
+                                <DocumentDuplicateIcon className="h-4 w-4 text-purple-500" />
+                                Use Template...
+                            </button>
                         </div>
                     )}
                 </div>
+
+                {/* Batch Regenerate */}
+                <button
+                    onClick={() => setShowBatchRegenerate(true)}
+                    className="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1.5"
+                    title="Regenerate multiple sections at once"
+                >
+                    <SparklesIcon className="h-4 w-4" />
+                    Batch AI
+                </button>
 
                 {/* Import from Q&A - NEW */}
                 <button
@@ -737,6 +762,28 @@ export default function ProposalBuilder() {
                     existingSectionSlugs={sections.map(s => s.section_type?.slug || '').filter(Boolean)}
                 />
             )}
+
+            {/* Batch Regenerate Modal */}
+            <BatchRegenerateModal
+                isOpen={showBatchRegenerate}
+                onClose={() => setShowBatchRegenerate(false)}
+                sections={sections}
+                projectId={projectId}
+                onComplete={() => {
+                    loadSections();
+                    setShowBatchRegenerate(false);
+                }}
+            />
+
+            {/* Template Selector Modal */}
+            <TemplateSelector
+                isOpen={showTemplateSelector}
+                onSelect={(templateId) => {
+                    toast.success('Template applied');
+                    setShowTemplateSelector(false);
+                }}
+                onClose={() => setShowTemplateSelector(false)}
+            />
         </div>
     );
 }

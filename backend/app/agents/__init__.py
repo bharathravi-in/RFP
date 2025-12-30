@@ -16,6 +16,14 @@ This module contains specialized agents that work together to:
 Main entry point: OrchestratorAgent
 """
 
+from .content_freshness_agent import (
+    ContentFreshnessAgent,
+    get_content_freshness_agent
+)
+from .expert_routing_agent import (
+    ExpertRoutingAgent,
+    get_expert_routing_agent
+)
 from .config import get_agent_config, SessionKeys
 from .document_analyzer_agent import (
     DocumentAnalyzerAgent,
@@ -111,6 +119,10 @@ __all__ = [
     'get_clarification_agent',
     'OrchestratorAgent',
     'get_orchestrator_agent',
+    'ExpertRoutingAgent',
+    'get_expert_routing_agent',
+    'ContentFreshnessAgent',
+    'get_content_freshness_agent',
     'DiagramGeneratorAgent',
     'get_diagram_generator_agent',
     'DiagramType',

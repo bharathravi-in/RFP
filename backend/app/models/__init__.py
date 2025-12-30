@@ -33,6 +33,9 @@ from .project_strategy import ProjectStrategy
 # Document Chat
 from .document_chat import DocumentChatSession, DocumentChatMessage
 
+# Webhooks (Enterprise feature)
+from .webhook import WebhookConfig, WebhookDelivery, WEBHOOK_EVENTS
+
 __all__ = [
     'User',
     'Organization',
