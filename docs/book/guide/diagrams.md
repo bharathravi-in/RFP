@@ -17,8 +17,11 @@ Navigate to a section like "System Architecture" or "Implementation Plan."
 ### 2. Trigger AI Generation
 Click the **"Generate Diagram"** button in the editor toolbar. The AI will analyze the section content and propose a visualization.
 
-### 3. Review & Edit
-The diagram will render instantly. You can hover over elements to zoom, or click **"Edit Source"** to manually tweak the Mermaid code.
+### 3. Integrated Diagram Editor
+Fine-tune your diagrams with our built-in Mermaid editor. Change titles, descriptions, and technical notes in real-time.
+
+### 4. Insert from Library
+Reuse diagrams across different sections. Generated diagrams are saved to the project's **Diagram Library**, accessible from any section.
 
 ## Mermaid.js Integration
 

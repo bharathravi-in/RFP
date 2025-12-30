@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sectionsApi, questionsApi, usersApi } from '@/api/client';
 import { RFPSection, Question } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import SimpleMarkdown from '@/components/common/SimpleMarkdown';
@@ -32,6 +33,7 @@ import {
     TechnicalEditor,
     TimelineEditor,
     ComplianceMatrixEditor,
+    DiagramEditor,
 } from '@/components/editors';
 
 interface SectionEditorProps {
@@ -41,6 +43,9 @@ interface SectionEditorProps {
 }
 
 export default function SectionEditor({ section, projectId, onUpdate }: SectionEditorProps) {
+    const { user } = useAuthStore();
+    const canApprove = user?.role === 'admin' || user?.role === 'reviewer';
+
     const [content, setContent] = useState(section.content || '');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -50,6 +55,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [showAIChatPanel, setShowAIChatPanel] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showDetailsSidebar, setShowDetailsSidebar] = useState(false);
+    const [detailsDefaultTab, setDetailsDefaultTab] = useState<'details' | 'comments' | 'history' | 'sources'>('details');
 
     // Q&A Section state
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -370,6 +376,15 @@ ${answer}
                     requirements: editorData.requirements,
                     style: editorData.style,
                 });
+            } else if (templateType === 'diagram') {
+                // For diagram editor, store as JSON string
+                contentToSave = JSON.stringify({
+                    type: 'diagram',
+                    title: editorData.title,
+                    description: editorData.description,
+                    mermaid_code: editorData.mermaid_code,
+                    notes: editorData.notes,
+                });
             }
 
             const response = await sectionsApi.updateSection(projectId, section.id, {
@@ -395,9 +410,9 @@ ${answer}
             return null;
         }
 
-        // Parse content if it's JSON (for table, card, technical, timeline, compliance_matrix)
+        // Parse content if it's JSON (for table, card, technical, timeline, compliance_matrix, diagram)
         let parsedContent: any = null;
-        if (['table', 'card', 'technical', 'timeline', 'compliance_matrix'].includes(templateType)) {
+        if (['table', 'card', 'technical', 'timeline', 'compliance_matrix', 'diagram'].includes(templateType)) {
             try {
                 parsedContent = JSON.parse(content || '{}');
             } catch {
@@ -487,6 +502,21 @@ ${answer}
                     <ComplianceMatrixEditor
                         requirements={parsedContent?.requirements || []}
                         style={parsedContent?.style || 'table'}
+                        onSave={handleEditorSave}
+                        onCancel={() => {
+                            setContent(section.content || '');
+                            setIsEditing(false);
+                        }}
+                        isSaving={isSaving}
+                        color={section.section_type?.color}
+                    />
+                );
+
+            case 'diagram':
+                return (
+                    <DiagramEditor
+                        projectId={projectId}
+                        content={content}
                         onSave={handleEditorSave}
                         onCancel={() => {
                             setContent(section.content || '');
@@ -593,7 +623,7 @@ ${answer}
                                     </button>
                                 ) : (
                                     <>
-                                        {templateType !== 'narrative' && templateType !== 'table' && templateType !== 'card' && templateType !== 'technical' && templateType !== 'timeline' && templateType !== 'compliance_matrix' ? (
+                                        {templateType !== 'narrative' && templateType !== 'table' && templateType !== 'card' && templateType !== 'technical' && templateType !== 'timeline' && templateType !== 'compliance_matrix' && templateType !== 'diagram' ? (
                                             <>
                                                 <button
                                                     onClick={handleSave}
@@ -647,7 +677,7 @@ ${answer}
                                     History
                                 </button>
 
-                                {section.status !== 'approved' && (
+                                {canApprove && section.status !== 'approved' && (
                                     <button
                                         onClick={() => handleReview('approve')}
                                         className="btn-success flex items-center gap-2 ml-auto"
@@ -656,7 +686,7 @@ ${answer}
                                         Approve
                                     </button>
                                 )}
-                                {section.status !== 'rejected' && (
+                                {canApprove && section.status !== 'rejected' && (
                                     <button
                                         onClick={() => handleReview('reject')}
                                         className="btn-error flex items-center gap-2"
@@ -940,7 +970,7 @@ ${answer}
                                                                         <SparklesIcon className="h-4 w-4" />
                                                                     )}
                                                                 </button>
-                                                                {question.status === 'answered' && (
+                                                                {canApprove && question.status === 'answered' && (
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
@@ -1170,25 +1200,58 @@ ${answer}
                         {!showDetailsSidebar && (
                             <div className="w-12 border-l border-border bg-surface flex flex-col items-center py-4 gap-3">
                                 <button
-                                    onClick={() => setShowDetailsSidebar(true)}
+                                    onClick={() => {
+                                        setDetailsDefaultTab('details');
+                                        setShowDetailsSidebar(true);
+                                    }}
                                     className="p-2 rounded-lg hover:bg-background transition-colors text-text-muted hover:text-primary"
                                     title="Section Details"
                                 >
                                     <Cog8ToothIcon className="h-5 w-5" />
                                 </button>
                                 {section.comments && section.comments.length > 0 && (
-                                    <div className="relative">
-                                        <ChatBubbleLeftRightIcon className="h-5 w-5 text-text-muted" />
-                                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs rounded-full flex items-center justify-center">
+                                    <button
+                                        onClick={() => {
+                                            setDetailsDefaultTab('comments');
+                                            setShowDetailsSidebar(true);
+                                        }}
+                                        className="relative p-2 rounded-lg hover:bg-background transition-colors text-text-muted hover:text-primary"
+                                        title="View Comments"
+                                    >
+                                        <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                                        <span className="absolute top-0 right-0 w-4 h-4 bg-primary text-white text-xs rounded-full flex items-center justify-center">
                                             {section.comments.length}
                                         </span>
-                                    </div>
+                                    </button>
                                 )}
                                 {section.confidence_score !== null && section.confidence_score !== undefined && (
-                                    <div className="text-xs text-text-muted text-center">
+                                    <button
+                                        onClick={() => {
+                                            setDetailsDefaultTab('details');
+                                            setShowDetailsSidebar(true);
+                                        }}
+                                        className="p-2 rounded-lg hover:bg-background transition-colors text-text-muted hover:text-primary text-center"
+                                        title={`AI Confidence: ${Math.round(section.confidence_score * 100)}% - Click for details`}
+                                    >
                                         <SparklesIcon className="h-5 w-5 mx-auto mb-1" />
-                                        <span>{Math.round(section.confidence_score * 100)}%</span>
-                                    </div>
+                                        <span className="text-xs">{Math.round(section.confidence_score * 100)}%</span>
+                                    </button>
+                                )}
+                                {/* Sources Icon - shown when sources are available */}
+                                {section.sources && section.sources.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            setDetailsDefaultTab('sources');
+                                            setShowDetailsSidebar(true);
+                                        }}
+                                        className="relative p-2 rounded-lg hover:bg-background transition-colors text-text-muted hover:text-purple-500"
+                                        title={`${section.sources.length} Knowledge Sources`}
+                                    >
+                                        <BookOpenIcon className="h-5 w-5" />
+                                        <span className="absolute top-0 right-0 w-4 h-4 bg-purple-500 text-white text-xs rounded-full flex items-center justify-center">
+                                            {section.sources.length}
+                                        </span>
+                                    </button>
                                 )}
                             </div>
                         )}
@@ -1201,6 +1264,7 @@ ${answer}
                             onClose={() => setShowDetailsSidebar(false)}
                             users={orgUsers}
                             isOpen={showDetailsSidebar}
+                            defaultTab={detailsDefaultTab}
                         />
                     </>
                 )}

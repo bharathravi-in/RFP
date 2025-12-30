@@ -32,6 +32,7 @@ By leveraging **Google Gemini 2.0** and a sophisticated **RAG (Retrieval Augment
 - **🤖 25+ AI Agents**: Specialized agents for every stage of the proposal.
 - **✅ 100% Compliance**: Never miss a requirement with AI-powered tracking.
 - **📊 Auto Diagrams**: Professional architecture and flowcharts in seconds.
+- **🧠 Strategic Insights**: Dashboard for win themes, pricing, and legal risk.
 - **📚 Knowledge Reuse**: Instant access to your entire library of past proposals.
 
 ## Core Features
@@ -50,6 +51,9 @@ Refine content in real-time. Ask the assistant to "make this more technical," "s
 
 ### 5. Automated Compliance Matrix
 The platform automatically generates and maintains a compliance matrix, tracking how and where every requirement is addressed in your response.
+
+### 6. AI Strategic Dashboard
+Get a high-level view of your proposal's strategic health. Our dashboard tracks win themes, estimated efforts/pricing, and potential legal risks in one unified view.
 
 ## Key Differentiators
 

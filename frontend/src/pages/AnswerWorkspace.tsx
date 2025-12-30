@@ -26,6 +26,8 @@ import {
 } from '@heroicons/react/24/outline';
 import DiagramRenderer from '@/components/diagrams/DiagramRenderer';
 import SimpleMarkdown from '@/components/common/SimpleMarkdown';
+import TruthScoreBadge from '@/components/common/TruthScoreBadge';
+import SuggestedOwnersPanel from '@/components/collaboration/SuggestedOwnersPanel';
 
 // Category configuration for badges
 const CATEGORY_CONFIG: Record<string, { icon: typeof ShieldCheckIcon; color: string; bg: string }> = {
@@ -56,6 +58,7 @@ export default function AnswerWorkspace() {
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [showSimilarPanel, setShowSimilarPanel] = useState(false);
     const [isPreview, setIsPreview] = useState(false);
+    const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(false);
 
     // Collaboration hook
     const { activeUsers, updateCursor, broadcastChange, lastRemoteChange } = useRealTime(id);
@@ -286,6 +289,14 @@ export default function AnswerWorkspace() {
                             />
                         </div>
                     </div>
+
+                    <button
+                        onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
+                        className="btn-secondary flex items-center gap-2 text-sm"
+                    >
+                        <SparklesIcon className="h-4 w-4" />
+                        AI Assign
+                    </button>
                 </div>
             </div>
 
@@ -448,6 +459,7 @@ export default function AnswerWorkspace() {
                                                 {selectedQuestion.answer.confidence_score > 0 && (
                                                     <ConfidenceMeter score={selectedQuestion.answer.confidence_score} />
                                                 )}
+                                                <TruthScoreBadge score={selectedQuestion.answer?.verification_score} size="sm" />
                                             </div>
                                         )}
 
@@ -688,6 +700,21 @@ export default function AnswerWorkspace() {
                     </div>
                 </div>
             </div >
+
+            {/* AI Suggestions Overlay */}
+            {showSuggestionsPanel && (
+                <div className="fixed inset-0 bg-black/30 z-40 flex items-start justify-end pt-20 pr-6">
+                    <div className="w-[360px]">
+                        <SuggestedOwnersPanel
+                            projectId={Number(id)}
+                            questionIds={questions.map(q => q.id)}
+                            teamMembers={[]} // Will be populated from API/context
+                            onApplied={() => loadQuestions()}
+                            onClose={() => setShowSuggestionsPanel(false)}
+                        />
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

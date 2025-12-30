@@ -8,7 +8,8 @@ class Answer(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
-    confidence_score = db.Column(db.Float, default=0.0)  # 0.0 to 1.0
+    confidence_score = db.Column(db.Float, default=0.0)  # AI confidence: 0.0 to 1.0
+    verification_score = db.Column(db.Float, default=0.0)  # Technical/Truthfulness: 0.0 to 1.0
     sources = db.Column(db.JSON, default=list)  # Array of source citations
     status = db.Column(db.String(50), default='draft')  # draft, pending_review, approved, rejected
     version = db.Column(db.Integer, default=1)
@@ -32,6 +33,7 @@ class Answer(db.Model):
             'id': self.id,
             'content': self.content,
             'confidence_score': self.confidence_score,
+            'verification_score': self.verification_score,
             'sources': self.sources,
             'status': self.status,
             'version': self.version,

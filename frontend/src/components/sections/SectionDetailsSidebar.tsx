@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sectionsApi } from '@/api/client';
-import { RFPSection, SectionComment, SectionPriority } from '@/types';
+import { RFPSection, SectionComment, SectionPriority, AnswerSource } from '@/types';
+import SourceInfoModal from '@/components/SourceInfoModal';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -33,6 +34,7 @@ interface SectionDetailsSidebarProps {
     onClose: () => void;
     users?: User[];
     isOpen: boolean;
+    defaultTab?: TabType;
 }
 
 type TabType = 'details' | 'comments' | 'history' | 'sources';
@@ -58,11 +60,20 @@ export default function SectionDetailsSidebar({
     onClose,
     users = [],
     isOpen,
+    defaultTab = 'details',
 }: SectionDetailsSidebarProps) {
-    const [activeTab, setActiveTab] = useState<TabType>('details');
+    const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
+
+    // Sync activeTab when defaultTab changes (e.g. clicking different icons)
+    useEffect(() => {
+        if (isOpen) {
+            setActiveTab(defaultTab);
+        }
+    }, [defaultTab, isOpen]);
     const [newComment, setNewComment] = useState('');
     const [isAddingComment, setIsAddingComment] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [selectedSource, setSelectedSource] = useState<{ source: AnswerSource | string; index: number } | null>(null);
 
     // Local state for form fields
     const [assignedTo, setAssignedTo] = useState<number | null>(section.assigned_to || null);
@@ -161,7 +172,7 @@ export default function SectionDetailsSidebar({
     if (!isOpen) return null;
 
     return (
-        <div className="w-[350px] h-full border-l border-border bg-white flex flex-col animate-slide-in-right">
+        <div className="w-[420px] h-full border-l border-border bg-white flex flex-col animate-slide-in-right">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface">
                 <div className="flex items-center gap-2">
@@ -242,6 +253,67 @@ export default function SectionDetailsSidebar({
                                 </span>
                             </div>
                         </div>
+
+                        {/* AI Confidence Score */}
+                        {section.confidence_score !== null && section.confidence_score !== undefined && (
+                            <div className="p-4 rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100">
+                                <label className="flex items-center gap-2 text-xs font-medium text-purple-700 mb-3">
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                    </svg>
+                                    AI Confidence Score
+                                </label>
+
+                                {/* Score Display */}
+                                <div className="flex items-center gap-4 mb-3">
+                                    <div className="text-3xl font-bold text-purple-600">
+                                        {Math.round(section.confidence_score * 100)}%
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="h-3 bg-purple-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={clsx(
+                                                    'h-full rounded-full transition-all duration-500',
+                                                    section.confidence_score >= 0.8 ? 'bg-green-500' :
+                                                        section.confidence_score >= 0.6 ? 'bg-amber-500' :
+                                                            'bg-red-500'
+                                                )}
+                                                style={{ width: `${section.confidence_score * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Score Explanation */}
+                                <div className={clsx(
+                                    'text-xs p-2 rounded',
+                                    section.confidence_score >= 0.8 ? 'bg-green-50 text-green-700' :
+                                        section.confidence_score >= 0.6 ? 'bg-amber-50 text-amber-700' :
+                                            'bg-red-50 text-red-700'
+                                )}>
+                                    {section.confidence_score >= 0.8 ? (
+                                        <>✅ <strong>High confidence</strong> - Content is well-supported by knowledge base sources.</>
+                                    ) : section.confidence_score >= 0.6 ? (
+                                        <>⚠️ <strong>Medium confidence</strong> - Some content may need verification.</>
+                                    ) : (
+                                        <>❌ <strong>Low confidence</strong> - Consider reviewing and editing this content.</>
+                                    )}
+                                </div>
+
+                                {/* What affects score */}
+                                <details className="mt-3">
+                                    <summary className="text-xs text-purple-600 cursor-pointer hover:underline">
+                                        What affects this score?
+                                    </summary>
+                                    <ul className="mt-2 text-xs text-text-muted space-y-1 pl-4">
+                                        <li>• Relevance to knowledge base documents</li>
+                                        <li>• Number of source citations found</li>
+                                        <li>• Alignment with company information</li>
+                                        <li>• Content freshness and accuracy</li>
+                                    </ul>
+                                </details>
+                            </div>
+                        )}
 
                         {/* Assignee */}
                         <div>
@@ -468,37 +540,60 @@ export default function SectionDetailsSidebar({
                             </div>
                             <p className="text-text-muted text-xs mb-4">Documents and data used to generate this section</p>
                             {section.sources && section.sources.length > 0 ? (
-                                <div className="space-y-2">
-                                    {section.sources.map((source, idx) => (
-                                        <div key={idx} className="p-3 bg-background rounded-lg border border-border hover:shadow-sm transition-shadow">
-                                            <div className="flex items-start gap-2">
-                                                <DocumentTextIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="text-sm font-medium text-text-primary block truncate">
-                                                        {typeof source === 'string' ? source : source.title || 'Source'}
-                                                    </span>
-                                                    {typeof source !== 'string' && source.relevance && (
-                                                        <div className="mt-1 flex items-center gap-2">
-                                                            <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-primary rounded-full"
-                                                                    style={{ width: `${source.relevance * 100}%` }}
-                                                                ></div>
+                                <div>
+                                    {/* Source Count Header */}
+                                    <p className="text-sm text-gray-600 mb-3">
+                                        <span className="font-medium">{section.sources.length}</span> source{section.sources.length !== 1 ? 's' : ''} checked
+                                    </p>
+
+                                    {/* Numbered Source Buttons */}
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        {section.sources.map((source, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setSelectedSource({ source, index: idx })}
+                                                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-primary-light hover:text-primary hover:border-primary transition-colors"
+                                                title={typeof source === 'string' ? source : source.title || `Source ${idx + 1}`}
+                                            >
+                                                {idx + 1}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Source List with Details */}
+                                    <div className="space-y-2 mt-4">
+                                        {section.sources.map((source, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setSelectedSource({ source, index: idx })}
+                                                className="w-full p-3 bg-background rounded-lg border border-border hover:border-primary hover:shadow-sm transition-all text-left group"
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-6 h-6 flex items-center justify-center bg-primary-light text-primary rounded text-xs font-bold flex-shrink-0">
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="text-sm font-medium text-text-primary block truncate group-hover:text-primary">
+                                                            {typeof source === 'string' ? source : source.title || 'Source'}
+                                                        </span>
+                                                        {typeof source !== 'string' && source.relevance && (
+                                                            <div className="mt-1 flex items-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className="h-full bg-primary rounded-full"
+                                                                        style={{ width: `${source.relevance * 100}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                                <span className="text-xs text-text-muted">
+                                                                    {Math.round(source.relevance * 100)}%
+                                                                </span>
                                                             </div>
-                                                            <span className="text-xs text-text-muted">
-                                                                {Math.round(source.relevance * 100)}%
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    {typeof source !== 'string' && source.snippet && (
-                                                        <p className="text-xs text-text-muted mt-1 line-clamp-2 italic">
-                                                            "{source.snippet}"
-                                                        </p>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="text-center py-8">
@@ -510,6 +605,19 @@ export default function SectionDetailsSidebar({
                     </div>
                 )}
             </div>
+
+            {/* Source Info Modal */}
+            {selectedSource && (
+                <SourceInfoModal
+                    source={typeof selectedSource.source === 'string'
+                        ? { title: selectedSource.source, relevance: 0 }
+                        : selectedSource.source
+                    }
+                    sourceIndex={selectedSource.index}
+                    isOpen={!!selectedSource}
+                    onClose={() => setSelectedSource(null)}
+                />
+            )}
         </div>
     );
 }

@@ -34,14 +34,16 @@ def register():
             slug=slug,
             settings={}
         )
+        # Start 14-day free trial
+        organization.start_trial(days=14)
         db.session.add(organization)
         db.session.flush()  # Get org ID before creating user
     
-    # Create user
+    # Create user - first user of org becomes owner
     user = User(
         email=data['email'],
         name=data['name'],
-        role=data.get('role', 'admin' if organization else 'viewer'),
+        role='owner' if organization else data.get('role', 'viewer'),
         organization_id=organization.id if organization else None
     )
     user.set_password(data['password'])

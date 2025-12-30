@@ -17,6 +17,8 @@
 * [Content Generation](guide/generation.md)
 * [Diagrams](guide/diagrams.md)
 * [Compliance](guide/compliance.md)
+* [Strategy Tools](guide/strategy.md)
+* [Roles & Permissions](guide/roles.md)
 
 ## Technical
 * [API Reference](api.md)

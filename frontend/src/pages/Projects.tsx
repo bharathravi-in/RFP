@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { projectsApi } from '@/api/client';
 import { Project, ProjectOutcome } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import {
     PlusIcon,
@@ -45,6 +46,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
 };
 
 export default function Projects() {
+    const { user } = useAuthStore();
+    const isAdmin = user?.role === 'admin';
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -330,22 +333,24 @@ export default function Projects() {
                                                 >
                                                     ✏️ Edit
                                                 </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        if (confirm('Are you sure you want to delete this project?')) {
-                                                            projectsApi.delete(project.id).then(() => {
-                                                                setProjects(projects.filter(p => p.id !== project.id));
-                                                                toast.success('Project deleted');
-                                                            }).catch(() => toast.error('Failed to delete'));
-                                                        }
-                                                        setOpenMenuId(null);
-                                                    }}
-                                                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                                >
-                                                    🗑️ Delete
-                                                </button>
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            if (confirm('Are you sure you want to delete this project?')) {
+                                                                projectsApi.delete(project.id).then(() => {
+                                                                    setProjects(projects.filter(p => p.id !== project.id));
+                                                                    toast.success('Project deleted');
+                                                                }).catch(() => toast.error('Failed to delete'));
+                                                            }
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                    >
+                                                        🗑️ Delete
+                                                    </button>
+                                                )}
                                             </div>
                                         </>
                                     )}

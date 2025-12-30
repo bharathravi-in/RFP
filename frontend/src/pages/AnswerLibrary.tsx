@@ -23,6 +23,7 @@ import {
     DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
+import FreshnessAlerts from '@/components/library/FreshnessAlerts';
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
     approved: { label: 'Approved', bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
@@ -278,6 +279,16 @@ export default function AnswerLibrary() {
                                 </button>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {/* Freshness Alerts */}
+                {items.length > 0 && (
+                    <div className="p-4 border-t border-gray-100">
+                        <FreshnessAlerts
+                            libraryItems={items.map(i => ({ id: i.id, question_text: i.question_text, answer_text: i.answer_text }))}
+                            onUpdate={() => loadItems()}
+                        />
                     </div>
                 )}
             </div>

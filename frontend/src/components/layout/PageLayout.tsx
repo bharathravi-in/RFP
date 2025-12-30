@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import Breadcrumbs from './Breadcrumbs';
 import { Bars3Icon, MagnifyingGlassIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/outline';
@@ -7,18 +7,21 @@ import { useAuthStore } from '@/store/authStore';
 import OrganizationOnboarding from '@/components/onboarding/OrganizationOnboarding';
 import NotificationDropdown from '@/components/NotificationDropdown';
 import SmartSearch from '@/components/search/SmartSearch';
+import { TrialStatusBanner, useTrialStatus } from '@/components/subscription/TrialStatusBanner';
 import clsx from 'clsx';
 
 const SIDEBAR_COLLAPSED_KEY = 'rfp-sidebar-collapsed';
 
 export default function PageLayout() {
     const location = useLocation();
+    const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
         return saved === 'true';
     });
     const { user, organization, fetchUser } = useAuthStore();
+    const trialStatus = useTrialStatus();
 
     const [onboardingComplete, setOnboardingComplete] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -78,8 +81,23 @@ export default function PageLayout() {
         }
     };
 
+    const handleUpgrade = () => {
+        navigate('/settings?tab=billing');
+    };
+
     return (
         <div className="min-h-screen bg-background">
+            {/* Trial Status Banner */}
+            {trialStatus && (
+                <TrialStatusBanner
+                    trialDaysRemaining={trialStatus.trialDaysRemaining}
+                    isTrialActive={trialStatus.isTrialActive}
+                    subscriptionPlan={trialStatus.subscriptionPlan}
+                    subscriptionStatus={trialStatus.subscriptionStatus}
+                    onUpgrade={handleUpgrade}
+                />
+            )}
+
             {/* Smart Search Modal */}
             {searchOpen && <SmartSearch onClose={() => setSearchOpen(false)} />}
 

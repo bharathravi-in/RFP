@@ -99,6 +99,18 @@ def create_app(config_name=None):
     from .routes import proposal_chat
     app.register_blueprint(proposal_chat.bp)  # Chat-style proposal generation
 
+    # Webhooks (Enterprise feature)
+    from .routes import webhooks
+    app.register_blueprint(webhooks.bp, url_prefix='/api/webhooks')  # Webhook management
+
+    # Super Admin (Platform-level administration)
+    from .routes import superadmin
+    app.register_blueprint(superadmin.bp)  # /api/superadmin/*
+
+    # Settings (Agent configuration, resilience settings)
+    from .routes import settings
+    app.register_blueprint(settings.bp)  # /api/settings/*
+
     # Health check endpoints (enhanced)
     from .routes import health, api_docs
     app.register_blueprint(health.bp)  # /health, /ready, /metrics at root

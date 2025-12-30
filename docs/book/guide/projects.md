@@ -17,8 +17,11 @@ Find the "New Project" button in the top right.
 | Name | Project name (e.g., "Government IT RFP") |
 | Description | Brief description of the RFP |
 
-### 4. Create
-Click "Create" to initialize the project.
+### 4. Create & Initialize
+Click **"Create Project"**. The system will automatically set up the workspace, including a default section structure based on common RFP standards.
+
+> [!TIP]
+> **Pro Tip**: Use clear, descriptive names. Include the client name and year for easy retrieval in your historical knowledge base.
 
 ## Next Steps
 After creating a project:

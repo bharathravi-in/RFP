@@ -196,7 +196,7 @@ export const questionsApi = {
     create: (projectId: number, data: { text: string; section?: string }) =>
         api.post('/questions', { project_id: projectId, ...data }),
 
-    update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string }>) =>
+    update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string; assigned_to: number | null; due_date: string | null }>) =>
         api.put(`/questions/${id}`, data),
 
     merge: (questionIds: number[], mergedText?: string) =>
@@ -463,7 +463,7 @@ export const usersApi = {
     getProfile: () =>
         api.get('/users/profile'),
 
-    updateProfile: (data: { name?: string; email?: string }) =>
+    updateProfile: (data: { name?: string; email?: string; expertise_tags?: string[] }) =>
         api.put('/users/profile', data),
 
     uploadPhoto: (file: File) => {
@@ -717,6 +717,9 @@ export const analyticsApi = {
 
     getProjectStats: (projectId: number) =>
         api.get(`/analytics/project/${projectId}`),
+
+    getProjectHealth: (projectId: number) =>
+        api.get(`/analytics/project-health/${projectId}`),
 
     getOverview: () =>
         api.get('/analytics/overview'),
@@ -984,6 +987,18 @@ export const agentsApi = {
 
     saveLegalReview: (projectId: number, reviewData: Record<string, unknown>) =>
         api.post(`/agents/strategy/${projectId}/legal-review`, reviewData),
+
+    saveDiagrams: (projectId: number, diagramsData: any[]) =>
+        api.post(`/agents/strategy/${projectId}/diagrams`, diagramsData),
+
+    // ========================================
+    // EXPERT ROUTING & CONTENT FRESHNESS (NEW)
+    // ========================================
+    suggestOwners: (projectId: number, questionIds?: number[]) =>
+        api.post('/agents/suggest-owners', { project_id: projectId, question_ids: questionIds }),
+
+    checkFreshness: () =>
+        api.post('/agents/check-freshness'),
 };
 
 
@@ -1057,6 +1072,9 @@ export const exportTemplatesApi = {
     getDefault: (type: 'docx' | 'pptx') =>
         api.get(`/export-templates/default/${type}`),
 };
+
+// Alias for backwards compatibility
+export const templatesApi = exportTemplatesApi;
 
 export default api;
 

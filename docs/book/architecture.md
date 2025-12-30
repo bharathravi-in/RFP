@@ -67,6 +67,16 @@ The heart of RFP Pro is the **Google Gemini 2.0 Flash** model, coordinated by a 
 - **Qdrant Vector DB**: High-performance semantic search for the RAG pipeline.
 - **Redis**: Provides fast caching and serves as the message broker for Celery workers.
 
+## Data Flow & Integration
+
+RFP Pro follows a strict asynchronous data flow for AI operations to ensure UI responsiveness.
+
+1. **Ingestion**: Documents are uploaded and processed by Celery workers, extracting text and generating embeddings via Gemini 2.0.
+2. **Indexing**: Extracted data is indexed in Qdrant for semantic retrieval.
+3. **Reasoning**: When a user requests content generation, the **Agent Orchestrator** fetches relevant context from Qdrant and constructs a multi-step execution plan.
+4. **Execution**: Specialized agents (Writer, Analyst, Researcher) execute their roles in parallel or sequence as defined by the plan.
+5. **Validation**: The Compliance Agent audits the output before it's presented to the user.
+
 ## Multi-Agent Workflow
 
 ```mermaid

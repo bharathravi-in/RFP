@@ -25,6 +25,7 @@ import ProposalChatPage from '@/pages/ProposalChatPage';
 
 // Layout
 import PageLayout from '@/components/layout/PageLayout';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -91,7 +92,9 @@ function App() {
                     path="/documents/:documentId/chat"
                     element={
                         <ProtectedRoute>
-                            <DocumentChatPage />
+                            <ErrorBoundary>
+                                <DocumentChatPage />
+                            </ErrorBoundary>
                         </ProtectedRoute>
                     }
                 />
@@ -101,7 +104,9 @@ function App() {
                     path="/knowledge/:itemId/chat"
                     element={
                         <ProtectedRoute>
-                            <KnowledgeChatPage />
+                            <ErrorBoundary>
+                                <KnowledgeChatPage />
+                            </ErrorBoundary>
                         </ProtectedRoute>
                     }
                 />
@@ -111,7 +116,9 @@ function App() {
                     path="/projects/:id/proposal-chat"
                     element={
                         <ProtectedRoute>
-                            <ProposalChatPage />
+                            <ErrorBoundary>
+                                <ProposalChatPage />
+                            </ErrorBoundary>
                         </ProtectedRoute>
                     }
                 />
@@ -121,7 +128,9 @@ function App() {
                     path="/"
                     element={
                         <ProtectedRoute>
-                            <PageLayout />
+                            <ErrorBoundary>
+                                <PageLayout />
+                            </ErrorBoundary>
                         </ProtectedRoute>
                     }
                 >
