@@ -70,7 +70,7 @@ export default function BatchRegenerateModal({
             setProgress({ current: i + 1, total: ids.length });
 
             try {
-                await sectionsApi.generate(sectionId);
+                await sectionsApi.generateSection(sectionId);
                 setResults(prev => ({ ...prev, [sectionId]: 'success' }));
                 successCount++;
             } catch (error) {

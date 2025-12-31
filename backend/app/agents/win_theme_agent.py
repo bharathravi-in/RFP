@@ -126,6 +126,7 @@ Generate the win themes now:"""
     ) -> Dict[str, Any]:
         """
         Generate win themes for a proposal.
+        Now incorporates learning from past project outcomes (won/lost).
         
         Args:
             project_data: Project information
@@ -138,11 +139,23 @@ Generate the win themes now:"""
             Dict with win themes, differentiators, and value propositions
         """
         try:
+            # Get outcome-based insights from past projects
+            outcome_insights = self._get_outcome_insights(
+                industry=project_data.get('industry'),
+                client_type=project_data.get('client_type')
+            )
+            
             # Build context for AI
             theme_context = self._build_theme_context(
                 project_data, rfp_requirements, vendor_profile,
                 evaluation_criteria, competitor_info
             )
+            
+            # Add outcome insights to context
+            if outcome_insights.get('has_data'):
+                theme_context['past_winning_patterns'] = outcome_insights.get('winning_patterns', [])
+                theme_context['themes_to_avoid'] = outcome_insights.get('losing_patterns', [])
+                theme_context['win_rate_by_theme'] = outcome_insights.get('theme_effectiveness', {})
             
             # Generate themes using AI
             prompt = self.MASTER_PROMPT.format(theme_context=json.dumps(theme_context, indent=2))
@@ -163,6 +176,7 @@ Generate the win themes now:"""
                 'themes': result,
                 'theme_count': len(result.get('win_themes', [])),
                 'differentiator_count': len(result.get('differentiators', [])),
+                'outcome_insights_used': outcome_insights.get('has_data', False),
                 'generated_at': datetime.utcnow().isoformat(),
             }
             
@@ -173,6 +187,85 @@ Generate the win themes now:"""
                 'error': str(e),
                 'themes': self._generate_fallback_themes(project_data),
             }
+    
+    def _get_outcome_insights(
+        self,
+        industry: str = None,
+        client_type: str = None
+    ) -> Dict[str, Any]:
+        """
+        Get insights from past project outcomes (won/lost) to inform theme generation.
+        
+        Analyzes:
+        - Won projects: What themes/approaches led to wins
+        - Lost projects: What to avoid based on loss reasons
+        """
+        try:
+            from app.models import Project, ProjectStrategy
+            from sqlalchemy import func
+            
+            # Query won projects
+            won_query = Project.query.filter_by(outcome='won')
+            if self.org_id:
+                won_query = won_query.filter_by(organization_id=self.org_id)
+            if industry:
+                won_query = won_query.filter_by(industry=industry)
+            if client_type:
+                won_query = won_query.filter_by(client_type=client_type)
+                
+            won_projects = won_query.order_by(Project.outcome_date.desc()).limit(10).all()
+            
+            # Query lost projects
+            lost_query = Project.query.filter_by(outcome='lost')
+            if self.org_id:
+                lost_query = lost_query.filter_by(organization_id=self.org_id)
+            if industry:
+                lost_query = lost_query.filter_by(industry=industry)
+                
+            lost_projects = lost_query.order_by(Project.outcome_date.desc()).limit(5).all()
+            
+            # Extract winning patterns from strategies
+            winning_patterns = []
+            for project in won_projects:
+                strategy = ProjectStrategy.query.filter_by(project_id=project.id).first()
+                if strategy and strategy.win_themes:
+                    for theme in strategy.win_themes[:2]:
+                        winning_patterns.append({
+                            'theme': theme.get('theme_title', 'Unknown'),
+                            'client_type': project.client_type,
+                            'industry': project.industry,
+                            'contract_value': project.contract_value
+                        })
+            
+            # Extract losing patterns from loss reasons
+            losing_patterns = []
+            loss_reasons = {}
+            for project in lost_projects:
+                reason = project.loss_reason or 'unknown'
+                loss_reasons[reason] = loss_reasons.get(reason, 0) + 1
+                if project.outcome_notes:
+                    losing_patterns.append({
+                        'reason': reason,
+                        'notes': project.outcome_notes[:100]
+                    })
+            
+            # Calculate theme effectiveness (if strategies stored)
+            theme_effectiveness = {}
+            
+            return {
+                'has_data': len(won_projects) + len(lost_projects) > 0,
+                'won_count': len(won_projects),
+                'lost_count': len(lost_projects),
+                'winning_patterns': winning_patterns[:5],
+                'losing_patterns': losing_patterns[:3],
+                'common_loss_reasons': dict(sorted(loss_reasons.items(), key=lambda x: -x[1])[:3]),
+                'theme_effectiveness': theme_effectiveness
+            }
+            
+        except Exception as e:
+            logger.warning(f"Could not get outcome insights: {e}")
+            return {'has_data': False}
+
     
     def _build_theme_context(
         self,

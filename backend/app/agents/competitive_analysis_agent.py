@@ -128,6 +128,7 @@ Perform the competitive analysis now:"""
     ) -> Dict[str, Any]:
         """
         Perform competitive analysis for a proposal.
+        Now integrates with Competitor knowledge base for enriched analysis.
         
         Args:
             project_data: Project information
@@ -140,11 +141,24 @@ Perform the competitive analysis now:"""
             Dict with competitive analysis and strategies
         """
         try:
+            # Get competitor intelligence from database
+            db_competitors = self._get_competitor_context(
+                known_competitors=known_competitors,
+                industry=industry,
+                client_type=project_data.get('client_type')
+            )
+            
             # Build context for AI
             competitive_context = self._build_competitive_context(
                 project_data, vendor_profile, rfp_requirements,
                 known_competitors, industry
             )
+            
+            # Enrich with database competitor intelligence
+            if db_competitors.get('has_data'):
+                competitive_context['known_competitor_profiles'] = db_competitors.get('competitors', [])
+                competitive_context['historical_win_rates'] = db_competitors.get('win_rates', {})
+                competitive_context['effective_counter_strategies'] = db_competitors.get('counter_strategies', [])
             
             # Generate analysis using AI
             prompt = self.MASTER_PROMPT.format(competitive_context=json.dumps(competitive_context, indent=2))
@@ -164,6 +178,7 @@ Perform the competitive analysis now:"""
                 'success': True,
                 'analysis': result,
                 'strategy_count': len(result.get('competitive_strategies', [])),
+                'competitors_from_db': db_competitors.get('competitor_count', 0),
                 'analyzed_at': datetime.utcnow().isoformat(),
             }
             
@@ -174,6 +189,78 @@ Perform the competitive analysis now:"""
                 'error': str(e),
                 'analysis': self._generate_fallback_analysis(),
             }
+    
+    def _get_competitor_context(
+        self,
+        known_competitors: List[str] = None,
+        industry: str = None,
+        client_type: str = None
+    ) -> Dict[str, Any]:
+        """
+        Get competitor intelligence from the Competitor database.
+        
+        Args:
+            known_competitors: Names of known competitors for this deal
+            industry: Industry to filter competitors by
+            client_type: Client type (government, enterprise, etc.)
+            
+        Returns:
+            Dict with competitor profiles, win rates, and counter strategies
+        """
+        try:
+            from app.models import Competitor
+            
+            # Build query
+            query = Competitor.query.filter_by(is_active=True)
+            if self.org_id:
+                query = query.filter_by(organization_id=self.org_id)
+            
+            # Filter by known competitor names
+            if known_competitors:
+                from sqlalchemy import or_
+                name_filters = [Competitor.name.ilike(f'%{name}%') for name in known_competitors]
+                query = query.filter(or_(*name_filters))
+            
+            # Get all matching competitors
+            competitors = query.limit(10).all()
+            
+            # Build competitor profiles for AI
+            competitor_profiles = []
+            win_rates = {}
+            counter_strategies = []
+            
+            for comp in competitors:
+                competitor_profiles.append({
+                    'name': comp.name,
+                    'strengths': comp.strengths[:3] if comp.strengths else [],
+                    'weaknesses': comp.weaknesses[:3] if comp.weaknesses else [],
+                    'pricing_tier': comp.pricing_tier,
+                    'market_position': comp.market_position,
+                    'our_win_rate_vs_them': f"{comp.win_rate * 100:.0f}%"
+                })
+                
+                # Track win rates
+                win_rates[comp.name] = comp.win_rate
+                
+                # Collect proven counter strategies
+                if comp.counter_strategies:
+                    for strategy in comp.counter_strategies[:2]:
+                        counter_strategies.append({
+                            'competitor': comp.name,
+                            'strategy': strategy
+                        })
+            
+            return {
+                'has_data': len(competitors) > 0,
+                'competitor_count': len(competitors),
+                'competitors': competitor_profiles,
+                'win_rates': win_rates,
+                'counter_strategies': counter_strategies[:5]
+            }
+            
+        except Exception as e:
+            logger.warning(f"Could not get competitor context: {e}")
+            return {'has_data': False}
     
     def _build_competitive_context(
         self,

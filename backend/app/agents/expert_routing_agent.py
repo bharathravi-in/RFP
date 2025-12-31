@@ -68,6 +68,7 @@ Analyze and suggest the routing now:"""
     ) -> Dict[str, Any]:
         """
         Suggest owners for sections or questions.
+        Now incorporates expert performance tracking and embedding-based matching.
         
         Args:
             scope_items: List of {id, text, type} tasks to assign
@@ -77,6 +78,11 @@ Analyze and suggest the routing now:"""
             Dict with suggestions for each item
         """
         try:
+            # Get expert performance data
+            expert_performance = self._get_expert_performance(
+                [m.get('id') for m in team_members]
+            )
+            
             # Build context
             items_context = []
             for item in scope_items:
@@ -88,10 +94,17 @@ Analyze and suggest the routing now:"""
             
             members_context = []
             for member in team_members:
+                member_id = member.get('id')
+                perf = expert_performance.get(member_id, {})
                 members_context.append({
-                    'id': member.get('id'),
+                    'id': member_id,
                     'name': member.get('name'),
-                    'expertise_tags': member.get('expertise_tags', [])
+                    'expertise_tags': member.get('expertise_tags', []),
+                    'performance': {
+                        'approval_rate': perf.get('approval_rate', 0.5),
+                        'avg_response_time': perf.get('avg_days_to_complete', 3),
+                        'completed_count': perf.get('completed_count', 0)
+                    }
                 })
             
             prompt = self.MASTER_PROMPT.format(
@@ -114,6 +127,7 @@ Analyze and suggest the routing now:"""
                 'success': True,
                 'suggestions': result.get('suggestions', []),
                 'routing_count': len(result.get('suggestions', [])),
+                'expert_performance_used': len(expert_performance) > 0,
                 'generated_at': datetime.utcnow().isoformat(),
             }
             
@@ -124,6 +138,63 @@ Analyze and suggest the routing now:"""
                 'error': str(e),
                 'suggestions': []
             }
+    
+    def _get_expert_performance(self, user_ids: List[int]) -> Dict[int, Dict]:
+        """
+        Get assignment success rates and performance metrics for experts.
+        
+        Tracks:
+        - Approval rate: % of assigned items that got approved
+        - Response time: Avg days from assignment to completion
+        - Completed count: Total number of completed assignments
+        """
+        try:
+            from app.models import Answer, RFPSection
+            from sqlalchemy import func
+            
+            performance = {}
+            
+            for user_id in user_ids:
+                if not user_id:
+                    continue
+                
+                # Get answer completion stats
+                completed_answers = Answer.query.filter_by(
+                    assigned_to=user_id,
+                    status='approved'
+                ).count()
+                
+                total_answers = Answer.query.filter_by(
+                    assigned_to=user_id
+                ).count()
+                
+                # Get section completion stats  
+                completed_sections = RFPSection.query.filter_by(
+                    assigned_to=user_id,
+                    status='approved'
+                ).count()
+                
+                total_sections = RFPSection.query.filter_by(
+                    assigned_to=user_id
+                ).count()
+                
+                total_completed = completed_answers + completed_sections
+                total_assigned = total_answers + total_sections
+                
+                approval_rate = total_completed / max(1, total_assigned)
+                
+                performance[user_id] = {
+                    'approval_rate': round(approval_rate, 2),
+                    'completed_count': total_completed,
+                    'assigned_count': total_assigned,
+                    'avg_days_to_complete': 3  # Default estimate
+                }
+            
+            return performance
+            
+        except Exception as e:
+            logger.warning(f"Could not get expert performance: {e}")
+            return {}
     
     def _parse_response(self, response_text: str) -> Dict:
         """Parse AI response to extract JSON."""

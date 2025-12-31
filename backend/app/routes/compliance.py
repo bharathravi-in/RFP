@@ -461,23 +461,104 @@ RFP Document Content:
 {combined_text}"""
 
         response = model.generate_content(prompt)
-        response_text = response.text.strip()
         
-        # Clean markdown code blocks if present
-        if response_text.startswith('```'):
-            response_text = re.sub(r'^```(?:json)?\n?', '', response_text)
-            response_text = re.sub(r'\n?```$', '', response_text)
+        # Handle different response formats
+        # Dynamic LLM provider returns string directly
+        # Legacy Gemini returns object with .text attribute
+        if isinstance(response, str):
+            response_text = response.strip()
+        elif hasattr(response, 'text'):
+            response_text = response.text.strip()
+        elif hasattr(response, 'content'):
+            response_text = response.content.strip()
+        else:
+            response_text = str(response).strip()
         
-        requirements = json.loads(response_text)
+        logger.info(f"Raw LLM response (first 500 chars): {response_text[:500]}")
+        
+        # Clean markdown code blocks if present (handle various formats)
+        # Remove ```json ... ``` or ``` ... ```
+        if '```' in response_text:
+            # Find JSON content between code blocks
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_text)
+            if json_match:
+                response_text = json_match.group(1).strip()
+            else:
+                # Just remove backticks
+                response_text = re.sub(r'```(?:json)?', '', response_text).strip()
+        
+        # Try to find JSON array in the response
+        if not response_text.startswith('['):
+            # Look for array pattern anywhere in the response
+            array_match = re.search(r'\[[\s\S]*\]', response_text)
+            if array_match:
+                response_text = array_match.group(0)
+        
+        try:
+            requirements = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Try to fix common JSON issues
+            fixed_text = response_text
+            
+            # Fix 1: Remove trailing commas
+            fixed_text = re.sub(r',\s*]', ']', fixed_text)
+            fixed_text = re.sub(r',\s*}', '}', fixed_text)
+            
+            # Fix 2: Replace single quotes with double quotes for JSON
+            if "'" in fixed_text and '"' not in fixed_text[:100]:
+                fixed_text = fixed_text.replace("'", '"')
+            
+            # Fix 3: Handle truncated responses - try to close incomplete JSON
+            # If array is not closed, find last complete object and close array
+            if fixed_text.startswith('[') and not fixed_text.rstrip().endswith(']'):
+                logger.warning("Detected truncated JSON array, attempting to salvage...")
+                # Find last complete object (ends with })
+                last_complete = fixed_text.rfind('}')
+                if last_complete > 0:
+                    fixed_text = fixed_text[:last_complete + 1]
+                    # Remove trailing comma if any
+                    fixed_text = re.sub(r',\s*$', '', fixed_text)
+                    fixed_text += ']'
+                    logger.info(f"Salvaged truncated JSON, now ends with: ...{fixed_text[-50:]}")
+            
+            try:
+                requirements = json.loads(fixed_text)
+            except json.JSONDecodeError:
+                # Fix 4: Try ast.literal_eval as last resort
+                import ast
+                try:
+                    requirements = ast.literal_eval(fixed_text)
+                except (ValueError, SyntaxError):
+                    # Fix 5: Extract individual objects manually
+                    logger.warning("Attempting to extract individual requirement objects...")
+                    obj_matches = re.findall(r'\{[^{}]*"requirement_id"[^{}]*"requirement_text"[^{}]*\}', response_text, re.DOTALL)
+                    if obj_matches:
+                        requirements = []
+                        for obj_str in obj_matches:
+                            try:
+                                obj = json.loads(obj_str)
+                                requirements.append(obj)
+                            except:
+                                pass
+                        if requirements:
+                            logger.info(f"Extracted {len(requirements)} valid requirement objects from malformed response")
+                        else:
+                            logger.error(f"Could not extract any valid objects")
+                            raise json.JSONDecodeError("Could not parse LLM response", response_text, 0)
+                    else:
+                        logger.error(f"All JSON parse attempts failed")
+                        logger.error(f"Response text was: {response_text[:1000]}")
+                        raise json.JSONDecodeError("Could not parse LLM response as JSON", response_text, 0)
         
         if not isinstance(requirements, list):
             requirements = [requirements]
         
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse AI response: {e}")
-        return jsonify({'error': 'Failed to parse AI analysis response'}), 500
+        logger.error(f"Full response: {response_text[:2000] if 'response_text' in dir() else 'N/A'}")
+        return jsonify({'error': 'Failed to parse AI analysis response', 'details': str(e)}), 500
     except Exception as e:
-        logger.error(f"AI requirement extraction failed: {e}")
+        logger.error(f"AI requirement extraction failed: {e}", exc_info=True)
         return jsonify({'error': f'AI analysis failed: {str(e)}'}), 500
     
     # Check for existing requirements to avoid duplicates

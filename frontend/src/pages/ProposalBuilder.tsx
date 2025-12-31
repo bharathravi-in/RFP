@@ -314,6 +314,7 @@ export default function ProposalBuilder() {
     };
 
     const approvedCount = sections.filter(s => s.status === 'approved').length;
+    // Use approved sections for completion percentage (consistent with all views)
     const completionPercent = sections.length > 0 ? Math.round((approvedCount / sections.length) * 100) : 0;
 
     // Handler to import Q&A answers into proposal sections
@@ -365,9 +366,9 @@ export default function ProposalBuilder() {
     return (
         <div className="h-[calc(100vh-48px)] flex flex-col -m-content">
             {/* Header */}
-            <div className="flex items-center gap-4 px-4 py-3 border-b border-border bg-white">
+            <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 border-b border-border bg-white flex-wrap">
                 {/* Back + Title */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                     <button
                         onClick={() => navigate(`/projects/${id}`)}
                         className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
@@ -375,8 +376,8 @@ export default function ProposalBuilder() {
                         <ArrowLeftIcon className="h-4 w-4 text-gray-500" />
                     </button>
                     <div>
-                        <h1 className="text-base font-semibold text-gray-900">Proposal Builder</h1>
-                        <p className="text-xs text-gray-500">{project?.name}</p>
+                        <h1 className="text-sm sm:text-base font-semibold text-gray-900">Proposal Builder</h1>
+                        <p className="text-xs text-gray-500 truncate max-w-[150px] sm:max-w-none">{project?.name}</p>
                     </div>
                 </div>
 
@@ -412,152 +413,155 @@ export default function ProposalBuilder() {
                     </span>
                 </div>
 
-                {/* View Tabs */}
-                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                {/* View Tabs - scrollable on mobile */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5 overflow-x-auto flex-shrink-0 max-w-full">
                     <button
                         onClick={() => navigate(`/projects/${id}/versions`)}
-                        className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                        className="px-2 sm:px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap"
                     >
-                        <DocumentDuplicateIcon className="h-4 w-4 inline mr-1" />
-                        Versions
+                        <DocumentDuplicateIcon className="h-4 w-4 inline sm:mr-1" />
+                        <span className="hidden sm:inline">Versions</span>
                     </button>
                     <button
                         onClick={() => setViewMode('sections')}
                         className={clsx(
-                            'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                            'px-2 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
                             viewMode === 'sections'
                                 ? 'bg-white text-gray-900 shadow-sm'
                                 : 'text-gray-600 hover:text-gray-900'
                         )}
                     >
-                        <DocumentTextIcon className="h-4 w-4 inline mr-1" />
-                        Sections
+                        <DocumentTextIcon className="h-4 w-4 inline sm:mr-1" />
+                        <span className="hidden sm:inline">Sections</span>
                     </button>
                     <button
                         onClick={() => setViewMode('compliance')}
                         className={clsx(
-                            'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                            'px-2 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
                             viewMode === 'compliance'
                                 ? 'bg-white text-gray-900 shadow-sm'
                                 : 'text-gray-600 hover:text-gray-900'
                         )}
                     >
-                        <ClipboardDocumentCheckIcon className="h-4 w-4 inline mr-1" />
-                        Compliance
+                        <ClipboardDocumentCheckIcon className="h-4 w-4 inline sm:mr-1" />
+                        <span className="hidden sm:inline">Compliance</span>
                     </button>
                     <button
                         onClick={() => setViewMode('diagrams')}
                         className={clsx(
-                            'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                            'px-2 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
                             viewMode === 'diagrams'
                                 ? 'bg-white text-gray-900 shadow-sm'
                                 : 'text-gray-600 hover:text-gray-900'
                         )}
                     >
-                        <CubeTransparentIcon className="h-4 w-4 inline mr-1" />
-                        Diagrams
+                        <CubeTransparentIcon className="h-4 w-4 inline sm:mr-1" />
+                        <span className="hidden sm:inline">Diagrams</span>
                     </button>
                     <button
                         onClick={() => setViewMode('strategy')}
                         className={clsx(
-                            'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                            'px-2 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
                             viewMode === 'strategy'
                                 ? 'bg-white text-gray-900 shadow-sm'
                                 : 'text-gray-600 hover:text-gray-900'
                         )}
                     >
-                        <SparklesIcon className="h-4 w-4 inline mr-1" />
-                        Strategy
+                        <SparklesIcon className="h-4 w-4 inline sm:mr-1" />
+                        <span className="hidden sm:inline">Strategy</span>
                     </button>
                 </div>
 
-                {/* View Proposal */}
-                <button
-                    onClick={() => navigate(`/projects/${id}/proposal-chat`)}
-                    className="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors flex items-center gap-1.5"
-                    title="View and chat about the proposal"
-                >
-                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                    View Proposal
-                </button>
-
-                {/* Export */}
-                <div className="relative">
+                {/* Action buttons - hide some on mobile */}
+                <div className="hidden md:flex items-center gap-2 ml-auto">
+                    {/* View Proposal */}
                     <button
-                        onClick={() => setShowExportMenu(!showExportMenu)}
-                        disabled={isExporting}
-                        className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                        onClick={() => navigate(`/projects/${id}/proposal-chat`)}
+                        className="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors flex items-center gap-1.5"
+                        title="View and chat about the proposal"
                     >
-                        <ArrowDownTrayIcon className="h-4 w-4" />
-                        Export
-                        <ChevronDownIcon className="h-3 w-3" />
+                        <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                        View Proposal
                     </button>
-                    {showExportMenu && (
-                        <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                            <button
-                                onClick={() => handleExport('docx')}
-                                className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
-                            >
-                                <DocumentIcon className="h-4 w-4 text-blue-500" />
-                                Word (.docx)
-                            </button>
-                            <button
-                                onClick={() => handleExport('xlsx')}
-                                className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
-                            >
-                                <TableCellsIcon className="h-4 w-4 text-green-500" />
-                                Excel (.xlsx)
-                            </button>
-                            <button
-                                onClick={() => handleExport('pptx')}
-                                className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
-                            >
-                                <PresentationChartBarIcon className="h-4 w-4 text-orange-500" />
-                                PowerPoint (.pptx)
-                            </button>
-                            <hr className="my-1 border-gray-100" />
-                            <button
-                                onClick={() => {
-                                    setShowExportMenu(false);
-                                    setShowTemplateSelector(true);
-                                }}
-                                className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
-                            >
-                                <DocumentDuplicateIcon className="h-4 w-4 text-purple-500" />
-                                Use Template...
-                            </button>
-                        </div>
-                    )}
+
+                    {/* Export */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowExportMenu(!showExportMenu)}
+                            disabled={isExporting}
+                            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                        >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                            Export
+                            <ChevronDownIcon className="h-3 w-3" />
+                        </button>
+                        {showExportMenu && (
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                                <button
+                                    onClick={() => handleExport('docx')}
+                                    className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                    <DocumentIcon className="h-4 w-4 text-blue-500" />
+                                    Word (.docx)
+                                </button>
+                                <button
+                                    onClick={() => handleExport('xlsx')}
+                                    className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                    <TableCellsIcon className="h-4 w-4 text-green-500" />
+                                    Excel (.xlsx)
+                                </button>
+                                <button
+                                    onClick={() => handleExport('pptx')}
+                                    className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                    <PresentationChartBarIcon className="h-4 w-4 text-orange-500" />
+                                    PowerPoint (.pptx)
+                                </button>
+                                <hr className="my-1 border-gray-100" />
+                                <button
+                                    onClick={() => {
+                                        setShowExportMenu(false);
+                                        setShowTemplateSelector(true);
+                                    }}
+                                    className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                    <DocumentDuplicateIcon className="h-4 w-4 text-purple-500" />
+                                    Use Template...
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Batch Regenerate */}
+                    <button
+                        onClick={() => setShowBatchRegenerate(true)}
+                        className="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1.5"
+                        title="Regenerate multiple sections at once"
+                    >
+                        <SparklesIcon className="h-4 w-4" />
+                        Batch AI
+                    </button>
+
+                    {/* Import from Q&A */}
+                    <button
+                        onClick={handleImportFromQA}
+                        disabled={isImportingQA}
+                        className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1.5"
+                        title="Import answers from Q&A Workspace into proposal sections"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                        {isImportingQA ? 'Importing...' : 'Import Q&A'}
+                    </button>
                 </div>
 
-                {/* Batch Regenerate */}
-                <button
-                    onClick={() => setShowBatchRegenerate(true)}
-                    className="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1.5"
-                    title="Regenerate multiple sections at once"
-                >
-                    <SparklesIcon className="h-4 w-4" />
-                    Batch AI
-                </button>
-
-                {/* Import from Q&A - NEW */}
-                <button
-                    onClick={handleImportFromQA}
-                    disabled={isImportingQA}
-                    className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1.5"
-                    title="Import answers from Q&A Workspace into proposal sections"
-                >
-                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                    {isImportingQA ? 'Importing...' : 'Import Q&A'}
-                </button>
-
-                {/* Add Section */}
+                {/* Add Section - always visible */}
                 <button
                     onClick={() => setShowTypeSelector(true)}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-1.5"
+                    className="ml-auto md:ml-0 px-2 sm:px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-1.5"
                 >
                     <PlusIcon className="h-4 w-4" />
-                    Add Section
+                    <span className="hidden sm:inline">Add Section</span>
                 </button>
             </div>
 
@@ -575,8 +579,8 @@ export default function ProposalBuilder() {
                     </div>
                 ) : (
                     <>
-                        {/* Left: Section Navigator */}
-                        <div className="w-72 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+                        {/* Left: Section Navigator - hidden on mobile by default */}
+                        <div className="hidden md:flex w-64 lg:w-72 bg-white border-r border-gray-200 flex-col overflow-hidden">
                             {/* Knowledge Context - Collapsible */}
                             {project?.knowledge_profiles && project.knowledge_profiles.length > 0 && (
                                 <div className="border-b border-gray-100">

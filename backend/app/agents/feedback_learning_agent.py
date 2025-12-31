@@ -139,6 +139,7 @@ Return ONLY valid JSON."""
     ) -> Dict:
         """
         Get learned patterns for a category to include in prompts.
+        Now incorporates explicit ratings from AnswerFeedback to weight learnings.
         
         Args:
             category: Question category to get patterns for
@@ -149,7 +150,10 @@ Return ONLY valid JSON."""
         """
         learnings = self._get_stored_learnings(category, limit)
         
-        if not learnings:
+        # Get rating-based insights from AnswerFeedback
+        rating_insights = self._get_rating_insights(category)
+        
+        if not learnings and not rating_insights.get('has_data'):
             return {
                 "has_learnings": False,
                 "context_text": ""
@@ -157,6 +161,19 @@ Return ONLY valid JSON."""
         
         # Format learnings as prompt context
         context_parts = []
+        
+        # Add rating-based patterns (prioritized)
+        if rating_insights.get('has_data'):
+            context_parts.append("**Based on User Ratings:**")
+            if rating_insights.get('high_rated_patterns'):
+                context_parts.append("✓ What works well:")
+                for p in rating_insights['high_rated_patterns'][:3]:
+                    context_parts.append(f"  - {p}")
+            if rating_insights.get('low_rated_patterns'):
+                context_parts.append("✗ Avoid these patterns:")
+                for p in rating_insights['low_rated_patterns'][:3]:
+                    context_parts.append(f"  - {p}")
+            context_parts.append("")
         
         # Terminology preferences
         terminology = [l for l in learnings if l.get("type") == "terminology"]
@@ -182,9 +199,53 @@ Return ONLY valid JSON."""
         return {
             "has_learnings": True,
             "learnings_count": len(learnings),
+            "rating_insights": rating_insights,
             "context_text": "\n".join(context_parts),
             "raw_learnings": learnings
         }
+    
+    def _get_rating_insights(self, category: str = None) -> Dict:
+        """
+        Get insights from explicit user ratings (1-5 stars) in AnswerFeedback.
+        High ratings (4-5) indicate good patterns; low ratings (1-2) indicate issues.
+        """
+        try:
+            from app.models import AnswerFeedback
+            from sqlalchemy import func
+            
+            base_query = AnswerFeedback.query
+            if category:
+                base_query = base_query.filter_by(question_category=category)
+            
+            # Get high-rated answer patterns (4-5 stars)
+            high_rated = base_query.filter(AnswerFeedback.rating >= 4).order_by(
+                AnswerFeedback.created_at.desc()
+            ).limit(10).all()
+            
+            # Get low-rated answer patterns (1-2 stars)
+            low_rated = base_query.filter(AnswerFeedback.rating <= 2).order_by(
+                AnswerFeedback.created_at.desc()
+            ).limit(10).all()
+            
+            # Extract patterns from feedback comments
+            high_patterns = [f.comment for f in high_rated if f.comment]
+            low_patterns = [f.comment for f in low_rated if f.comment]
+            
+            # Calculate average rating
+            avg_rating = base_query.with_entities(func.avg(AnswerFeedback.rating)).scalar()
+            
+            return {
+                "has_data": len(high_rated) + len(low_rated) > 0,
+                "high_rated_patterns": high_patterns[:5],
+                "low_rated_patterns": low_patterns[:5],
+                "average_rating": round(avg_rating, 2) if avg_rating else None,
+                "total_feedback_count": len(high_rated) + len(low_rated)
+            }
+            
+        except Exception as e:
+            logger.warning(f"Could not get rating insights: {e}")
+            return {"has_data": False}
+
     
     def bulk_analyze_edits(
         self,

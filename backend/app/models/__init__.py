@@ -26,6 +26,7 @@ from .activity_log import ActivityLog
 from .copilot import CoPilotSession, CoPilotMessage
 from .export_template import ExportTemplate
 from .project_strategy import ProjectStrategy
+from .competitor import Competitor  # Competitor intelligence
 
 # LLM Usage Tracking (from services, not a model file but registered here for convenience)
 # Note: LLMUsage is defined in app/services/llm_usage.py
@@ -92,4 +93,6 @@ __all__ = [
     'ExportTemplate',
     # Project Strategy
     'ProjectStrategy',
+    # Competitor Intelligence
+    'Competitor',
 ]

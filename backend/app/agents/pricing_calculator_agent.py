@@ -116,6 +116,7 @@ Generate the pricing breakdown now:"""
         self.org_id = org_id
         self.config = AgentConfig(org_id=org_id, agent_type='pricing_calculator')
         self._rate_card = None
+        self._industry_model = None
         logger.info(f"PricingCalculator initialized with provider: {self.config.provider}")
     
     def _get_rate_card(self, organization=None) -> Dict:
@@ -132,6 +133,82 @@ Generate the pricing breakdown now:"""
         
         self._rate_card = rate_card
         return rate_card
+    
+    def _get_industry_pricing_model(self, industry: str = None, organization=None) -> Dict:
+        """
+        Get industry-specific pricing model with multipliers and templates.
+        
+        Different industries have different pricing norms:
+        - Healthcare: Higher compliance overhead (+20%)
+        - Finance: Higher security requirements (+25%)
+        - Government: More documentation (+15%)
+        - Retail: Standard pricing
+        - Technology: Competitive pricing (-5%)
+        """
+        # Default industry models
+        industry_models = {
+            'healthcare': {
+                'multiplier': 1.20,
+                'name': 'Healthcare',
+                'compliance_overhead': 0.15,
+                'typical_phases': ['HIPAA Compliance', 'Security Audit'],
+                'pricing_notes': 'Includes HIPAA compliance overhead'
+            },
+            'finance': {
+                'multiplier': 1.25,
+                'name': 'Financial Services',
+                'compliance_overhead': 0.20,
+                'typical_phases': ['SOC2 Compliance', 'Security Review'],
+                'pricing_notes': 'Includes financial regulatory compliance'
+            },
+            'government': {
+                'multiplier': 1.15,
+                'name': 'Government/Public Sector',
+                'documentation_overhead': 0.20,
+                'typical_phases': ['Documentation', 'Audit Trail'],
+                'pricing_notes': 'Includes enhanced documentation requirements'
+            },
+            'retail': {
+                'multiplier': 1.0,
+                'name': 'Retail',
+                'typical_phases': [],
+                'pricing_notes': 'Standard retail project pricing'
+            },
+            'technology': {
+                'multiplier': 0.95,
+                'name': 'Technology',
+                'typical_phases': ['Agile Sprints'],
+                'pricing_notes': 'Competitive technology sector pricing'
+            },
+            'manufacturing': {
+                'multiplier': 1.10,
+                'name': 'Manufacturing',
+                'typical_phases': ['Integration Testing', 'Factory Acceptance'],
+                'pricing_notes': 'Includes equipment integration overhead'
+            }
+        }
+        
+        # Check for custom industry models in organization settings
+        if organization and hasattr(organization, 'settings') and organization.settings:
+            custom_models = organization.settings.get('industry_pricing_models', {})
+            if custom_models:
+                industry_models.update(custom_models)
+        
+        # Return specific industry model or default
+        if industry:
+            industry_key = industry.lower().strip()
+            for key, model in industry_models.items():
+                if key in industry_key or industry_key in key:
+                    logger.info(f"Using {model['name']} pricing model (multiplier: {model['multiplier']})")
+                    return model
+        
+        # Default model
+        return {
+            'multiplier': 1.0,
+            'name': 'General',
+            'typical_phases': [],
+            'pricing_notes': 'Standard pricing model'
+        }
     
     def calculate_pricing(
         self,

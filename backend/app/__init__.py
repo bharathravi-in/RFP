@@ -103,9 +103,14 @@ def create_app(config_name=None):
     from .routes import webhooks
     app.register_blueprint(webhooks.bp, url_prefix='/api/webhooks')  # Webhook management
 
+    # CRM Integrations (Salesforce, HubSpot)
+    from .routes import integrations
+    app.register_blueprint(integrations.bp)  # /api/integrations/*
+
     # Super Admin (Platform-level administration)
     from .routes import superadmin
     app.register_blueprint(superadmin.bp)  # /api/superadmin/*
+
 
     # Settings (Agent configuration, resilience settings)
     from .routes import settings

@@ -26,6 +26,7 @@ import UploadProgressModal, { UploadState } from '@/components/upload/UploadProg
 import DocumentActions from '@/components/ui/DocumentActions';
 import GoNoGoWizard from '@/components/gng/GoNoGoWizard';
 import ProposalHealthDashboard from '@/components/analytics/ProposalHealthDashboard';
+import BulkActionBar from '@/components/common/BulkActionBar';
 
 type ProjectStatus = 'draft' | 'in_progress' | 'review' | 'completed';
 
@@ -42,6 +43,7 @@ export default function ProjectDetail() {
     const [project, setProject] = useState<Project | null>(null);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [questions, setQuestions] = useState<Question[]>([]);
+    const [sections, setSections] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
     const [showWorkflow, setShowWorkflow] = useState(false);
@@ -59,17 +61,23 @@ export default function ProjectDetail() {
     // Go/No-Go wizard state
     const [showGoNoGoWizard, setShowGoNoGoWizard] = useState(false);
 
+    // Bulk document selection state
+    const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
     const loadProject = useCallback(async () => {
         if (!id) return;
 
         try {
-            const [projectRes, questionsRes, documentsRes] = await Promise.all([
+            const [projectRes, questionsRes, documentsRes, sectionsRes] = await Promise.all([
                 projectsApi.get(Number(id)),
                 questionsApi.list(Number(id)),
                 documentsApi.list(Number(id)),
+                sectionsApi.listSections(Number(id)),
             ]);
             setProject(projectRes.data.project);
             setQuestions(questionsRes.data.questions || []);
+            setSections(sectionsRes.data.sections || []);
             setDocuments(documentsRes.data.documents || []);
 
             // Cache project name for Breadcrumbs to avoid duplicate API calls
@@ -334,6 +342,47 @@ export default function ProjectDetail() {
         }
     };
 
+    // Bulk document operations
+    const toggleDocSelection = (docId: number) => {
+        setSelectedDocIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(docId)) {
+                newSet.delete(docId);
+            } else {
+                newSet.add(docId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAllDocs = () => {
+        setSelectedDocIds(new Set(documents.map(d => d.id)));
+    };
+
+    const handleClearDocSelection = () => {
+        setSelectedDocIds(new Set());
+    };
+
+    const handleBulkDeleteDocs = async () => {
+        if (selectedDocIds.size === 0) return;
+        if (!confirm(`Delete ${selectedDocIds.size} document(s)? This cannot be undone.`)) return;
+
+        setIsBulkDeleting(true);
+        try {
+            const promises = Array.from(selectedDocIds).map(docId =>
+                documentsApi.delete(docId)
+            );
+            await Promise.allSettled(promises);
+            await loadProject();
+            setSelectedDocIds(new Set());
+            toast.success(`Deleted ${selectedDocIds.size} document(s)`);
+        } catch {
+            toast.error('Failed to delete some documents');
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -348,7 +397,9 @@ export default function ProjectDetail() {
 
     const currentStatus = (project.status || 'draft') as ProjectStatus;
     const StatusIcon = STATUS_CONFIG[currentStatus]?.icon || ClockIcon;
-    const completionPercent = questions.length > 0 ? Math.round((answeredQueries / questions.length) * 100) : 0;
+    // Use approved sections count to match Builder
+    const approvedSections = sections.filter((s: any) => s.status === 'approved').length;
+    const completionPercent = sections.length > 0 ? Math.round((approvedSections / sections.length) * 100) : 0;
 
     return (
         <>
@@ -491,6 +542,13 @@ export default function ProjectDetail() {
                                 <div className={`space-y-2 ${documents.length > 5 ? 'max-h-[400px] overflow-y-auto' : ''}`}>
                                     {documents.map((doc) => (
                                         <div key={doc.id} className="flex items-center gap-3 p-3 bg-background rounded-lg relative">
+                                            {/* Checkbox for bulk selection */}
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedDocIds.has(doc.id)}
+                                                onChange={() => toggleDocSelection(doc.id)}
+                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary flex-shrink-0"
+                                            />
                                             <div className="h-8 w-8 rounded bg-white flex items-center justify-center border border-border">
                                                 <DocumentTextIcon className="h-4 w-4 text-text-muted" />
                                             </div>
@@ -768,6 +826,17 @@ export default function ProjectDetail() {
                 isOpen={showGoNoGoWizard}
                 onClose={() => setShowGoNoGoWizard(false)}
                 onComplete={() => loadProject()}
+            />
+
+            {/* Bulk Action Bar for Documents */}
+            <BulkActionBar
+                selectedCount={selectedDocIds.size}
+                totalCount={documents.length}
+                onSelectAll={handleSelectAllDocs}
+                onClearSelection={handleClearDocSelection}
+                onBulkDelete={handleBulkDeleteDocs}
+                isLoading={isBulkDeleting}
+                actions={['delete']}
             />
         </>
     );
