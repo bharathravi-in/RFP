@@ -320,3 +320,94 @@ def get_members():
             'is_current_user': m.id == user_id
         } for m in members]
     }), 200
+
+
+@bp.route('/branding', methods=['GET'])
+@jwt_required()
+def get_branding():
+    """Get organization branding settings."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'branding': None}), 200
+    
+    org = Organization.query.get(user.organization_id)
+    if not org:
+        return jsonify({'branding': None}), 200
+    
+    # Get branding from settings
+    settings = org.settings or {}
+    branding = settings.get('branding', {})
+    
+    # Return with defaults
+    return jsonify({
+        'branding': {
+            'logo_url': branding.get('logo_url', ''),
+            'primary_color': branding.get('primary_color', '#6366f1'),
+            'secondary_color': branding.get('secondary_color', '#8b5cf6'),
+            'accent_color': branding.get('accent_color', '#06b6d4'),
+            'company_name': branding.get('company_name', org.name),
+        }
+    }), 200
+
+
+@bp.route('/branding', methods=['PUT'])
+@jwt_required()
+def update_branding():
+    """Update organization branding settings."""
+    from sqlalchemy.orm.attributes import flag_modified
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'No organization found'}), 404
+    
+    if user.role not in ['admin', 'owner']:
+        return jsonify({'error': 'Only admins can update branding'}), 403
+    
+    org = Organization.query.get(user.organization_id)
+    if not org:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    # Check feature flag
+    if not org.has_feature('custom_branding'):
+        return jsonify({'error': 'Custom branding not available on your plan'}), 403
+    
+    data = request.get_json()
+    
+    # Validate colors (hex format)
+    import re
+    hex_pattern = re.compile(r'^#[0-9a-fA-F]{6}$')
+    
+    for color_field in ['primary_color', 'secondary_color', 'accent_color']:
+        if color_field in data and data[color_field]:
+            if not hex_pattern.match(data[color_field]):
+                return jsonify({'error': f'Invalid color format for {color_field}. Use hex format (e.g., #6366f1)'}), 400
+    
+    # Update branding in settings
+    settings = dict(org.settings or {})
+    branding = settings.get('branding', {})
+    
+    # Update only provided fields
+    if 'logo_url' in data:
+        branding['logo_url'] = data['logo_url']
+    if 'primary_color' in data:
+        branding['primary_color'] = data['primary_color']
+    if 'secondary_color' in data:
+        branding['secondary_color'] = data['secondary_color']
+    if 'accent_color' in data:
+        branding['accent_color'] = data['accent_color']
+    if 'company_name' in data:
+        branding['company_name'] = data['company_name']
+    
+    settings['branding'] = branding
+    org.settings = settings
+    flag_modified(org, 'settings')
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Branding updated successfully',
+        'branding': branding
+    }), 200

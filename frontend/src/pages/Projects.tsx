@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { projectsApi } from '@/api/client';
 import { Project, ProjectOutcome } from '@/types';
 import { useAuthStore } from '@/store/authStore';
@@ -47,6 +48,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
 
 export default function Projects() {
     const { user } = useAuthStore();
+    const { t } = useTranslation();
     const isAdmin = user?.role === 'admin';
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -105,14 +107,14 @@ export default function Projects() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-text-primary">Projects</h1>
+                    <h1 className="text-xl font-semibold text-text-primary">{t('projects.title')}</h1>
                     <p className="text-sm text-text-muted">
-                        {stats.total} total • {stats.inProgress + stats.review} active
+                        {stats.total} total • {stats.inProgress + stats.review} {t('common.active').toLowerCase()}
                     </p>
                 </div>
                 <button onClick={() => setShowCreateModal(true)} className="btn-primary">
                     <PlusIcon className="h-5 w-5" />
-                    New Project
+                    {t('projects.newProject')}
                 </button>
             </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { sectionsApi, exportTemplatesApi } from '@/api/client';
 import { SectionTemplate, RFPSectionType } from '@/types';
 import toast from 'react-hot-toast';

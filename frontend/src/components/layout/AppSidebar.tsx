@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { useTranslation } from 'react-i18next';
 import {
     HomeIcon,
     FolderIcon,
@@ -14,15 +15,17 @@ import {
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
-const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-    { name: 'Projects', href: '/projects', icon: FolderIcon },
-    { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
-    { name: 'Answer Library', href: '/library', icon: BookmarkIcon },
-    { name: 'Templates', href: '/templates', icon: DocumentDuplicateIcon },
-    { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
-    { name: 'Co-Pilot', href: '/co-pilot', icon: SparklesIcon },
-    { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+// Translation keys for navigation items
+const navigationKeys = [
+    { key: 'nav.dashboard', href: '/dashboard', icon: HomeIcon },
+    { key: 'nav.projects', href: '/projects', icon: FolderIcon },
+    { key: 'nav.knowledgeBase', href: '/knowledge', icon: BookOpenIcon },
+    { key: 'nav.answerLibrary', href: '/library', icon: BookmarkIcon },
+    { key: 'nav.templates', href: '/templates', icon: DocumentDuplicateIcon },
+    { key: 'nav.analytics', href: '/analytics', icon: ChartBarIcon },
+    { key: 'nav.usage', href: '/usage', icon: ChartBarIcon },
+    { key: 'nav.coPilot', href: '/co-pilot', icon: SparklesIcon },
+    { key: 'nav.settings', href: '/settings', icon: Cog6ToothIcon },
 ];
 
 interface AppSidebarProps {
@@ -39,6 +42,7 @@ export default function AppSidebar({
 }: AppSidebarProps) {
     const { user, logout } = useAuthStore();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const handleLogout = async () => {
         await logout();
@@ -72,8 +76,8 @@ export default function AppSidebar({
                     />
                     {!isCollapsed && (
                         <div>
-                            <span className="font-display font-bold text-lg text-text-primary">RFP Pro</span>
-                            <p className="text-xs text-text-muted">AI-Powered Proposals</p>
+                            <span className="font-display font-bold text-lg text-text-primary">{t('common.appName')}</span>
+                            <p className="text-xs text-text-muted">{t('common.tagline')}</p>
                         </div>
                     )}
                 </div>
@@ -92,12 +96,12 @@ export default function AppSidebar({
                 "flex-1 py-6 space-y-1 overflow-y-auto custom-scrollbar",
                 isCollapsed ? "px-2" : "px-3"
             )}>
-                {navigation.map((item) => (
+                {navigationKeys.map((item) => (
                     <NavLink
-                        key={item.name}
+                        key={item.key}
                         to={item.href}
                         onClick={handleNavClick}
-                        title={isCollapsed ? item.name : undefined}
+                        title={isCollapsed ? t(item.key) : undefined}
                         className={({ isActive }) =>
                             clsx(
                                 'flex items-center rounded-button text-sm font-medium transition-all duration-fast',
@@ -111,9 +115,107 @@ export default function AppSidebar({
                         }
                     >
                         <item.icon className="h-5 w-5 flex-shrink-0" />
-                        {!isCollapsed && <span>{item.name}</span>}
+                        {!isCollapsed && <span>{t(item.key)}</span>}
                     </NavLink>
                 ))}
+
+
+                {/* Super Admin Section */}
+                {user?.is_super_admin && (
+                    <>
+                        {!isCollapsed && (
+                            <div className="pt-4 pb-2 px-4">
+                                <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                                    Super Admin
+                                </p>
+                            </div>
+                        )}
+                        <NavLink
+                            to="/superadmin"
+                            onClick={handleNavClick}
+                            title={isCollapsed ? "Admin Dashboard" : undefined}
+                            className={({ isActive }) =>
+                                clsx(
+                                    'flex items-center rounded-button text-sm font-medium transition-all duration-fast',
+                                    isCollapsed
+                                        ? 'justify-center p-3'
+                                        : 'gap-3 px-4 py-3',
+                                    isActive
+                                        ? 'bg-gradient-to-r from-amber-100 to-orange-50 text-amber-700 shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+                                )
+                            }
+                        >
+                            <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                            </svg>
+                            {!isCollapsed && <span>Admin Dashboard</span>}
+                        </NavLink>
+                        <NavLink
+                            to="/superadmin/tenants"
+                            onClick={handleNavClick}
+                            title={isCollapsed ? "Tenants" : undefined}
+                            className={({ isActive }) =>
+                                clsx(
+                                    'flex items-center rounded-button text-sm font-medium transition-all duration-fast',
+                                    isCollapsed
+                                        ? 'justify-center p-3'
+                                        : 'gap-3 px-4 py-3',
+                                    isActive
+                                        ? 'bg-gradient-to-r from-amber-100 to-orange-50 text-amber-700 shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+                                )
+                            }
+                        >
+                            <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                            </svg>
+                            {!isCollapsed && <span>Tenants</span>}
+                        </NavLink>
+                        <NavLink
+                            to="/superadmin/features"
+                            onClick={handleNavClick}
+                            title={isCollapsed ? "Feature Flags" : undefined}
+                            className={({ isActive }) =>
+                                clsx(
+                                    'flex items-center rounded-button text-sm font-medium transition-all duration-fast',
+                                    isCollapsed
+                                        ? 'justify-center p-3'
+                                        : 'gap-3 px-4 py-3',
+                                    isActive
+                                        ? 'bg-gradient-to-r from-amber-100 to-orange-50 text-amber-700 shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+                                )
+                            }
+                        >
+                            <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5" />
+                            </svg>
+                            {!isCollapsed && <span>Feature Flags</span>}
+                        </NavLink>
+                        <NavLink
+                            to="/superadmin/agent-performance"
+                            onClick={handleNavClick}
+                            title={isCollapsed ? "Agent Performance" : undefined}
+                            className={({ isActive }) =>
+                                clsx(
+                                    'flex items-center rounded-button text-sm font-medium transition-all duration-fast',
+                                    isCollapsed
+                                        ? 'justify-center p-3'
+                                        : 'gap-3 px-4 py-3',
+                                    isActive
+                                        ? 'bg-gradient-to-r from-amber-100 to-orange-50 text-amber-700 shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+                                )
+                            }
+                        >
+                            <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
+                            </svg>
+                            {!isCollapsed && <span>Agent Performance</span>}
+                        </NavLink>
+                    </>
+                )}
             </nav>
 
             {/* User section */}

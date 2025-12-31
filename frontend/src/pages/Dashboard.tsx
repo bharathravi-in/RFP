@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { projectsApi, questionsApi, knowledgeApi } from '@/api/client';
 import { Project } from '@/types';
@@ -35,6 +36,7 @@ const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
 export default function Dashboard() {
     const { user, organization } = useAuthStore();
+    const { t } = useTranslation();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
@@ -123,18 +125,18 @@ export default function Dashboard() {
 
 
             {/* Header Row */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Welcome back, {user?.name?.split(' ')[0]} 👋
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                        {t('dashboard.welcome')}, {user?.name?.split(' ')[0]} 👋
                     </h1>
                     <p className="text-gray-500 text-sm mt-1">
                         {isNewUser ? "Let's get started with your first RFP" : "Here's your RFP overview"}
                     </p>
                 </div>
-                <Link to="/projects" className="btn-primary">
+                <Link to="/projects" className="btn-primary w-full sm:w-auto justify-center">
                     <PlusIcon className="h-4 w-4" />
-                    New Project
+                    {t('dashboard.createProject')}
                 </Link>
             </div>
 

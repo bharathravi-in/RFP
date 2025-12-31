@@ -1,14 +1,127 @@
 """
 Analytics and Statistics API routes.
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from ..extensions import db
-from ..models import User, Project, Question, Answer, Document, KnowledgeItem, RFPSection
+from ..models import User, Project, Question, Answer, Document, KnowledgeItem, RFPSection, Organization
+from ..models.feedback import AgentPerformance
 
 bp = Blueprint('analytics', __name__)
+
+
+@bp.route('/usage', methods=['GET'])
+@jwt_required()
+def get_usage_stats():
+    """
+    Get organization usage statistics with plan limits.
+    
+    Returns current consumption vs. plan limits for:
+    - Users
+    - Projects
+    - Documents
+    - Knowledge items
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if not user.organization_id:
+        return jsonify({'error': 'No organization found'}), 404
+    
+    org = Organization.query.get(user.organization_id)
+    if not org:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    # Get current usage counts
+    user_count = User.query.filter_by(organization_id=org.id).count()
+    project_count = Project.query.filter_by(organization_id=org.id).count()
+    document_count = db.session.query(Document).join(Project).filter(
+        Project.organization_id == org.id
+    ).count()
+    knowledge_count = KnowledgeItem.query.filter_by(
+        organization_id=org.id,
+        is_active=True
+    ).count()
+    
+    # Calculate usage percentages (-1 means unlimited)
+    def calc_percentage(current, max_val):
+        if max_val == -1:
+            return 0  # Unlimited
+        return round(current / max(max_val, 1) * 100, 1)
+    
+    # Get additional stats
+    total_questions = db.session.query(Question).join(Project).filter(
+        Project.organization_id == org.id
+    ).count()
+    
+    answered_questions = db.session.query(Question).join(Project).filter(
+        Project.organization_id == org.id,
+        Question.status.in_(['answered', 'approved'])
+    ).count()
+    
+    approved_answers = db.session.query(Answer).join(Question).join(Project).filter(
+        Project.organization_id == org.id,
+        Answer.status == 'approved'
+    ).count()
+    
+    # AI generations this month
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+    ai_generations = db.session.query(Answer).join(Question).join(Project).filter(
+        Project.organization_id == org.id,
+        Answer.is_ai_generated == True,
+        Answer.created_at >= month_start
+    ).count()
+    
+    return jsonify({
+        'organization': {
+            'id': org.id,
+            'name': org.name,
+            'subscription_plan': org.subscription_plan,
+            'subscription_status': org.subscription_status,
+            'is_trial_active': org.is_trial_active,
+            'trial_days_remaining': org.trial_days_remaining if org.is_trial_active else None,
+            'trial_ends_at': org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+        },
+        'usage': {
+            'users': {
+                'current': user_count,
+                'limit': org.max_users,
+                'percentage': calc_percentage(user_count, org.max_users),
+                'unlimited': org.max_users == -1
+            },
+            'projects': {
+                'current': project_count,
+                'limit': org.max_projects,
+                'percentage': calc_percentage(project_count, org.max_projects),
+                'unlimited': org.max_projects == -1
+            },
+            'documents': {
+                'current': document_count,
+                'limit': org.max_documents,
+                'percentage': calc_percentage(document_count, org.max_documents),
+                'unlimited': org.max_documents == -1
+            },
+            'knowledge_items': {
+                'current': knowledge_count,
+                'limit': -1,  # No limit on knowledge items
+                'percentage': 0,
+                'unlimited': True
+            }
+        },
+        'activity': {
+            'total_questions': total_questions,
+            'answered_questions': answered_questions,
+            'approved_answers': approved_answers,
+            'answer_rate': round(answered_questions / max(total_questions, 1) * 100, 1),
+            'approval_rate': round(approved_answers / max(answered_questions, 1) * 100, 1),
+            'ai_generations_this_month': ai_generations
+        }
+    }), 200
 
 
 @bp.route('/dashboard', methods=['GET'])
@@ -621,3 +734,111 @@ def win_loss_deep_dive():
         'by_geography': get_dimension_stats(Project.geography)
     }), 200
 
+
+@bp.route('/agent-performance', methods=['GET'])
+@jwt_required()
+def get_agent_performance():
+    """
+    Get agent performance metrics for the organization.
+    
+    Query params:
+        days: Number of days to look back (default 30)
+        agent: Filter by agent name
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Check for super admin or org access
+    org_id = user.organization_id
+    is_super_admin = getattr(user, 'is_super_admin', False)
+    
+    # Parse query params
+    days = request.args.get('days', 30, type=int)
+    agent_filter = request.args.get('agent')
+    
+    # Date range
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    # Base query
+    query = AgentPerformance.query.filter(
+        AgentPerformance.created_at >= start_date
+    )
+    
+    # Filter by organization (via project) unless super admin
+    if not is_super_admin and org_id:
+        query = query.join(Project).filter(Project.organization_id == org_id)
+    
+    # Filter by agent name if specified
+    if agent_filter:
+        query = query.filter(AgentPerformance.agent_name == agent_filter)
+    
+    # Get metrics
+    metrics = query.order_by(AgentPerformance.created_at.desc()).limit(500).all()
+    
+    # Calculate aggregates by agent
+    agent_stats = {}
+    for m in metrics:
+        name = m.agent_name
+        if name not in agent_stats:
+            agent_stats[name] = {
+                'agent_name': name,
+                'total_executions': 0,
+                'successful': 0,
+                'failed': 0,
+                'total_time_ms': 0,
+                'errors': []
+            }
+        
+        agent_stats[name]['total_executions'] += 1
+        if m.success:
+            agent_stats[name]['successful'] += 1
+        else:
+            agent_stats[name]['failed'] += 1
+            if m.error_message:
+                agent_stats[name]['errors'].append({
+                    'time': m.created_at.isoformat() if m.created_at else None,
+                    'message': m.error_message[:200]  # Truncate
+                })
+        
+        if m.execution_time_ms:
+            agent_stats[name]['total_time_ms'] += m.execution_time_ms
+    
+    # Calculate averages and success rates
+    for name, stats in agent_stats.items():
+        total = stats['total_executions']
+        stats['success_rate'] = round(stats['successful'] / max(total, 1) * 100, 1)
+        stats['avg_execution_time_ms'] = round(stats['total_time_ms'] / max(total, 1), 0)
+        stats['errors'] = stats['errors'][:5]  # Keep only last 5 errors
+    
+    # Overall stats
+    total_executions = sum(s['total_executions'] for s in agent_stats.values())
+    total_successful = sum(s['successful'] for s in agent_stats.values())
+    total_time = sum(s['total_time_ms'] for s in agent_stats.values())
+    
+    # Recent executions for table
+    recent = [{
+        'id': m.id,
+        'agent_name': m.agent_name,
+        'step_name': m.step_name,
+        'execution_time_ms': m.execution_time_ms,
+        'success': m.success,
+        'error_message': m.error_message[:100] if m.error_message else None,
+        'context': m.context_data,
+        'created_at': m.created_at.isoformat() if m.created_at else None
+    } for m in metrics[:50]]
+    
+    return jsonify({
+        'summary': {
+            'total_executions': total_executions,
+            'successful': total_successful,
+            'failed': total_executions - total_successful,
+            'overall_success_rate': round(total_successful / max(total_executions, 1) * 100, 1),
+            'avg_execution_time_ms': round(total_time / max(total_executions, 1), 0),
+            'period_days': days
+        },
+        'by_agent': list(agent_stats.values()),
+        'recent_executions': recent
+    }), 200

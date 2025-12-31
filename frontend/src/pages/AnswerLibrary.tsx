@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { answerLibraryApi } from '@/api/client';
 import { AnswerLibraryItem } from '@/types';
 import { useAuthStore } from '@/store/authStore';

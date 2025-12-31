@@ -105,3 +105,36 @@ def metrics():
         'cpu_percent': process.cpu_percent(),
         'threads': process.num_threads(),
     }), 200
+
+
+@bp.route('/circuit-breakers')
+def circuit_breaker_status():
+    """
+    Circuit breaker status endpoint.
+    
+    Returns the status of all registered circuit breakers
+    for monitoring and alerting purposes.
+    """
+    try:
+        from app.services.circuit_breaker import CircuitBreaker
+        
+        breakers = CircuitBreaker.get_all_stats()
+        
+        # Determine overall status
+        any_open = any(
+            b.get('state') == 'open' 
+            for b in breakers.values()
+        )
+        
+        return jsonify({
+            'status': 'degraded' if any_open else 'healthy',
+            'timestamp': time.time(),
+            'circuit_breakers': breakers
+        }), 200 if not any_open else 503
+        
+    except ImportError:
+        return jsonify({
+            'status': 'not_configured',
+            'message': 'Circuit breaker module not available'
+        }), 200
+

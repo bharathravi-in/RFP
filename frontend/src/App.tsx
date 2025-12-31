@@ -22,10 +22,15 @@ import CoPilotPage from '@/pages/CoPilotPage';
 import DocumentChatPage from '@/pages/DocumentChatPage';
 import KnowledgeChatPage from '@/pages/KnowledgeChatPage';
 import ProposalChatPage from '@/pages/ProposalChatPage';
+import UsageDashboard from '@/pages/UsageDashboard';
+import AgentPerformanceDashboard from '@/pages/AgentPerformanceDashboard';
+import BrandingSettings from '@/pages/BrandingSettings';
+import { SuperAdminDashboard, TenantManagement, FeatureFlags } from '@/pages/superadmin';
 
 // Layout
 import PageLayout from '@/components/layout/PageLayout';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { useBranding } from '@/hooks/useBranding';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -47,7 +52,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-    const { checkAuth } = useAuthStore();
+    const { checkAuth, isAuthenticated } = useAuthStore();
+
+    // Load and apply organization branding
+    useBranding();
 
     useEffect(() => {
         checkAuth();
@@ -146,7 +154,14 @@ function App() {
                     <Route path="library" element={<AnswerLibrary />} />
                     <Route path="analytics" element={<AnalyticsDeepDive />} />
                     <Route path="co-pilot" element={<CoPilotPage />} />
+                    <Route path="usage" element={<UsageDashboard />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="settings/branding" element={<BrandingSettings />} />
+                    {/* Super Admin Routes */}
+                    <Route path="superadmin" element={<SuperAdminDashboard />} />
+                    <Route path="superadmin/tenants" element={<TenantManagement />} />
+                    <Route path="superadmin/features" element={<FeatureFlags />} />
+                    <Route path="superadmin/agent-performance" element={<AgentPerformanceDashboard />} />
                 </Route>
 
                 {/* Catch-all redirect */}

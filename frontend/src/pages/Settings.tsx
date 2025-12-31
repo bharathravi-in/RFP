@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { usersApi, organizationsApi, invitationsApi } from '@/api/client';
 import InviteMemberModal from '@/components/modals/InviteMemberModal';
@@ -23,31 +24,36 @@ import {
     QuestionMarkCircleIcon,
     RocketLaunchIcon,
     BookOpenIcon,
+    SwatchIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
 import FilterDimensions from '@/components/knowledge/FilterDimensions';
 import AIConfigurationSection from '@/components/settings/AIConfigurationSection';
 import PlatformTour from '@/components/onboarding/PlatformTour';
+import LanguageSelector from '@/components/common/LanguageSelector';
+import ThemeSelector from '@/components/common/ThemeSelector';
 
 const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
-// Tabs with role restrictions
+// Tabs with role restrictions - using translation keys
 const allTabs = [
-    { id: 'profile', name: 'Profile', icon: UserCircleIcon },
-    { id: 'organization', name: 'Organization', icon: BuildingOfficeIcon },
-    { id: 'vendor', name: 'Vendor Profile', icon: BriefcaseIcon, adminOnly: true },
-    { id: 'knowledge', name: 'Knowledge Profiles', icon: FolderIcon },
-    { id: 'dimensions', name: 'Filter Dimensions', icon: TagIcon },
-    { id: 'security', name: 'Security', icon: KeyIcon },
-    { id: 'notifications', name: 'Notifications', icon: BellIcon },
-    { id: 'ai', name: 'AI Settings', icon: CogIcon, adminOnly: true },
-    { id: 'help', name: 'Help & Support', icon: QuestionMarkCircleIcon },
+    { id: 'profile', key: 'settings.profile', icon: UserCircleIcon },
+    { id: 'organization', key: 'settings.organization', icon: BuildingOfficeIcon },
+    { id: 'vendor', key: 'settings.vendorProfile', icon: BriefcaseIcon, adminOnly: true },
+    { id: 'knowledge', key: 'settings.knowledgeProfiles', icon: FolderIcon },
+    { id: 'dimensions', key: 'settings.filterDimensions', icon: TagIcon },
+    { id: 'security', key: 'settings.security', icon: KeyIcon },
+    { id: 'notifications', key: 'settings.notifications', icon: BellIcon },
+    { id: 'ai', key: 'settings.aiSettings', icon: CogIcon, adminOnly: true },
+    { id: 'branding', key: 'settings.branding', icon: SwatchIcon, adminOnly: true },
+    { id: 'help', key: 'settings.helpSupport', icon: QuestionMarkCircleIcon },
 ];
 
 export default function Settings() {
     const { user, organization, setUser, setOrganization } = useAuthStore();
     const [searchParams, setSearchParams] = useSearchParams();
+    const { t } = useTranslation();
 
     // Filter tabs based on user role - hide admin-only tabs for non-admins
     const isAdmin = user?.role === 'admin';
@@ -414,8 +420,8 @@ export default function Settings() {
         <div className="animate-fade-in">
             {/* Page Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-                <p className="text-text-secondary mt-1">Manage your account and preferences</p>
+                <h1 className="text-2xl font-bold text-text-primary">{t('settings.title')}</h1>
+                <p className="text-text-secondary mt-1">{t('settings.subtitle')}</p>
             </div>
 
             {/* Tab Navigation */}
@@ -432,7 +438,7 @@ export default function Settings() {
                         )}
                     >
                         <tab.icon className="h-4 w-4" />
-                        {tab.name}
+                        {t(tab.key)}
                     </button>
                 ))}
             </div>
@@ -996,10 +1002,50 @@ export default function Settings() {
                                 </label>
                             ))}
                         </div>
+
+                        {/* Language Section */}
+                        <div className="p-6 border-t border-border">
+                            <h3 className="text-sm font-semibold text-text-primary mb-3">Language / भाषा</h3>
+                            <div className="flex items-center gap-4">
+                                <LanguageSelector variant="buttons" />
+                            </div>
+                        </div>
+
+                        {/* Theme Section */}
+                        <div className="p-6 border-t border-border">
+                            <h3 className="text-sm font-semibold text-text-primary mb-3">Theme</h3>
+                            <div className="flex items-center gap-4">
+                                <ThemeSelector variant="buttons" />
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {activeTab === 'ai' && <AIConfigurationSection />}
+
+                {/* Branding Tab */}
+                {activeTab === 'branding' && (
+                    <div className="space-y-6 max-w-3xl">
+                        <div className="bg-surface rounded-xl border border-border p-6">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="p-3 bg-gradient-to-br from-primary/20 to-purple-100 rounded-xl">
+                                    <SwatchIcon className="h-6 w-6 text-primary" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-text-primary">Custom Branding</h2>
+                                    <p className="text-text-secondary">Customize your organization's look and feel</p>
+                                </div>
+                            </div>
+                            <Link
+                                to="/settings/branding"
+                                className="btn-primary inline-flex items-center gap-2"
+                            >
+                                <SwatchIcon className="h-4 w-4" />
+                                Open Branding Settings
+                            </Link>
+                        </div>
+                    </div>
+                )}
 
                 {/* Help & Support Tab */}
                 {activeTab === 'help' && (
