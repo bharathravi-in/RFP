@@ -164,3 +164,73 @@ def complete_project():
         'message': 'Project marked as complete',
         'project': project.to_dict()
     }), 200
+
+
+@bp.route('/pdf', methods=['POST'])
+@jwt_required()
+def export_pdf():
+    """Export project as PDF."""
+    from ..services.pdf_service import get_pdf_service
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    data = request.get_json()
+    project_id = data.get('project_id')
+    
+    if not project_id:
+        return jsonify({'error': 'Project ID required'}), 400
+    
+    project = Project.query.get(project_id)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get questions
+    questions = Question.query.filter_by(
+        project_id=project_id
+    ).order_by(Question.order).all()
+    
+    # Convert to dict format for PDF service
+    project_dict = {
+        'name': project.name,
+        'description': project.description or '',
+        'status': project.status,
+        'due_date': str(project.due_date) if project.due_date else None
+    }
+    
+    questions_list = []
+    for q in questions:
+        answer = q.current_answer
+        questions_list.append({
+            'text': q.text,
+            'section': q.section or 'General',
+            'status': q.status,
+            'answer': {
+                'content': answer.content if answer else None,
+                'confidence_score': answer.confidence_score if answer else None,
+                'sources': []  # Could add sources if available
+            } if answer else None
+        })
+    
+    # Generate PDF
+    pdf_service = get_pdf_service()
+    pdf_bytes = pdf_service.generate_project_export(
+        project_dict,
+        questions_list,
+        include_unanswered=data.get('include_unanswered', False),
+        include_sources=data.get('include_sources', True),
+        include_confidence=data.get('include_confidence', True)
+    )
+    
+    filename = f'{project.name.replace(" ", "_")}_Response.pdf'
+    
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename
+    )

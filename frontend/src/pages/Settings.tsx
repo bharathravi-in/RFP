@@ -25,11 +25,22 @@ import {
     RocketLaunchIcon,
     BookOpenIcon,
     SwatchIcon,
+    BeakerIcon,
+    LinkIcon,
+    ClipboardDocumentListIcon,
+    CurrencyDollarIcon,
+    CloudIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
 import FilterDimensions from '@/components/knowledge/FilterDimensions';
 import AIConfigurationSection from '@/components/settings/AIConfigurationSection';
+import ExperimentsSection from '@/components/settings/ExperimentsSection';
+import WebhooksSection from '@/components/settings/WebhooksSection';
+import ApprovalWorkflowsSection from '@/components/settings/ApprovalWorkflowsSection';
+import RevenueTrackingSection from '@/components/settings/RevenueTrackingSection';
+import SSOConfigurationSection from '@/components/settings/SSOConfigurationSection';
+import CRMIntegrationSection from '@/components/settings/CRMIntegrationSection';
 import PlatformTour from '@/components/onboarding/PlatformTour';
 import LanguageSelector from '@/components/common/LanguageSelector';
 import ThemeSelector from '@/components/common/ThemeSelector';
@@ -44,8 +55,14 @@ const allTabs = [
     { id: 'knowledge', key: 'settings.knowledgeProfiles', icon: FolderIcon },
     { id: 'dimensions', key: 'settings.filterDimensions', icon: TagIcon },
     { id: 'security', key: 'settings.security', icon: KeyIcon },
+    { id: 'sso', key: 'SSO / SAML', icon: ShieldCheckIcon, adminOnly: true },
     { id: 'notifications', key: 'settings.notifications', icon: BellIcon },
     { id: 'ai', key: 'settings.aiSettings', icon: CogIcon, adminOnly: true },
+    { id: 'experiments', key: 'A/B Experiments', icon: BeakerIcon, adminOnly: true },
+    { id: 'webhooks', key: 'Webhooks', icon: LinkIcon, adminOnly: true },
+    { id: 'approvals', key: 'Approval Workflows', icon: ClipboardDocumentListIcon, adminOnly: true },
+    { id: 'revenue', key: 'Revenue Tracking', icon: CurrencyDollarIcon, adminOnly: true },
+    { id: 'crm', key: 'CRM Integration', icon: CloudIcon, adminOnly: true },
     { id: 'branding', key: 'settings.branding', icon: SwatchIcon, adminOnly: true },
     { id: 'help', key: 'settings.helpSupport', icon: QuestionMarkCircleIcon },
 ];
@@ -1022,6 +1039,24 @@ export default function Settings() {
                 )}
 
                 {activeTab === 'ai' && <AIConfigurationSection />}
+
+                {/* Experiments Tab */}
+                {activeTab === 'experiments' && <ExperimentsSection />}
+
+                {/* Webhooks Tab */}
+                {activeTab === 'webhooks' && <WebhooksSection />}
+
+                {/* Approval Workflows Tab */}
+                {activeTab === 'approvals' && <ApprovalWorkflowsSection />}
+
+                {/* Revenue Tracking Tab */}
+                {activeTab === 'revenue' && <RevenueTrackingSection />}
+
+                {/* SSO Configuration Tab */}
+                {activeTab === 'sso' && <SSOConfigurationSection />}
+
+                {/* CRM Integration Tab */}
+                {activeTab === 'crm' && <CRMIntegrationSection />}
 
                 {/* Branding Tab */}
                 {activeTab === 'branding' && (

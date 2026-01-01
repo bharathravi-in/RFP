@@ -96,6 +96,9 @@ def generate_ppt(project_id):
     try:
         # Step 1: Generate slide content with AI
         agent = PPTGeneratorAgent(org_id=user.organization_id)
+        logger.info(f"PPT Agent config - Provider: {agent.config.provider}, Model: {agent.config.model_name}")
+        logger.info(f"Input data - Sections: {len(sections_data)}, Questions: {len(questions_data)}")
+        
         content_result = agent.generate_ppt_content(
             project_data=project_data,
             sections=sections_data,
@@ -105,7 +108,10 @@ def generate_ppt(project_id):
             branding=branding
         )
         
+        logger.info(f"PPT generation result - Success: {content_result.get('success')}, Slides: {len(content_result.get('slides', []))}")
+        
         if not content_result.get('success'):
+            logger.error(f"PPT generation failed: {content_result.get('error')}")
             return jsonify({
                 'error': 'Failed to generate slide content',
                 'details': content_result.get('error', 'Unknown error')
@@ -114,7 +120,8 @@ def generate_ppt(project_id):
         slides = content_result.get('slides', [])
         
         if not slides:
-            return jsonify({'error': 'No slides generated'}), 500
+            logger.warning("No slides in response, check AI provider configuration")
+            return jsonify({'error': 'No slides generated. Please check AI configuration in Settings.'}), 500
         
         # Extract diagram data from sections and inject into architecture slides
         diagram_data = None

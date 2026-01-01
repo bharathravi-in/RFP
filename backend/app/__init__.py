@@ -107,6 +107,22 @@ def create_app(config_name=None):
     from .routes import integrations
     app.register_blueprint(integrations.bp)  # /api/integrations/*
 
+    # Approval Workflows (Enterprise feature)
+    from .routes import approvals
+    app.register_blueprint(approvals.bp, url_prefix='/api/approvals')  # Approval workflow management
+
+    # Revenue Tracking
+    from .routes import revenue
+    app.register_blueprint(revenue.bp, url_prefix='/api/revenue')  # Revenue and pipeline tracking
+
+    # SSO/SAML Authentication
+    from .routes import sso
+    app.register_blueprint(sso.bp, url_prefix='/api/sso')  # Single Sign-On
+
+    # CRM Integration (Salesforce, HubSpot) - Enhanced
+    from .routes import crm
+    app.register_blueprint(crm.bp, url_prefix='/api/crm')  # CRM sync and integration
+
     # Super Admin (Platform-level administration)
     from .routes import superadmin
     app.register_blueprint(superadmin.bp)  # /api/superadmin/*

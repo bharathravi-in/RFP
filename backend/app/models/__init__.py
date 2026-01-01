@@ -37,6 +37,18 @@ from .document_chat import DocumentChatSession, DocumentChatMessage
 # Webhooks (Enterprise feature)
 from .webhook import WebhookConfig, WebhookDelivery, WEBHOOK_EVENTS
 
+# Approval Workflows (Enterprise feature)
+from .approval_workflow import ApprovalWorkflow, ApprovalStage, ApprovalRequest, ApprovalDecision
+
+# Revenue Tracking
+from .revenue import ProposalRevenue, RevenueReport
+
+# SSO/SAML Configuration
+from .sso import SSOConfiguration, SSOLoginAttempt
+
+# CRM Integration
+from .crm_integration import CRMIntegration, CRMSyncRecord, CRMSyncLog
+
 __all__ = [
     'User',
     'Organization',
@@ -95,4 +107,19 @@ __all__ = [
     'ProjectStrategy',
     # Competitor Intelligence
     'Competitor',
+    # Approval Workflows
+    'ApprovalWorkflow',
+    'ApprovalStage',
+    'ApprovalRequest',
+    'ApprovalDecision',
+    # Revenue Tracking
+    'ProposalRevenue',
+    'RevenueReport',
+    # SSO/SAML
+    'SSOConfiguration',
+    'SSOLoginAttempt',
+    # CRM Integration
+    'CRMIntegration',
+    'CRMSyncRecord',
+    'CRMSyncLog',
 ]

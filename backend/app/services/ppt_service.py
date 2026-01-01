@@ -219,21 +219,21 @@ class PPTService:
                     ph_type = shape.placeholder_format.type
                     # Title placeholder (usually type 1 or CENTER_TITLE)
                     if ph_type in [1, 3]:  # TITLE or CENTER_TITLE
-                        shape.text = data.get('title', title)
+                        # Clear existing text and set new title
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('title', title)
                     # Subtitle placeholder (usually type 2)
                     elif ph_type == 2:  # SUBTITLE
-                        shape.text = f"Proposal for {client_name}"
+                        # Clear existing text and set subtitle
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('subtitle', f"Proposal for {client_name}")
             
-            # Add company name at bottom
-            company_box = slide.shapes.add_textbox(
-                Inches(0.75), Inches(6.5),
-                Inches(11.5), Inches(0.5)
-            )
-            company_frame = company_box.text_frame
-            company_para = company_frame.paragraphs[0]
-            company_para.text = f"Prepared by: {company_name}"
-            company_para.font.size = Pt(14)
-            company_para.alignment = PP_ALIGN.CENTER
+            # DON'T add extra textbox - template has the company name already
+            return
         else:
             # Original custom layout for non-template mode
             # Background shape
@@ -302,12 +302,16 @@ class PPTService:
                     ph_type = shape.placeholder_format.type
                     # Title placeholder
                     if ph_type == 1:  # TITLE
-                        shape.text = data.get('title', 'Content')
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('title', 'Content')
                     # Body/content placeholder  
                     elif ph_type == 2 or ph_type == 7:  # BODY or OBJECT
                         if hasattr(shape, 'text_frame'):
                             tf = shape.text_frame
-                            for i, bullet in enumerate(bullets[:6]):
+                            tf.clear()  # Clear existing placeholder text
+                            for i, bullet in enumerate(bullets[:5]):  # Max 5 bullets
                                 if i == 0:
                                     para = tf.paragraphs[0]
                                 else:
@@ -379,9 +383,38 @@ class PPTService:
     
     def _add_agenda_slide(self, prs: Presentation, data: Dict[str, Any]):
         """Add an agenda slide."""
-        slide_layout = prs.slide_layouts[6]
-        slide = prs.slides.add_slide(slide_layout)
+        # Use template layout if available
+        if self._using_template:
+            slide_layout = self._get_best_layout(prs, 'agenda')
+        else:
+            slide_layout = prs.slide_layouts[6]
         
+        slide = prs.slides.add_slide(slide_layout)
+        bullets = data.get('bullets', [])
+        
+        if self._using_template:
+            # Use template placeholders
+            for shape in slide.shapes:
+                if shape.is_placeholder:
+                    ph_type = shape.placeholder_format.type
+                    if ph_type == 1:  # TITLE
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('title', 'Agenda')
+                    elif ph_type in [2, 7] and hasattr(shape, 'text_frame'):
+                        tf = shape.text_frame
+                        tf.clear()
+                        for i, item in enumerate(bullets[:7], 1):
+                            if i == 1:
+                                para = tf.paragraphs[0]
+                            else:
+                                para = tf.add_paragraph()
+                            para.text = f"{i}. {item}"
+                            para.level = 0
+            return
+        
+        # Non-template mode: custom layout
         # Header
         header = slide.shapes.add_shape(
             MSO_SHAPE.RECTANGLE,
@@ -405,7 +438,6 @@ class PPTService:
         title_para.font.color.rgb = self.colors['text_light']
         
         # Agenda items with numbers
-        bullets = data.get('bullets', [])
         if bullets:
             content_box = slide.shapes.add_textbox(
                 Inches(1), Inches(1.8),
@@ -414,7 +446,7 @@ class PPTService:
             content_frame = content_box.text_frame
             content_frame.word_wrap = True
             
-            for i, item in enumerate(bullets[:10], 1):
+            for i, item in enumerate(bullets[:7], 1):
                 if i == 1:
                     para = content_frame.paragraphs[0]
                 else:

@@ -659,12 +659,12 @@ export default function ProjectDetail() {
                                     <>
                                         <button
                                             onClick={() => updateStatus('review')}
-                                            disabled={questions.length === 0}
+                                            disabled={questions.length === 0 && sections.length === 0}
                                             className={clsx(
                                                 "w-full btn-primary text-sm flex items-center justify-center gap-2",
-                                                questions.length === 0 && "opacity-50 cursor-not-allowed"
+                                                (questions.length === 0 && sections.length === 0) && "opacity-50 cursor-not-allowed"
                                             )}
-                                            title={questions.length === 0 ? "Analyze RFP to extract questions first" : ""}
+                                            title={(questions.length === 0 && sections.length === 0) ? "Analyze RFP to extract questions or sections first" : ""}
                                         >
                                             <EyeIcon className="h-4 w-4" />
                                             Submit for Review
