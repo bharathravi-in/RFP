@@ -55,6 +55,51 @@ Generate a JSON response with the following structure:
 4. Keep the reasoning concise.
 
 Analyze and suggest the routing now:"""
+    
+    # Default expert profiles for when no experts are configured
+    DEFAULT_EXPERT_PROFILES = [
+        {
+            'role': 'Technical Architect',
+            'expertise_tags': ['architecture', 'cloud', 'infrastructure', 'integration', 'technical'],
+            'scope_areas': ['solution_architecture', 'technical_approach', 'integration'],
+            'priority': 1
+        },
+        {
+            'role': 'Security Specialist',
+            'expertise_tags': ['security', 'compliance', 'encryption', 'gdpr', 'hipaa', 'soc2'],
+            'scope_areas': ['security', 'compliance', 'risk'],
+            'priority': 2
+        },
+        {
+            'role': 'Project Manager',
+            'expertise_tags': ['project management', 'timeline', 'governance', 'delivery', 'methodology'],
+            'scope_areas': ['implementation_approach', 'timeline', 'team', 'governance'],
+            'priority': 3
+        },
+        {
+            'role': 'Business Analyst',
+            'expertise_tags': ['requirements', 'scope', 'business', 'process', 'workflow'],
+            'scope_areas': ['scope_of_work', 'deliverables', 'requirements'],
+            'priority': 4
+        },
+        {
+            'role': 'Commercial Manager',
+            'expertise_tags': ['pricing', 'commercial', 'legal', 'contract', 'financial'],
+            'scope_areas': ['pricing', 'assumptions', 'legal', 'terms'],
+            'priority': 5
+        }
+    ]
+    
+    # Keyword to expertise mapping for intelligent routing
+    EXPERTISE_KEYWORDS = {
+        'security': ['security', 'encryption', 'ssl', 'tls', 'authentication', 'authorization', 'access control'],
+        'compliance': ['compliance', 'gdpr', 'hipaa', 'soc', 'iso', 'pci', 'audit', 'certification'],
+        'cloud': ['cloud', 'aws', 'azure', 'gcp', 'kubernetes', 'docker', 'infrastructure'],
+        'architecture': ['architecture', 'design', 'integration', 'api', 'microservices', 'system'],
+        'project_management': ['timeline', 'schedule', 'milestone', 'deliverable', 'phase', 'governance'],
+        'pricing': ['pricing', 'cost', 'budget', 'investment', 'rate', 'financial'],
+        'legal': ['legal', 'contract', 'terms', 'liability', 'indemnity', 'confidentiality']
+    }
 
     def __init__(self, org_id: int = None):
         self.org_id = org_id

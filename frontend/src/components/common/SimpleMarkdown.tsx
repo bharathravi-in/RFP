@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import DiagramRenderer from '@/components/diagrams/DiagramRenderer';
 
 interface SimpleMarkdownProps {
@@ -62,6 +63,7 @@ export default function SimpleMarkdown({ content, className = '', renderMermaid 
                 return (
                     <ReactMarkdown
                         key={index}
+                        remarkPlugins={[remarkGfm]}
                         components={{
                             h1: ({ children }) => (
                                 <h1 className="text-2xl font-bold text-gray-900 mt-6 mb-3">{children}</h1>
@@ -117,6 +119,39 @@ export default function SimpleMarkdown({ content, className = '', renderMermaid 
                                 </a>
                             ),
                             hr: () => <hr className="my-4 border-gray-200" />,
+                            // Table components for proper markdown table rendering
+                            table: ({ children }) => (
+                                <div className="overflow-x-auto my-4">
+                                    <table className="min-w-full divide-y divide-gray-300 border border-gray-300 rounded-lg">
+                                        {children}
+                                    </table>
+                                </div>
+                            ),
+                            thead: ({ children }) => (
+                                <thead className="bg-gray-100">
+                                    {children}
+                                </thead>
+                            ),
+                            tbody: ({ children }) => (
+                                <tbody className="divide-y divide-gray-200 bg-white">
+                                    {children}
+                                </tbody>
+                            ),
+                            tr: ({ children }) => (
+                                <tr className="hover:bg-gray-50">
+                                    {children}
+                                </tr>
+                            ),
+                            th: ({ children }) => (
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-300">
+                                    {children}
+                                </th>
+                            ),
+                            td: ({ children }) => (
+                                <td className="px-4 py-3 text-sm text-gray-700 border-b border-gray-200">
+                                    {children}
+                                </td>
+                            ),
                         }}
                     >
                         {part.content}

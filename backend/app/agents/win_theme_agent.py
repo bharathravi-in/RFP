@@ -110,6 +110,36 @@ Generate the win themes now:"""
         'Partnership & Support',
         'Speed & Efficiency',
     ]
+    
+    # Outcome learning configuration
+    OUTCOME_LEARNING_CONFIG = {
+        'min_projects_for_insights': 5,        # Min won projects needed
+        'max_historical_projects': 20,         # Max projects to analyze
+        'theme_weight_multipliers': {
+            'won': 1.5,                        # Boost themes from won projects
+            'lost': 0.5                        # Reduce weight of themes from lost
+        },
+        'outcome_relevance_decay_days': 365,   # Recent outcomes weighted more
+        'industry_match_boost': 1.3,           # Boost for same industry
+        'client_type_match_boost': 1.2         # Boost for same client type
+    }
+    
+    # Theme effectiveness tracking patterns
+    THEME_EFFECTIVENESS_TRACKING = {
+        'high_win_rate_themes': [
+            'Partnership & Support',
+            'Risk Mitigation',
+            'Experience & Track Record'
+        ],
+        'context_dependent_themes': [
+            'Innovation & Technology',  # Better for enterprise
+            'Speed & Efficiency'        # Better for startups
+        ],
+        'avoid_in_government': [
+            'Innovation & Technology',  # Government prefers proven
+            'Speed & Efficiency'        # Less valued in govt RFPs
+        ]
+    }
 
     def __init__(self, org_id: int = None):
         self.org_id = org_id

@@ -55,14 +55,14 @@ const allTabs = [
     { id: 'knowledge', key: 'settings.knowledgeProfiles', icon: FolderIcon },
     { id: 'dimensions', key: 'settings.filterDimensions', icon: TagIcon },
     { id: 'security', key: 'settings.security', icon: KeyIcon },
-    { id: 'sso', key: 'SSO / SAML', icon: ShieldCheckIcon, adminOnly: true },
-    { id: 'notifications', key: 'settings.notifications', icon: BellIcon },
+    { id: 'sso', key: 'SSO / SAML', icon: ShieldCheckIcon, superAdminOnly: true },
+    { id: 'notifications', key: 'settings.notifications', icon: BellIcon, superAdminOnly: true },
     { id: 'ai', key: 'settings.aiSettings', icon: CogIcon, adminOnly: true },
-    { id: 'experiments', key: 'A/B Experiments', icon: BeakerIcon, adminOnly: true },
-    { id: 'webhooks', key: 'Webhooks', icon: LinkIcon, adminOnly: true },
-    { id: 'approvals', key: 'Approval Workflows', icon: ClipboardDocumentListIcon, adminOnly: true },
-    { id: 'revenue', key: 'Revenue Tracking', icon: CurrencyDollarIcon, adminOnly: true },
-    { id: 'crm', key: 'CRM Integration', icon: CloudIcon, adminOnly: true },
+    { id: 'experiments', key: 'A/B Experiments', icon: BeakerIcon, superAdminOnly: true },
+    { id: 'webhooks', key: 'Webhooks', icon: LinkIcon, superAdminOnly: true },
+    { id: 'approvals', key: 'Approval Workflows', icon: ClipboardDocumentListIcon, superAdminOnly: true },
+    { id: 'revenue', key: 'Revenue Tracking', icon: CurrencyDollarIcon, superAdminOnly: true },
+    { id: 'crm', key: 'CRM Integration', icon: CloudIcon, superAdminOnly: true },
     { id: 'branding', key: 'settings.branding', icon: SwatchIcon, adminOnly: true },
     { id: 'help', key: 'settings.helpSupport', icon: QuestionMarkCircleIcon },
 ];
@@ -72,9 +72,14 @@ export default function Settings() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation();
 
-    // Filter tabs based on user role - hide admin-only tabs for non-admins
-    const isAdmin = user?.role === 'admin';
-    const tabs = allTabs.filter(tab => !tab.adminOnly || isAdmin);
+    // Filter tabs based on user role - hide admin-only and super-admin-only tabs
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isSuperAdmin = user?.role === 'super_admin';
+    const tabs = allTabs.filter(tab => {
+        if (tab.superAdminOnly) return isSuperAdmin;
+        if (tab.adminOnly) return isAdmin;
+        return true;
+    });
 
     const tabFromUrl = searchParams.get('tab');
     const validTab = tabs.find(t => t.id === tabFromUrl)?.id || 'profile';

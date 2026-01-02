@@ -22,7 +22,45 @@ class ContentFreshnessAgent:
     - Compare library answers with new document context
     - Identify direct contradictions or outdated facts
     - Suggest updates or flags for review
+    - Scheduled freshness scans with configurable thresholds
     """
+    
+    # Configurable freshness thresholds (in days)
+    FRESHNESS_THRESHOLDS = {
+        'fresh': 90,           # Under 90 days = fresh
+        'aging': 180,          # 90-180 days = aging
+        'stale': 365,          # 180-365 days = stale
+        'critical': 730        # Over 1 year = critical
+    }
+    
+    # Alert levels for freshness issues
+    ALERT_LEVELS = {
+        'critical': {
+            'threshold': 0.1,   # > 10% very stale = critical alert
+            'action': 'immediate_review',
+            'priority': 1
+        },
+        'warning': {
+            'threshold': 0.3,   # > 30% stale = warning
+            'action': 'schedule_review',
+            'priority': 2
+        },
+        'info': {
+            'threshold': 0.5,   # > 50% aging = info
+            'action': 'monitor',
+            'priority': 3
+        }
+    }
+    
+    # Content categories requiring more frequent updates
+    HIGH_VOLATILITY_CATEGORIES = [
+        'pricing',
+        'technical_specifications',
+        'compliance',
+        'certifications',
+        'team_structure',
+        'contact_information'
+    ]
     
     MASTER_PROMPT = """You are a Knowledge Management Specialist and Content Auditor.
 Your task is to audit a set of "Library Answers" against "New Project Documents" to identify any information that is now outdated, incorrect, or contradictory.

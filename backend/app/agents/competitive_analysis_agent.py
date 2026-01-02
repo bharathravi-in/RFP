@@ -112,6 +112,54 @@ Perform the competitive analysis now:"""
         {'type': 'Incumbent Provider', 'examples': 'Current vendor relationship'},
         {'type': 'Regional Player', 'examples': 'Local/regional competitors'},
     ]
+    
+    # Default competitor profiles for fallback analysis when DB is empty
+    DEFAULT_COMPETITOR_PROFILES = {
+        'Large System Integrator': {
+            'strengths': ['Global delivery capability', 'Brand recognition', 'Deep talent pool'],
+            'weaknesses': ['Higher costs', 'Less agility', 'Standardized approaches'],
+            'pricing_tier': 'Premium',
+            'market_position': 'Enterprise Leader',
+            'counter_strategies': [
+                'Emphasize personalized attention and agility',
+                'Highlight cost efficiency without premium overhead',
+                'Show faster time-to-value with streamlined processes'
+            ]
+        },
+        'Boutique Consulting': {
+            'strengths': ['Domain expertise', 'Personal attention', 'Flexible pricing'],
+            'weaknesses': ['Limited scale', 'Narrow service offerings', 'Resource constraints'],
+            'pricing_tier': 'Mid-Market',
+            'market_position': 'Niche Specialist',
+            'counter_strategies': [
+                'Demonstrate broader capabilities across domains',
+                'Show enterprise-grade processes and governance',
+                'Highlight scalability for growth'
+            ]
+        },
+        'Product Vendor': {
+            'strengths': ['Product expertise', 'Out-of-box functionality', 'Roadmap investment'],
+            'weaknesses': ['Product-centric bias', 'Customization limitations', 'Vendor lock-in'],
+            'pricing_tier': 'Variable',
+            'market_position': 'Product Specialist',
+            'counter_strategies': [
+                'Position as solution-agnostic best-fit advisor',
+                'Highlight independence and unbiased recommendations',
+                'Show integration expertise across multiple platforms'
+            ]
+        },
+        'Incumbent Provider': {
+            'strengths': ['Existing relationship', 'System familiarity', 'Historical context'],
+            'weaknesses': ['Status quo bias', 'Potential complacency', 'May lack fresh perspective'],
+            'pricing_tier': 'Established',
+            'market_position': 'Current Partner',
+            'counter_strategies': [
+                'Bring fresh perspective and innovative approaches',
+                'Highlight new ideas without legacy baggage',
+                'Show competitive benchmark insights'
+            ]
+        }
+    }
 
     def __init__(self, org_id: int = None):
         self.org_id = org_id

@@ -37,6 +37,66 @@ class ProposalWriterAgent:
     - Confidentiality
     """
     
+    # Proposal template library by type
+    PROPOSAL_TEMPLATES = {
+        'technology_implementation': {
+            'name': 'Technology Implementation Proposal',
+            'required_sections': ['introduction', 'understanding', 'scope', 'technical_approach', 
+                                  'implementation', 'timeline', 'team', 'pricing', 'assumptions'],
+            'optional_sections': ['case_studies', 'security', 'training'],
+            'emphasis': ['technical_depth', 'methodology', 'risk_mitigation']
+        },
+        'consulting_services': {
+            'name': 'Consulting Services Proposal',
+            'required_sections': ['introduction', 'understanding', 'approach', 'deliverables',
+                                  'team', 'timeline', 'pricing', 'assumptions'],
+            'optional_sections': ['case_studies', 'references'],
+            'emphasis': ['expertise', 'past_performance', 'value_proposition']
+        },
+        'managed_services': {
+            'name': 'Managed Services Proposal',
+            'required_sections': ['introduction', 'service_description', 'sla', 'governance',
+                                  'pricing', 'transition', 'assumptions'],
+            'optional_sections': ['security', 'compliance', 'reporting'],
+            'emphasis': ['reliability', 'sla_guarantees', 'cost_efficiency']
+        },
+        'staff_augmentation': {
+            'name': 'Staff Augmentation Proposal',
+            'required_sections': ['introduction', 'resource_profiles', 'rates', 'terms',
+                                  'onboarding', 'governance'],
+            'optional_sections': ['case_studies'],
+            'emphasis': ['talent_quality', 'flexibility', 'speed']
+        }
+    }
+    
+    # Section enhancement types
+    ENHANCEMENT_TYPES = {
+        'executive': {
+            'description': 'Enhance for C-level executives',
+            'focus': ['business_outcomes', 'roi', 'strategic_value', 'risk_reduction'],
+            'avoid': ['technical_jargon', 'implementation_details'],
+            'max_length': 'concise'
+        },
+        'technical': {
+            'description': 'Enhance for technical evaluators',
+            'focus': ['architecture', 'integration', 'security', 'scalability'],
+            'avoid': ['marketing_language', 'vague_claims'],
+            'max_length': 'detailed'
+        },
+        'financial': {
+            'description': 'Enhance for procurement/finance',
+            'focus': ['cost_breakdown', 'payment_terms', 'roi', 'assumptions'],
+            'avoid': ['technical_complexity'],
+            'max_length': 'moderate'
+        },
+        'compliance': {
+            'description': 'Enhance for legal/compliance reviewers',
+            'focus': ['certifications', 'data_handling', 'regulatory', 'liability'],
+            'avoid': ['ambiguous_language', 'unbounded_commitments'],
+            'max_length': 'thorough'
+        }
+    }
+    
     MASTER_PROMPT = """# SYSTEM PROMPT — ENTERPRISE RFP / PROPOSAL DOCUMENT GENERATOR (STRICT MODE)
 
 You are an **Enterprise Proposal Authoring Agent** working on behalf of **{organization_name}**.
