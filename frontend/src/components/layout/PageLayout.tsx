@@ -56,7 +56,49 @@ export default function PageLayout() {
     }, [sidebarCollapsed]);
 
     const hasOrganization = organization || user?.organization_id;
-    const needsOnboarding = user && !hasOrganization && !onboardingComplete;
+
+    // Strict Onboarding Enforcement
+    useEffect(() => {
+        if (!user || location.pathname === '/onboarding') return;
+
+        const enforceOnboarding = async () => {
+            // 1. Organization Check
+            if (!organization?.name) {
+                navigate('/onboarding');
+                return;
+            }
+
+            // 2. Vendor Profile Check
+            const vendorProfile = (organization?.settings as any)?.vendor_profile;
+            if (!vendorProfile?.registration_country) {
+                navigate('/onboarding');
+                return;
+            }
+
+            // 3. Knowledge Profile Check (Async)
+            // We use a specific header/check to avoid loop if possible, or just check once per session?
+            // To be safe and performant, we only check if we are NOT already aware of profiles.
+            // But we don't have profile count in store.
+            // We will fetch it. If 0 profiles, redirect.
+            try {
+                // Dynamically import client to avoid circular deps if any
+                const module = await import('@/api/client');
+                const api = module.default;
+                const res = await api.get('/knowledge/profiles');
+                if (!res.data.profiles || res.data.profiles.length === 0) {
+                    navigate('/onboarding');
+                }
+            } catch (error) {
+                // If call fails, we assume they might need onboarding or just let them pass to avoid lockout during outage
+                // Safest for "Strict" is to let them pass but Dashboard will block creation.
+                // But to strictly hide menus, we should audit. 
+                // Let's log warning.
+                console.warn("Could not verify knowledge profiles for onboarding enforcement.");
+            }
+        };
+
+        enforceOnboarding();
+    }, [user, organization, navigate, location.pathname]);
 
     // Keyboard shortcut: Cmd+K or Ctrl+K to open search
     useEffect(() => {
@@ -105,11 +147,12 @@ export default function PageLayout() {
             {/* Smart Search Modal */}
             {searchOpen && <SmartSearch onClose={() => setSearchOpen(false)} />}
 
-            {/* Organization Onboarding Modal */}
+            {/* Organization Onboarding Modal - REPLACED BY /onboarding WIZARD
             <OrganizationOnboarding
                 isOpen={needsOnboarding ?? false}
                 onComplete={handleOnboardingComplete}
             />
+            */}
 
             {/* Mobile overlay */}
             {sidebarOpen && (

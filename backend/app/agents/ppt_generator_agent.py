@@ -344,6 +344,72 @@ Generate the complete slide deck JSON now. Return ONLY valid JSON:"""
             data['qa_count'] = len(answered)
             data['total_questions'] = len(questions)
         
+        # Add compliance data if available (passed through project_data)
+        compliance_items = project_data.get('compliance', [])
+        if compliance_items:
+            compliant_count = sum(1 for c in compliance_items if c.get('status') == 'compliant')
+            partial_count = sum(1 for c in compliance_items if c.get('status') == 'partial')
+            non_compliant_count = sum(1 for c in compliance_items if c.get('status') == 'non_compliant')
+            
+            data['compliance_summary'] = {
+                'total_requirements': len(compliance_items),
+                'compliant': compliant_count,
+                'partial': partial_count,
+                'non_compliant': non_compliant_count,
+                'compliance_rate': round(compliant_count / len(compliance_items) * 100, 1) if compliance_items else 0,
+            }
+            # Include top requirements for context
+            data['key_compliance_items'] = [
+                {'requirement': c.get('requirement', ''), 'status': c.get('status', '')}
+                for c in compliance_items[:10]
+            ]
+        
+        # Add strategy data if available (passed through project_data)
+        strategy = project_data.get('strategy')
+        if strategy:
+            # Win themes for value proposition and differentiators
+            if strategy.get('win_themes'):
+                win_themes_data = strategy['win_themes']
+                themes = win_themes_data.get('win_themes', [])
+                data['win_themes'] = [
+                    {
+                        'title': t.get('theme_title', ''),
+                        'statement': t.get('theme_statement', ''),
+                        'benefit': t.get('customer_benefit', ''),
+                        'priority': t.get('priority', ''),
+                    }
+                    for t in themes[:5]  # Top 5 themes
+                ]
+                data['differentiators'] = win_themes_data.get('differentiators', [])[:5]
+            
+            # Pricing for investment slide
+            if strategy.get('pricing'):
+                pricing_data = strategy['pricing']
+                pricing_summary = pricing_data.get('pricing_summary', {})
+                data['pricing'] = {
+                    'total_cost': pricing_summary.get('total_cost', 0),
+                    'currency': pricing_summary.get('currency_symbol', '$'),
+                    'validity': pricing_summary.get('validity_period', ''),
+                }
+                effort_breakdown = pricing_data.get('effort_breakdown', [])
+                data['effort_breakdown'] = [
+                    {'phase': p.get('phase', ''), 'cost': p.get('phase_total', 0)}
+                    for p in effort_breakdown
+                ]
+            
+            # Legal review for risks slide
+            if strategy.get('legal_review'):
+                legal_data = strategy['legal_review']
+                data['risk_assessment'] = {
+                    'overall_level': legal_data.get('overall_risk_level', ''),
+                    'summary': legal_data.get('review_summary', ''),
+                }
+                risk_items = legal_data.get('risk_items', [])
+                data['key_risks'] = [
+                    {'severity': r.get('severity', ''), 'description': r.get('description', '')}
+                    for r in risk_items[:5]  # Top 5 risks
+                ]
+        
         return data
     
     def _parse_response(self, response_text: str) -> Dict[str, Any]:

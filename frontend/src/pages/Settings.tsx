@@ -30,6 +30,7 @@ import {
     ClipboardDocumentListIcon,
     CurrencyDollarIcon,
     CloudIcon,
+    ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
@@ -635,6 +636,21 @@ export default function Settings() {
                                             </div>
                                         </div>
                                     )}
+                                    {user?.role === 'admin' && (
+                                        <div className="mt-8 pt-6 border-t border-border flex justify-between items-center bg-blue-50/50 -mx-6 -mb-6 p-6 rounded-b-xl border-t border-blue-100">
+                                            <div>
+                                                <p className="text-sm font-medium text-blue-900">Next Step: Vendor Profile</p>
+                                                <p className="text-xs text-blue-700">Tell us more about your business to get better RFP matches.</p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleTabChange('vendor')}
+                                                className="btn-primary flex items-center gap-2"
+                                            >
+                                                Next Section
+                                                <ArrowRightIcon className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="p-12 text-center">
@@ -946,6 +962,20 @@ export default function Settings() {
                                         ) : (
                                             'Save Vendor Profile'
                                         )}
+                                    </button>
+                                </div>
+                                <div className="mt-8 pt-6 border-t border-border flex justify-between items-center bg-green-50/50 -mx-6 -mb-6 p-6 rounded-b-xl border-t border-green-100">
+                                    <div>
+                                        <p className="text-sm font-medium text-green-900">Next Step: Knowledge Profiles</p>
+                                        <p className="text-xs text-green-700">Configure AI dimensions to specialized your RFP responses.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTabChange('knowledge')}
+                                        className="btn-primary bg-green-600 hover:bg-green-700 border-green-700 flex items-center gap-2"
+                                    >
+                                        Next Section
+                                        <ArrowRightIcon className="h-4 w-4" />
                                     </button>
                                 </div>
                             </form>

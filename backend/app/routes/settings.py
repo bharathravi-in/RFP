@@ -154,3 +154,103 @@ def get_resilience_config():
             'simple_validation': service._timeout_config.simple_validation
         }
     })
+
+
+# =============================================================================
+# COMPLIANCE / GDPR ENDPOINTS (Phase 3)
+# =============================================================================
+
+@bp.route('/compliance/export-my-data', methods=['GET'])
+@jwt_required()
+def export_my_data():
+    """Export current user's data (GDPR Article 20)."""
+    from ..services.compliance_service import get_compliance_service
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    compliance = get_compliance_service(user.organization_id)
+    data = compliance.export_user_data(user_id)
+    
+    return jsonify({
+        'export': data,
+        'format': 'JSON',
+        'note': 'You can download this data for portability purposes per GDPR Article 20'
+    })
+
+
+@bp.route('/compliance/delete-my-data', methods=['POST'])
+@jwt_required()
+def delete_my_data():
+    """Request deletion of current user's data (GDPR Article 17)."""
+    from ..services.compliance_service import get_compliance_service
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json() or {}
+    retain_anonymized = data.get('retain_anonymized', True)
+    
+    compliance = get_compliance_service(user.organization_id)
+    result = compliance.delete_user_data(user_id, retain_anonymized)
+    
+    return jsonify({
+        'result': result,
+        'note': 'Your personal data has been deleted/anonymized per GDPR Article 17'
+    })
+
+
+@bp.route('/compliance/audit-report', methods=['GET'])
+@jwt_required()
+@require_permission('view_audit_logs')
+def get_audit_report():
+    """Generate audit report for the organization."""
+    from ..services.compliance_service import get_compliance_service
+    from datetime import datetime, timedelta
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    # Parse query params
+    days = request.args.get('days', 30, type=int)
+    resource_type = request.args.get('resource_type')
+    
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    compliance = get_compliance_service(user.organization_id)
+    report = compliance.generate_audit_report(
+        organization_id=user.organization_id,
+        start_date=start_date,
+        resource_type=resource_type
+    )
+    
+    return jsonify({'report': report})
+
+
+@bp.route('/compliance/retention-status', methods=['GET'])
+@jwt_required()
+@require_permission('manage_organization')
+def get_retention_status():
+    """Get data retention policy status."""
+    from ..services.compliance_service import get_compliance_service
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    compliance = get_compliance_service(user.organization_id)
+    status = compliance.get_data_retention_status(user.organization_id)
+    
+    return jsonify({'retention_status': status})
+

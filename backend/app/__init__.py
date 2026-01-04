@@ -132,6 +132,10 @@ def create_app(config_name=None):
     from .routes import settings
     app.register_blueprint(settings.bp)  # /api/settings/*
 
+    # Marketplace (Templates & Knowledge Packs - Phase 4)
+    from .routes import marketplace
+    app.register_blueprint(marketplace.bp)  # /api/marketplace/*
+
     # Health check endpoints (enhanced)
     from .routes import health, api_docs
     app.register_blueprint(health.bp)  # /health, /ready, /metrics at root

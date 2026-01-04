@@ -296,7 +296,7 @@ export default function Projects() {
                                                     e.preventDefault();
                                                     setOutcomeProject(project);
                                                 }}
-                                                className="text-xs text-text-muted hover:text-primary transition-colors"
+                                                className="text-xs text-primary hover:underline transition-colors font-medium border border-primary/20 px-2 py-0.5 rounded-md hover:bg-primary/5"
                                             >
                                                 Set outcome
                                             </button>
@@ -551,12 +551,31 @@ function CreateProjectModal({
                     </div>
 
                     <div className="border-t border-border pt-4">
-                        <label className="block text-sm font-medium text-text-primary mb-2">
-                            Knowledge Profile *
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-text-primary">
+                                Knowledge Profile *
+                            </label>
+                            <Link
+                                to="/settings?tab=knowledge"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                                onClick={(e) => {
+                                    if (confirm('Unsaved changes will be lost. Navigate to Settings to create a new profile?')) {
+                                        onClose();
+                                    } else {
+                                        e.preventDefault();
+                                    }
+                                }}
+                            >
+                                <PlusIcon className="h-3 w-3" />
+                                Create New
+                            </Link>
+                        </div>
                         {availableProfiles.length === 0 ? (
-                            <div className="text-sm text-text-muted bg-background p-3 rounded-lg">
-                                No profiles available. Create one in Settings.
+                            <div className="text-sm text-text-muted bg-background p-3 rounded-lg flex flex-col items-center gap-2">
+                                <p>No profiles available. Create one to start.</p>
+                                <Link to="/settings?tab=knowledge" className="btn-secondary btn-sm" onClick={onClose}>
+                                    Go to Settings
+                                </Link>
                             </div>
                         ) : (
                             <div className="space-y-1.5 max-h-32 overflow-y-auto">

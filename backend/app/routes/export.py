@@ -160,9 +160,59 @@ def complete_project():
     project.completion_percent = 100
     db.session.commit()
     
+    # ========================================
+    # AUTO-TRIGGER APPROVAL WORKFLOW (Phase 3)
+    # ========================================
+    # If organization has a default approval workflow, automatically submit for approval
+    approval_request = None
+    try:
+        from ..models import ApprovalWorkflow, ApprovalRequest, ApprovalStage
+        
+        # Find default workflow for this organization
+        default_workflow = ApprovalWorkflow.query.filter_by(
+            organization_id=user.organization_id,
+            is_default=True,
+            is_active=True
+        ).first()
+        
+        if default_workflow:
+            # Get first stage of workflow
+            first_stage = default_workflow.stages.order_by(ApprovalStage.order).first()
+            
+            # Create approval request
+            approval_request = ApprovalRequest(
+                organization_id=user.organization_id,
+                workflow_id=default_workflow.id,
+                project_id=project.id,
+                title=f"Approval Request: {project.name}",
+                notes=f"Auto-submitted for approval upon project completion.",
+                status='pending',
+                current_stage_id=first_stage.id if first_stage else None,
+                submitted_by=user_id,
+                request_metadata={
+                    'client_name': project.client_name,
+                    'industry': project.industry,
+                    'auto_triggered': True
+                }
+            )
+            db.session.add(approval_request)
+            db.session.commit()
+            
+            print(f"[WORKFLOW] Auto-submitted approval request {approval_request.id} for project {project.id}")
+            
+            # TODO: Send notification to first stage approvers
+            # This would trigger email notifications in a full implementation
+            
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to auto-trigger approval workflow: {e}")
+        # Don't fail the completion - workflow is optional
+    
     return jsonify({
         'message': 'Project marked as complete',
-        'project': project.to_dict()
+        'project': project.to_dict(),
+        'approval_request': approval_request.to_dict() if approval_request else None,
+        'workflow_triggered': approval_request is not None
     }), 200
 
 

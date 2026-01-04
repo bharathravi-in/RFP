@@ -23,6 +23,7 @@ import DocumentChatPage from '@/pages/DocumentChatPage';
 import KnowledgeChatPage from '@/pages/KnowledgeChatPage';
 import ProposalChatPage from '@/pages/ProposalChatPage';
 import UsageDashboard from '@/pages/UsageDashboard';
+import Onboarding from '@/pages/Onboarding';
 import AgentPerformanceDashboard from '@/pages/AgentPerformanceDashboard';
 import BrandingSettings from '@/pages/BrandingSettings';
 import { SuperAdminDashboard, TenantManagement, FeatureFlags } from '@/pages/superadmin';
@@ -94,6 +95,18 @@ function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/accept-invite" element={<AcceptInvite />} />
+
+                {/* Onboarding Wizard - Full screen, protected but no layout */}
+                <Route
+                    path="/onboarding"
+                    element={
+                        <ProtectedRoute>
+                            <ErrorBoundary>
+                                <Onboarding />
+                            </ErrorBoundary>
+                        </ProtectedRoute>
+                    }
+                />
 
                 {/* Document Chat - Full screen experience */}
                 <Route

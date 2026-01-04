@@ -694,10 +694,52 @@ def get_content_performance():
     }), 200
 
 
+@bp.route('/advanced', methods=['GET'])
+@jwt_required()
+def get_advanced_analytics():
+    """
+    Get advanced win/loss analytics including multidimensional breakdown and trends.
+    
+    Query params:
+        dimension: Grouping dimension (industry, client_type, geography)
+        months: Number of months for trend analysis (default 12)
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    from ..services.win_loss_analytics_service import get_win_loss_analytics_service
+    
+    dimension = request.args.get('dimension', 'industry')
+    months = request.args.get('months', 12, type=int)
+    
+    service = get_win_loss_analytics_service(user.organization_id)
+    
+    # Get win rate analysis by dimension
+    win_rate_analysis = service.get_win_rate_analysis(dimension=dimension)
+    
+    # Get revenue trends
+    revenue_trends = service.get_revenue_trends(months=months)
+    
+    # Get top loss reasons (using service for consistency)
+    loss_reasons = service.get_loss_reason_analysis()
+    
+    return jsonify({
+        'win_rate_analysis': win_rate_analysis,
+        'revenue_trends': revenue_trends,
+        'loss_reasons': loss_reasons
+    }), 200
+
+
 @bp.route('/win-loss-deep-dive', methods=['GET'])
 @jwt_required()
 def win_loss_deep_dive():
-    """Deep dive into win/loss factors."""
+    """Deep dive into win/loss factors (Legacy endpoint, kept for compatibility)."""
+    # ... logic kept or redirected to new service if needed ...
+    # For now, we can redirect to advanced or keep as is. 
+    # Let's keep the existing logic but maybe enhance it later.
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     

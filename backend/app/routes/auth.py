@@ -83,11 +83,16 @@ def login():
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
     
-    return jsonify({
+    response = {
         'user': user.to_dict(),
         'access_token': access_token,
         'refresh_token': refresh_token
-    }), 200
+    }
+    
+    if user.organization:
+        response['organization'] = user.organization.to_dict()
+    
+    return jsonify(response), 200
 
 
 @bp.route('/me', methods=['GET'])

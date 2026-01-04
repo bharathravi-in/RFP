@@ -22,6 +22,7 @@ import {
     ChevronDownIcon,
     EyeIcon,
     DocumentTextIcon,
+    PlusIcon,
 } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import FreshnessAlerts from '@/components/library/FreshnessAlerts';
@@ -48,6 +49,7 @@ export default function AnswerLibrary() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editForm, setEditForm] = useState({ question_text: '', answer_text: '', category: '', tags: '' });
     const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
         loadItems();
@@ -200,6 +202,17 @@ export default function AnswerLibrary() {
                             <p className="text-xs text-gray-500">{stats.total} items</p>
                         </div>
                     </div>
+                </div>
+
+                {/* Quick Action */}
+                <div className="p-4 border-b border-gray-100">
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="btn-primary w-full py-2.5 flex items-center justify-center gap-2"
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                        <span>Add Entry</span>
+                    </button>
                 </div>
 
                 {/* Status Filters */}
@@ -370,6 +383,15 @@ export default function AnswerLibrary() {
                             {hasFilters && (
                                 <button onClick={clearFilters} className="btn-secondary text-sm">
                                     Clear Filters
+                                </button>
+                            )}
+                            {!hasFilters && (
+                                <button
+                                    onClick={() => setShowCreateModal(true)}
+                                    className="btn-primary mt-2"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add First Item
                                 </button>
                             )}
                         </div>
@@ -596,6 +618,119 @@ export default function AnswerLibrary() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {showCreateModal && (
+                <CreateItemModal
+                    onClose={() => setShowCreateModal(false)}
+                    onCreated={() => {
+                        setShowCreateModal(false);
+                        loadItems();
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+function CreateItemModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+    const [isLoading, setIsLoading] = useState(false);
+    const [form, setForm] = useState({
+        question_text: '',
+        answer_text: '',
+        category: '',
+        tags: '',
+        status: 'approved'
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.question_text.trim() || !form.answer_text.trim()) {
+            toast.error('Question and Answer are required');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await answerLibraryApi.create({
+                ...form,
+                tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+            });
+            toast.success('Library item created');
+            onCreated();
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to create item');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-surface rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+                <div className="p-6 border-b border-border flex items-center justify-between sticky top-0 bg-surface z-10">
+                    <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                        <PlusIcon className="h-6 w-6 text-primary" />
+                        New Library Entry
+                    </h2>
+                    <button onClick={onClose} className="p-2 hover:bg-background rounded-full transition-colors">
+                        <XMarkIcon className="h-6 w-6 text-text-muted" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-text-primary mb-1">Question / Requirement</label>
+                        <textarea
+                            value={form.question_text}
+                            onChange={(e) => setForm({ ...form, question_text: e.target.value })}
+                            className="input w-full min-h-[100px] resize-none"
+                            placeholder="e.g., What is your data encryption policy?"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-text-primary mb-1">Standard Answer</label>
+                        <textarea
+                            value={form.answer_text}
+                            onChange={(e) => setForm({ ...form, answer_text: e.target.value })}
+                            className="input w-full min-h-[150px] resize-none"
+                            placeholder="Enter the approved response..."
+                            required
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-text-primary mb-1">Category</label>
+                            <input
+                                type="text"
+                                value={form.category}
+                                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                                className="input w-full"
+                                placeholder="e.g., Security"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-text-primary mb-1">Tags (comma separated)</label>
+                            <input
+                                type="text"
+                                value={form.tags}
+                                onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                                className="input w-full"
+                                placeholder="compliance, infra, prod"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                        <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+                        <button type="submit" disabled={isLoading} className="btn-primary">
+                            {isLoading ? 'Creating...' : 'Create Entry'}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     );

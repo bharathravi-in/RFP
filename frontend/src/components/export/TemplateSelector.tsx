@@ -14,7 +14,7 @@ interface Template {
 interface TemplateSelectorProps {
     isOpen: boolean;
     onClose: () => void;
-    onSelect: (templateId: number) => void;
+    onSelect: (templateId?: number) => void;
     currentTemplateId?: number;
 }
 
@@ -54,6 +54,11 @@ export default function TemplateSelector({
             onSelect(selectedId);
             onClose();
         }
+    };
+
+    const handleUseDefault = () => {
+        onSelect(undefined);
+        onClose();
     };
 
     if (!isOpen) return null;
@@ -139,17 +144,25 @@ export default function TemplateSelector({
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-                        <button onClick={onClose} className="btn-secondary">
-                            Cancel
-                        </button>
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
                         <button
-                            onClick={handleConfirm}
-                            disabled={!selectedId}
-                            className="btn-primary"
+                            onClick={handleUseDefault}
+                            className="text-sm text-gray-600 hover:text-gray-900 underline"
                         >
-                            Use Template
+                            Export without template
                         </button>
+                        <div className="flex items-center gap-3">
+                            <button onClick={onClose} className="btn-secondary">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirm}
+                                disabled={!selectedId}
+                                className="btn-primary"
+                            >
+                                Use Template
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

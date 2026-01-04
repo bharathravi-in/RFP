@@ -57,19 +57,80 @@ class PPTService:
         )
     
     def _extract_template_colors(self, prs: Presentation):
-        """Extract theme colors from template slide master."""
+        """Extract theme colors from template slide master and update self.colors."""
         try:
-            # Try to get colors from the first slide master's theme
-            if prs.slide_masters and len(prs.slide_masters) > 0:
-                master = prs.slide_masters[0]
-                theme = master.slide_master.element
-                
-                # Log available theme info for debugging
-                logger.info(f"Template has {len(prs.slide_masters)} slide masters")
-                
-                # The theme colors are embedded in the XML, for now we'll just log
-                # and keep using template layouts which will inherit the styling
-                logger.info("Template colors will be inherited from slide layouts")
+            if not prs.slide_masters or len(prs.slide_masters) == 0:
+                return
+            
+            master = prs.slide_masters[0]
+            logger.info(f"Template has {len(prs.slide_masters)} slide masters, {len(prs.slide_layouts)} layouts")
+            
+            # Try to get theme colors from slide master's theme
+            # The theme part contains accent colors
+            try:
+                theme_part = master.part.related_parts.get('/ppt/theme/theme1.xml')
+                if theme_part:
+                    # Parse theme XML for color scheme
+                    from lxml import etree
+                    theme_xml = etree.fromstring(theme_part.blob)
+                    
+                    # Namespace for theme XML
+                    nsmap = {
+                        'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+                    }
+                    
+                    # Find color scheme
+                    clr_scheme = theme_xml.find('.//a:clrScheme', nsmap)
+                    if clr_scheme is not None:
+                        # Extract key colors
+                        color_names = ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3']
+                        extracted_colors = {}
+                        
+                        for color_name in color_names:
+                            color_elem = clr_scheme.find(f'a:{color_name}', nsmap)
+                            if color_elem is not None:
+                                # Check for srgbClr (RGB) or sysClr (system color)
+                                srgb = color_elem.find('a:srgbClr', nsmap)
+                                if srgb is not None:
+                                    hex_val = srgb.get('val')
+                                    if hex_val:
+                                        extracted_colors[color_name] = RGBColor(
+                                            int(hex_val[0:2], 16),
+                                            int(hex_val[2:4], 16),
+                                            int(hex_val[4:6], 16)
+                                        )
+                        
+                        # Map theme colors to our color scheme
+                        if 'accent1' in extracted_colors:
+                            self.colors['primary'] = extracted_colors['accent1']
+                        if 'accent2' in extracted_colors:
+                            self.colors['secondary'] = extracted_colors['accent2']
+                        if 'accent3' in extracted_colors:
+                            self.colors['accent'] = extracted_colors['accent3']
+                        if 'dk1' in extracted_colors:
+                            self.colors['text_dark'] = extracted_colors['dk1']
+                        if 'lt1' in extracted_colors:
+                            self.colors['text_light'] = extracted_colors['lt1']
+                        
+                        logger.info(f"Extracted {len(extracted_colors)} theme colors from template")
+                        return
+                        
+            except Exception as e:
+                logger.debug(f"Could not parse theme XML: {e}")
+            
+            # Fallback: Try to get colors from first shape in slide master
+            for shape in master.shapes:
+                if hasattr(shape, 'fill') and shape.fill.type is not None:
+                    try:
+                        if shape.fill.fore_color and shape.fill.fore_color.type == 1:  # RGB
+                            self.colors['primary'] = shape.fill.fore_color.rgb
+                            logger.info(f"Extracted primary color from master shape: {shape.fill.fore_color.rgb}")
+                            break
+                    except:
+                        pass
+            
+            logger.info("Template colors will be inherited from slide layouts")
+            
         except Exception as e:
             logger.warning(f"Could not extract template colors: {e}")
     

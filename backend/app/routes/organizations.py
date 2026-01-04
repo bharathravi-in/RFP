@@ -222,10 +222,13 @@ def extract_vendor_profile():
         # Fallback to legacy Google
         if not model:
             import google.generativeai as genai
-            api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
+            # specific: Check for user-provided key first
+            api_key = request.form.get('api_key') or os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
+            
             if api_key:
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.0-flash')
+                # Use 1.5 Flash as stable backup
+                model = genai.GenerativeModel('gemini-1.5-flash')
             else:
                 return jsonify({'error': 'AI service not configured'}), 500
         
@@ -256,8 +259,12 @@ Example response:
             response_text = model.generate_content(prompt)
         else:
             # Legacy Google model returns response object with .text
-            response = model.generate_content(prompt)
-            response_text = response.text
+            try:
+                response = model.generate_content(prompt)
+                response_text = response.text
+            except Exception as e:
+                logger.error(f"Generative AI Error: {e}")
+                return jsonify({'error': f'AI processing failed: {str(e)}'}), 500
         
         response_text = response_text.strip()
 

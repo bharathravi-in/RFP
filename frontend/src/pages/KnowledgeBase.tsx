@@ -338,6 +338,18 @@ export default function KnowledgeBasePage() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Global Upload Button */}
+                        <button
+                            onClick={() => {
+                                setUploadFolderId(selectedFolder?.id || folders[0]?.id || 0);
+                                setIsUploadOpen(true);
+                            }}
+                            className="btn-primary py-1.5 px-3 text-sm flex items-center gap-2"
+                        >
+                            <CloudArrowUpIcon className="h-4 w-4" />
+                            <span className="hidden sm:inline">Upload</span>
+                        </button>
+
                         {/* Search */}
                         <div className="relative">
                             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -398,9 +410,12 @@ export default function KnowledgeBasePage() {
                                     ? 'Try a different search term'
                                     : 'Upload files to your knowledge base to get started'}
                             </p>
-                            {selectedFolder && !searchQuery && (
+                            {(!searchQuery) && (
                                 <button
-                                    onClick={() => handleUploadFiles(selectedFolder.id)}
+                                    onClick={() => {
+                                        setUploadFolderId(selectedFolder?.id || folders[0]?.id || 0);
+                                        setIsUploadOpen(true);
+                                    }}
                                     className="btn-primary"
                                 >
                                     <CloudArrowUpIcon className="h-5 w-5" />

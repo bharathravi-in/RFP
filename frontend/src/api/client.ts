@@ -51,6 +51,11 @@ api.interceptors.response.use(
                     window.location.href = '/login';
                     return Promise.reject(refreshError);
                 }
+            } else {
+                // No refresh token - logout immediately
+                localStorage.removeItem('access_token');
+                window.location.href = '/login';
+                return Promise.reject(error);
             }
         }
 
@@ -274,6 +279,9 @@ export const knowledgeApi = {
 
     reindex: () =>
         api.post('/knowledge/reindex'),
+
+    getProfiles: () =>
+        api.get('/knowledge/profiles'),
 };
 
 // ===============================
@@ -415,8 +423,8 @@ export const sectionsApi = {
         api.post(`/section-templates/${templateId}/apply`, { section_id: sectionId, variables }),
 
     // Export
-    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', includeQA: boolean = true) =>
-        api.post(`/projects/${projectId}/export/proposal`, { format, include_qa: includeQA }, { responseType: 'blob' }),
+    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', templateId?: number, includeQA: boolean = true) =>
+        api.post(`/projects/${projectId}/export/proposal`, { format, template_id: templateId, include_qa: includeQA }, { responseType: 'blob' }),
 
     getExportPreview: (projectId: number) =>
         api.get(`/projects/${projectId}/export/preview`),
@@ -498,9 +506,10 @@ export const organizationsApi = {
     delete: (id: number, confirm: boolean = false) =>
         api.delete(`/organizations/${id}`, { data: { confirm } }),
 
-    extractVendorProfile: (file: File) => {
+    extractVendorProfile: (file: File, apiKey?: string) => {
         const formData = new FormData();
         formData.append('file', file);
+        if (apiKey) formData.append('api_key', apiKey);
         return api.post('/organizations/extract-vendor-profile', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -844,7 +853,7 @@ export const diagramsApi = {
 // ===============================
 
 export const pptApi = {
-    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string> }) =>
+    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string>; template_id?: number }) =>
         api.post(`/ppt/generate/${projectId}`, options, { responseType: 'blob' }),
 
     preview: (projectId: number) =>
