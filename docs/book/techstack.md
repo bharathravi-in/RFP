@@ -53,3 +53,18 @@
 | Black | Python Formatting |
 | Vitest | Frontend Testing |
 | pytest | Backend Testing |
+## Technical Highlights
+
+### 1. Multi-Stage AI Orchestration
+We use a custom agentic framework to orchestrate **Google Gemini 2.0** models. This allows for complex workflows like multi-document analysis, cross-referencing past proposals, and automated compliance checking.
+
+### 2. Scalable Asynchronous Processing
+Heavy lifting like document parsing, embedding generation, and large-scale content drafting is handled by **Celery** workers. 
+- **Redis** serves as the message broker and result backend.
+- **SQLAlchemy** ensures reliable persistence of metadata and project state.
+
+### 3. Vector-Based Semantic Search
+Our RAG pipeline leverages **Qdrant** for high-performance vector similarity search. This ensures that the AI always has the most relevant context, regardless of project size.
+
+### 4. Real-time Collaborative UI
+The frontend is built with **React** and **TailwindCSS**, featuring a responsive, dashboard-driven design that provides real-time feedback on AI processing and compliance status.

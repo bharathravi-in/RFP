@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { answersApi, questionsApi, answerLibraryApi, knowledgeApi } from '@/api/client';
 import { Question, AnswerLibraryItem } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -29,6 +30,9 @@ export default function QuestionAnswerModal({
     onUpdate,
     onDelete,
 }: QuestionAnswerModalProps) {
+    const { user } = useAuthStore();
+    const canApprove = user?.role === 'admin' || user?.role === 'reviewer';
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -521,7 +525,7 @@ export default function QuestionAnswerModal({
                                     </button>
                                 )}
 
-                                {question.status !== 'approved' && (
+                                {canApprove && question.status !== 'approved' && (
                                     <button
                                         onClick={handleApprove}
                                         className="btn-success flex items-center gap-2"

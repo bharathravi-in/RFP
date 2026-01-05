@@ -12,7 +12,9 @@ export interface User {
     role: UserRole;
     organization_id: number | null;
     is_active: boolean;
+    is_super_admin?: boolean;
     created_at: string;
+    expertise_tags?: string[];
 }
 
 export interface Organization {
@@ -121,6 +123,9 @@ export interface Question {
     document_id: number | null;
     created_at: string;
     updated_at: string;
+    assigned_to: number | null;
+    due_date: string | null;
+    assignee_name?: string;
     answer?: Answer;
 }
 
@@ -149,6 +154,7 @@ export interface Answer {
     reviewed_by: number | null;
     reviewed_at: string | null;
     created_at: string;
+    verification_score: number;
     comments: AnswerComment[];
 }
 

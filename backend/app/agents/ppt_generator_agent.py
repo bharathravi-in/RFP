@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 class PPTGeneratorAgent:
     """Agent for generating PowerPoint presentation content from proposal data."""
     
-    MASTER_PROMPT = """You are a Senior Enterprise Pre-Sales Consultant and Proposal Architect specializing in RFP responses and executive-ready presentations.
+    MASTER_PROMPT = """You are a **STRICT ENTERPRISE PPT COMPLIANCE AGENT**.
 
-Your task is to generate professional, client-ready PowerPoint presentation content based on the provided proposal data.
+Your responsibility is **DESIGN + QUALITY COMPLIANCE** for client-ready proposal presentations.
 
-## Output Format
-Generate a JSON response with the following structure:
+## OUTPUT FORMAT (JSON - MANDATORY)
+Generate a JSON response with this EXACT structure:
 {{
   "slides": [
     {{
@@ -31,67 +31,95 @@ Generate a JSON response with the following structure:
       "title": "Slide Title",
       "subtitle": "Optional subtitle",
       "bullets": ["Point 1", "Point 2"],
-      "visual_suggestion": "Architecture diagram / Timeline / etc",
-      "notes": "Speaker notes for this slide"
+      "notes": "Speaker notes"
     }}
   ]
 }}
 
-## Slide Types
+## SLIDE TYPES
 - cover: Title slide with proposal name, client, date
-- agenda: Table of contents
-- content: Standard bullet point slide
-- two_column: Two column layout for comparisons
-- architecture: Technical diagram placeholder
-- timeline: Project timeline visualization
-- team: Team structure slide
-- pricing: Pricing summary slide
-- case_study: Case study highlight
-- closing: Thank you / Q&A slide
+- agenda: Table of contents (5-7 items max)
+- content: Standard bullet slide
+- architecture: Technical architecture (use structured bullets)
+- timeline: Phase-wise milestones
+- team: Roles and governance
+- pricing: Investment summary
+- closing: Thank you / Q&A
 
-## Mandatory Slide Structure (generate in this order):
-1. Cover Slide - Proposal title, client name, date
-2. Agenda - Overview of sections
-3. Client Context & Challenges - Business context, key challenges
-4. Understanding of the Problem - Restate problem clearly
-5. Proposed Solution Overview - High-level solution, differentiators
-6. Solution Architecture - System components, data flow
-7. Scope of Work - In-scope and out-of-scope items
-8. Implementation Approach - Phases, methodology, milestones
-9. Project Timeline - Phase-wise timeline
-10. Team & Governance - Team roles, communication model
-11. Security & Compliance - Data security, compliance standards
-12. Risks & Mitigation - Key risks and strategies
-13. Value Proposition - Quantifiable benefits, ROI
-14. Case Studies - Problem, solution, results (if available)
-15. Pricing Summary - High-level pricing
-16. Assumptions & Dependencies - Client responsibilities
-17. Why Choose Us - Differentiators, experience
-18. Next Steps - Approval steps, proposed kickoff
-19. Thank You / Q&A - Contact details
+## MANDATORY SLIDE ORDER (19 SLIDES)
+1. **Cover** - Proposal title, client name, date
+2. **Agenda** - Clean overview of sections
+3. **Client Context** - Business challenges
+4. **Our Understanding** - Problem restatement
+5. **Solution Overview** - High-level approach
+6. **Architecture** - Components as structured bullets
+7. **Scope of Work** - In/out of scope
+8. **Implementation Approach** - Phases, methodology
+9. **Timeline** - Phase milestones
+10. **Team & Governance** - Roles, communication
+11. **Security & Compliance** - Standards addressed
+12. **Risks & Mitigation** - Key risks with strategies
+13. **Value Proposition** - ROI, quantifiable benefits
+14. **Case Studies** - Past success (if available)
+15. **Pricing Summary** - Investment breakdown
+16. **Assumptions** - Client dependencies
+17. **Why Choose Us** - Key differentiators
+18. **Next Steps** - Path forward
+19. **Thank You** - Contact details
 
-## Guidelines:
-- Maximum 6 bullet points per slide
-- Each bullet should be concise (under 15 words)
-- Use executive, confident, concise tone
-- Focus on clarity, outcomes, and value
-- Suggest relevant visuals for each slide
+## CONTENT DISCIPLINE (STRICT)
 
-## Speaker Notes (MANDATORY for every slide):
-- Include detailed speaker notes in the "notes" field for EVERY slide
-- Notes should include:
-  * Key talking points to expand on bullets
-  * Data points and metrics to mention
-  * Transition phrases to next slide
-  * Potential questions to anticipate
-- Write notes as if coaching a presenter
-- Notes should be 3-5 sentences per slide
-- Example: "Emphasize that our team has successfully delivered X similar projects. Mention specific client names if audience permits. Transition to next slide by highlighting the implementation approach."
+### Each Slide MUST Have:
+- **ONE insight-driven title** (not section name)
+- **3-5 bullets ONLY**
+- Each bullet: **MAX 12 words**
 
-## Proposal Data:
+### BANNED PHRASES (NEVER USE):
+- "leveraging"
+- "cutting-edge"
+- "next-generation"
+- "seamlessly"
+- "robust solution"
+- "revolutionary"
+- "state-of-the-art"
+- "holistic approach"
+- "synergy"
+
+### Content Quality:
+- Business outcome focused
+- Formal enterprise language
+- No marketing fluff
+- No AI-generated buzzwords
+
+## ARCHITECTURE SLIDE RULES
+Architecture slides MUST use structured bullets:
+- "User Layer: Web portal, mobile app, admin console"
+- "Application: Core modules, business logic"
+- "Services: REST APIs, authentication, notifications"
+- "Data: Database, document storage, integrations"
+
+## BRAND SAFETY
+- Organization name MUST be consistent everywhere
+- Do NOT invent brand names
+- Do NOT mix client/vendor identities
+
+## SPEAKER NOTES (MANDATORY)
+Every slide "notes" field MUST include:
+- 2-3 key talking points
+- Transition phrase to next slide
+
+## PRE-OUTPUT AUDIT (MANDATORY)
+Before output, verify:
+- All bullets ≤ 12 words
+- No banned phrases used
+- Content matches slide title
+- 19 slides generated
+- JSON is valid
+
+## PROPOSAL DATA:
 {proposal_data}
 
-Generate the complete slide deck JSON now:"""
+Generate the complete slide deck JSON now. Return ONLY valid JSON:"""
 
     STYLE_PROMPTS = {
         'modern': "Use modern, clean design language with bold headlines and minimal text.",
@@ -315,6 +343,72 @@ Generate the complete slide deck JSON now:"""
             answered = [q for q in questions if q.get('status') in ['answered', 'approved']]
             data['qa_count'] = len(answered)
             data['total_questions'] = len(questions)
+        
+        # Add compliance data if available (passed through project_data)
+        compliance_items = project_data.get('compliance', [])
+        if compliance_items:
+            compliant_count = sum(1 for c in compliance_items if c.get('status') == 'compliant')
+            partial_count = sum(1 for c in compliance_items if c.get('status') == 'partial')
+            non_compliant_count = sum(1 for c in compliance_items if c.get('status') == 'non_compliant')
+            
+            data['compliance_summary'] = {
+                'total_requirements': len(compliance_items),
+                'compliant': compliant_count,
+                'partial': partial_count,
+                'non_compliant': non_compliant_count,
+                'compliance_rate': round(compliant_count / len(compliance_items) * 100, 1) if compliance_items else 0,
+            }
+            # Include top requirements for context
+            data['key_compliance_items'] = [
+                {'requirement': c.get('requirement', ''), 'status': c.get('status', '')}
+                for c in compliance_items[:10]
+            ]
+        
+        # Add strategy data if available (passed through project_data)
+        strategy = project_data.get('strategy')
+        if strategy:
+            # Win themes for value proposition and differentiators
+            if strategy.get('win_themes'):
+                win_themes_data = strategy['win_themes']
+                themes = win_themes_data.get('win_themes', [])
+                data['win_themes'] = [
+                    {
+                        'title': t.get('theme_title', ''),
+                        'statement': t.get('theme_statement', ''),
+                        'benefit': t.get('customer_benefit', ''),
+                        'priority': t.get('priority', ''),
+                    }
+                    for t in themes[:5]  # Top 5 themes
+                ]
+                data['differentiators'] = win_themes_data.get('differentiators', [])[:5]
+            
+            # Pricing for investment slide
+            if strategy.get('pricing'):
+                pricing_data = strategy['pricing']
+                pricing_summary = pricing_data.get('pricing_summary', {})
+                data['pricing'] = {
+                    'total_cost': pricing_summary.get('total_cost', 0),
+                    'currency': pricing_summary.get('currency_symbol', '$'),
+                    'validity': pricing_summary.get('validity_period', ''),
+                }
+                effort_breakdown = pricing_data.get('effort_breakdown', [])
+                data['effort_breakdown'] = [
+                    {'phase': p.get('phase', ''), 'cost': p.get('phase_total', 0)}
+                    for p in effort_breakdown
+                ]
+            
+            # Legal review for risks slide
+            if strategy.get('legal_review'):
+                legal_data = strategy['legal_review']
+                data['risk_assessment'] = {
+                    'overall_level': legal_data.get('overall_risk_level', ''),
+                    'summary': legal_data.get('review_summary', ''),
+                }
+                risk_items = legal_data.get('risk_items', [])
+                data['key_risks'] = [
+                    {'severity': r.get('severity', ''), 'description': r.get('description', '')}
+                    for r in risk_items[:5]  # Top 5 risks
+                ]
         
         return data
     

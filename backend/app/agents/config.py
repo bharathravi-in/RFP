@@ -81,8 +81,13 @@ class AgentConfig:
                     f"✓ Loaded {agent_type} config from database: "
                     f"{self.provider}/{self.model_name}"
                 )
+            else:
+                # No database config found, fall back to environment variables
+                logger.warning(f"No database config found for agent '{agent_type}', trying environment")
+                self._load_from_environment()
         except Exception as e:
-            logger.warning(f"Failed to load config from database: {e}")
+            logger.warning(f"Failed to load config from database: {e}, trying environment")
+            self._load_from_environment()
     
     def _load_from_environment(self):
         """Load configuration from environment variables (fallback)."""

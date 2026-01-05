@@ -215,16 +215,72 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
     };
 
     return (
-        <div className="p-6 max-w-3xl mx-auto">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                    <ChartBarIcon className="h-5 w-5 text-indigo-600" />
+        <div className="p-6 max-w-4xl mx-auto space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <ChartBarIcon className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Strategy Tools</h2>
+                        <p className="text-gray-500">AI-powered proposal strategy & analysis</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Strategy Tools</h2>
-                    <p className="text-sm text-gray-500">AI-powered proposal strategy insights</p>
-                </div>
+                {isLoading && (
+                    <div className="flex items-center gap-2 text-indigo-600 font-medium">
+                        <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                        <span>Loading analysis...</span>
+                    </div>
+                )}
             </div>
+
+            {/* AI Strategic Insights Dashboard */}
+            {!isLoading && (winThemes.length > 0 || legalData || pricingData) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold uppercase text-xs tracking-wider">
+                            <TrophyIcon className="h-4 w-4" />
+                            Win Strategy
+                        </div>
+                        <div className="text-2xl font-bold text-indigo-900">
+                            {winThemes.length} <span className="text-sm font-normal text-indigo-600">Themes Identified</span>
+                        </div>
+                        <p className="text-xs text-indigo-600/80 mt-1 line-clamp-1">
+                            {winThemes[0]?.theme_title || "No themes yet"}
+                        </p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-emerald-50 to-white p-5 rounded-2xl border border-emerald-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3 text-emerald-700 font-bold uppercase text-xs tracking-wider">
+                            <CurrencyDollarIcon className="h-4 w-4" />
+                            Financials
+                        </div>
+                        <div className="text-2xl font-bold text-emerald-900">
+                            {pricingData ? `${pricingData.pricing_summary?.currency_symbol || '$'}${pricingData.pricing_summary?.total_cost?.toLocaleString()}` : "$0"}
+                            <span className="text-sm font-normal text-emerald-600 ms-1">Total Est.</span>
+                        </div>
+                        <p className="text-xs text-emerald-600/80 mt-1 line-clamp-1">
+                            {pricingData?.pricing_summary?.validity_period ? `Valid: ${pricingData.pricing_summary.validity_period}` : "Calculate effort & costs"}
+                        </p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-red-50 to-white p-5 rounded-2xl border border-red-100 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3 text-red-700 font-bold uppercase text-xs tracking-wider">
+                            <ScaleIcon className="h-4 w-4" />
+                            Risk Status
+                        </div>
+                        <div className={`text-2xl font-bold capitalize ${legalData?.overall_risk_level === 'high' || legalData?.overall_risk_level === 'critical' ? 'text-red-700' :
+                                legalData?.overall_risk_level === 'medium' ? 'text-amber-600' : 'text-emerald-600'
+                            }`}>
+                            {legalData?.overall_risk_level || "Unknown"}
+                            <span className="text-sm font-normal opacity-70 ms-1">Overall Risk</span>
+                        </div>
+                        <p className="text-xs text-red-600/80 mt-1 line-clamp-1">
+                            {legalData ? `${legalData.risk_items?.length || 0} items analyzed` : "Run legal audit"}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Win Themes Section */}
             <div className="border border-gray-200 rounded-xl mb-4 overflow-hidden">

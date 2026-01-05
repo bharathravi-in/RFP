@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { usersApi, organizationsApi, invitationsApi } from '@/api/client';
 import InviteMemberModal from '@/components/modals/InviteMemberModal';
@@ -23,30 +24,64 @@ import {
     QuestionMarkCircleIcon,
     RocketLaunchIcon,
     BookOpenIcon,
+    SwatchIcon,
+    BeakerIcon,
+    LinkIcon,
+    ClipboardDocumentListIcon,
+    CurrencyDollarIcon,
+    CloudIcon,
+    ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import KnowledgeProfiles from '@/components/knowledge/KnowledgeProfiles';
 import FilterDimensions from '@/components/knowledge/FilterDimensions';
 import AIConfigurationSection from '@/components/settings/AIConfigurationSection';
+import ExperimentsSection from '@/components/settings/ExperimentsSection';
+import WebhooksSection from '@/components/settings/WebhooksSection';
+import ApprovalWorkflowsSection from '@/components/settings/ApprovalWorkflowsSection';
+import RevenueTrackingSection from '@/components/settings/RevenueTrackingSection';
+import SSOConfigurationSection from '@/components/settings/SSOConfigurationSection';
+import CRMIntegrationSection from '@/components/settings/CRMIntegrationSection';
 import PlatformTour from '@/components/onboarding/PlatformTour';
+import LanguageSelector from '@/components/common/LanguageSelector';
+import ThemeSelector from '@/components/common/ThemeSelector';
 
 const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
-const tabs = [
-    { id: 'profile', name: 'Profile', icon: UserCircleIcon },
-    { id: 'organization', name: 'Organization', icon: BuildingOfficeIcon },
-    { id: 'vendor', name: 'Vendor Profile', icon: BriefcaseIcon },
-    { id: 'knowledge', name: 'Knowledge Profiles', icon: FolderIcon },
-    { id: 'dimensions', name: 'Filter Dimensions', icon: TagIcon },
-    { id: 'security', name: 'Security', icon: KeyIcon },
-    { id: 'notifications', name: 'Notifications', icon: BellIcon },
-    { id: 'ai', name: 'AI Settings', icon: CogIcon },
-    { id: 'help', name: 'Help & Support', icon: QuestionMarkCircleIcon },
+// Tabs with role restrictions - using translation keys
+const allTabs = [
+    { id: 'profile', key: 'settings.profile', icon: UserCircleIcon },
+    { id: 'organization', key: 'settings.organization', icon: BuildingOfficeIcon },
+    { id: 'vendor', key: 'settings.vendorProfile', icon: BriefcaseIcon, adminOnly: true },
+    { id: 'knowledge', key: 'settings.knowledgeProfiles', icon: FolderIcon },
+    { id: 'dimensions', key: 'settings.filterDimensions', icon: TagIcon },
+    { id: 'security', key: 'settings.security', icon: KeyIcon },
+    { id: 'sso', key: 'SSO / SAML', icon: ShieldCheckIcon, superAdminOnly: true },
+    { id: 'notifications', key: 'settings.notifications', icon: BellIcon, superAdminOnly: true },
+    { id: 'ai', key: 'settings.aiSettings', icon: CogIcon, adminOnly: true },
+    { id: 'experiments', key: 'A/B Experiments', icon: BeakerIcon, superAdminOnly: true },
+    { id: 'webhooks', key: 'Webhooks', icon: LinkIcon, superAdminOnly: true },
+    { id: 'approvals', key: 'Approval Workflows', icon: ClipboardDocumentListIcon, superAdminOnly: true },
+    { id: 'revenue', key: 'Revenue Tracking', icon: CurrencyDollarIcon, superAdminOnly: true },
+    { id: 'crm', key: 'CRM Integration', icon: CloudIcon, superAdminOnly: true },
+    { id: 'branding', key: 'settings.branding', icon: SwatchIcon, adminOnly: true },
+    { id: 'help', key: 'settings.helpSupport', icon: QuestionMarkCircleIcon },
 ];
 
 export default function Settings() {
     const { user, organization, setUser, setOrganization } = useAuthStore();
     const [searchParams, setSearchParams] = useSearchParams();
+    const { t } = useTranslation();
+
+    // Filter tabs based on user role - hide admin-only and super-admin-only tabs
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isSuperAdmin = user?.role === 'super_admin';
+    const tabs = allTabs.filter(tab => {
+        if (tab.superAdminOnly) return isSuperAdmin;
+        if (tab.adminOnly) return isAdmin;
+        return true;
+    });
+
     const tabFromUrl = searchParams.get('tab');
     const validTab = tabs.find(t => t.id === tabFromUrl)?.id || 'profile';
     const [activeTab, setActiveTab] = useState(validTab);
@@ -56,6 +91,7 @@ export default function Settings() {
     const [email, setEmail] = useState(user?.email || '');
     const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [expertiseTags, setExpertiseTags] = useState<string>(user?.expertise_tags?.join(', ') || '');
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
     const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -183,7 +219,8 @@ export default function Settings() {
         e.preventDefault();
         setIsSaving(true);
         try {
-            const response = await usersApi.updateProfile({ name, email });
+            const tagsArray = expertiseTags.split(',').map(tag => tag.trim()).filter(Boolean);
+            const response = await usersApi.updateProfile({ name, email, expertise_tags: tagsArray });
             setUser(response.data.user);
             toast.success('Profile updated successfully');
             setIsEditing(false);
@@ -406,8 +443,8 @@ export default function Settings() {
         <div className="animate-fade-in">
             {/* Page Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
-                <p className="text-text-secondary mt-1">Manage your account and preferences</p>
+                <h1 className="text-2xl font-bold text-text-primary">{t('settings.title')}</h1>
+                <p className="text-text-secondary mt-1">{t('settings.subtitle')}</p>
             </div>
 
             {/* Tab Navigation */}
@@ -424,7 +461,7 @@ export default function Settings() {
                         )}
                     >
                         <tab.icon className="h-4 w-4" />
-                        {tab.name}
+                        {t(tab.key)}
                     </button>
                 ))}
             </div>
@@ -498,6 +535,18 @@ export default function Settings() {
                                     <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!isEditing}
                                         className={clsx("input w-full", !isEditing && "bg-background cursor-not-allowed opacity-70")} />
                                 </div>
+                            </div>
+                            <div className="mt-6">
+                                <label className="block text-sm font-medium text-text-primary mb-2">Expertise Tags</label>
+                                <input
+                                    type="text"
+                                    value={expertiseTags}
+                                    onChange={(e) => setExpertiseTags(e.target.value)}
+                                    disabled={!isEditing}
+                                    placeholder="e.g. security, pricing, legal, cloud..."
+                                    className={clsx("input w-full", !isEditing && "bg-background cursor-not-allowed opacity-70")}
+                                />
+                                <p className="text-xs text-text-secondary mt-1">Separate with commas. These help AI suggest you for relevant tasks.</p>
                             </div>
                             {isEditing && (
                                 <div className="flex justify-end mt-6 pt-6 border-t border-border">
@@ -585,6 +634,21 @@ export default function Settings() {
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
+                                    )}
+                                    {user?.role === 'admin' && (
+                                        <div className="mt-8 pt-6 border-t border-border flex justify-between items-center bg-blue-50/50 -mx-6 -mb-6 p-6 rounded-b-xl border-t border-blue-100">
+                                            <div>
+                                                <p className="text-sm font-medium text-blue-900">Next Step: Vendor Profile</p>
+                                                <p className="text-xs text-blue-700">Tell us more about your business to get better RFP matches.</p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleTabChange('vendor')}
+                                                className="btn-primary flex items-center gap-2"
+                                            >
+                                                Next Section
+                                                <ArrowRightIcon className="h-4 w-4" />
+                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -900,6 +964,20 @@ export default function Settings() {
                                         )}
                                     </button>
                                 </div>
+                                <div className="mt-8 pt-6 border-t border-border flex justify-between items-center bg-green-50/50 -mx-6 -mb-6 p-6 rounded-b-xl border-t border-green-100">
+                                    <div>
+                                        <p className="text-sm font-medium text-green-900">Next Step: Knowledge Profiles</p>
+                                        <p className="text-xs text-green-700">Configure AI dimensions to specialized your RFP responses.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleTabChange('knowledge')}
+                                        className="btn-primary bg-green-600 hover:bg-green-700 border-green-700 flex items-center gap-2"
+                                    >
+                                        Next Section
+                                        <ArrowRightIcon className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </form>
                         </div>
 
@@ -976,10 +1054,68 @@ export default function Settings() {
                                 </label>
                             ))}
                         </div>
+
+                        {/* Language Section */}
+                        <div className="p-6 border-t border-border">
+                            <h3 className="text-sm font-semibold text-text-primary mb-3">Language / भाषा</h3>
+                            <div className="flex items-center gap-4">
+                                <LanguageSelector variant="buttons" />
+                            </div>
+                        </div>
+
+                        {/* Theme Section */}
+                        <div className="p-6 border-t border-border">
+                            <h3 className="text-sm font-semibold text-text-primary mb-3">Theme</h3>
+                            <div className="flex items-center gap-4">
+                                <ThemeSelector variant="buttons" />
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {activeTab === 'ai' && <AIConfigurationSection />}
+
+                {/* Experiments Tab */}
+                {activeTab === 'experiments' && <ExperimentsSection />}
+
+                {/* Webhooks Tab */}
+                {activeTab === 'webhooks' && <WebhooksSection />}
+
+                {/* Approval Workflows Tab */}
+                {activeTab === 'approvals' && <ApprovalWorkflowsSection />}
+
+                {/* Revenue Tracking Tab */}
+                {activeTab === 'revenue' && <RevenueTrackingSection />}
+
+                {/* SSO Configuration Tab */}
+                {activeTab === 'sso' && <SSOConfigurationSection />}
+
+                {/* CRM Integration Tab */}
+                {activeTab === 'crm' && <CRMIntegrationSection />}
+
+                {/* Branding Tab */}
+                {activeTab === 'branding' && (
+                    <div className="space-y-6 max-w-3xl">
+                        <div className="bg-surface rounded-xl border border-border p-6">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="p-3 bg-gradient-to-br from-primary/20 to-purple-100 rounded-xl">
+                                    <SwatchIcon className="h-6 w-6 text-primary" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-text-primary">Custom Branding</h2>
+                                    <p className="text-text-secondary">Customize your organization's look and feel</p>
+                                </div>
+                            </div>
+                            <Link
+                                to="/settings/branding"
+                                className="btn-primary inline-flex items-center gap-2"
+                            >
+                                <SwatchIcon className="h-4 w-4" />
+                                Open Branding Settings
+                            </Link>
+                        </div>
+                    </div>
+                )}
 
                 {/* Help & Support Tab */}
                 {activeTab === 'help' && (

@@ -26,12 +26,28 @@ from .activity_log import ActivityLog
 from .copilot import CoPilotSession, CoPilotMessage
 from .export_template import ExportTemplate
 from .project_strategy import ProjectStrategy
+from .competitor import Competitor  # Competitor intelligence
 
 # LLM Usage Tracking (from services, not a model file but registered here for convenience)
 # Note: LLMUsage is defined in app/services/llm_usage.py
 
 # Document Chat
 from .document_chat import DocumentChatSession, DocumentChatMessage
+
+# Webhooks (Enterprise feature)
+from .webhook import WebhookConfig, WebhookDelivery, WEBHOOK_EVENTS
+
+# Approval Workflows (Enterprise feature)
+from .approval_workflow import ApprovalWorkflow, ApprovalStage, ApprovalRequest, ApprovalDecision
+
+# Revenue Tracking
+from .revenue import ProposalRevenue, RevenueReport
+
+# SSO/SAML Configuration
+from .sso import SSOConfiguration, SSOLoginAttempt
+
+# CRM Integration
+from .crm_integration import CRMIntegration, CRMSyncRecord, CRMSyncLog
 
 __all__ = [
     'User',
@@ -89,4 +105,21 @@ __all__ = [
     'ExportTemplate',
     # Project Strategy
     'ProjectStrategy',
+    # Competitor Intelligence
+    'Competitor',
+    # Approval Workflows
+    'ApprovalWorkflow',
+    'ApprovalStage',
+    'ApprovalRequest',
+    'ApprovalDecision',
+    # Revenue Tracking
+    'ProposalRevenue',
+    'RevenueReport',
+    # SSO/SAML
+    'SSOConfiguration',
+    'SSOLoginAttempt',
+    # CRM Integration
+    'CRMIntegration',
+    'CRMSyncRecord',
+    'CRMSyncLog',
 ]

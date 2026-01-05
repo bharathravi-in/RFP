@@ -20,6 +20,7 @@ class BaseLLMProvider(ABC):
         base_url: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        timeout_seconds: float = 60.0,
         **kwargs
     ):
         self.api_key = api_key
@@ -27,6 +28,7 @@ class BaseLLMProvider(ABC):
         self.base_url = base_url
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.timeout_seconds = timeout_seconds
         self.extra_config = kwargs
     
     @property

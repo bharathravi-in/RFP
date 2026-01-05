@@ -517,6 +517,180 @@ class AnswerReuseService:
         except Exception as e:
             logger.error(f"Failed to get most reused answers: {e}")
             return []
+    
+    def adapt_answer_for_context(
+        self,
+        source_answer: str,
+        source_question: str,
+        target_question: str,
+        org_id: int,
+        project_context: Dict = None
+    ) -> Dict:
+        """
+        AI-powered answer adaptation for context-aware reuse.
+        
+        Takes a source answer (approved for a similar question) and adapts it
+        to the target question's specific context while preserving core value.
+        
+        Args:
+            source_answer: The approved answer content to adapt
+            source_question: The original question the answer was for
+            target_question: The new question to adapt the answer for
+            org_id: Organization ID for LLM config
+            project_context: Optional dict with project info (client, industry, etc.)
+        
+        Returns:
+            Dict with:
+            - adapted_answer: The contextually adapted answer
+            - adaptation_notes: What was changed
+            - confidence: Confidence in adaptation quality
+        """
+        try:
+            from app.services.llm_service_helper import get_llm_provider
+            
+            llm = get_llm_provider(org_id, 'answer_generation')
+            
+            # Build context string from project
+            context_str = ""
+            if project_context:
+                if project_context.get('client_name'):
+                    context_str += f"\nClient: {project_context['client_name']}"
+                if project_context.get('industry'):
+                    context_str += f"\nIndustry: {project_context['industry']}"
+                if project_context.get('client_type'):
+                    context_str += f"\nClient Type: {project_context['client_type']}"
+            
+            prompt = f"""You are an expert proposal writer adapting approved answers for new contexts.
+
+## ORIGINAL QUESTION:
+{source_question}
+
+## APPROVED ANSWER (Source):
+{source_answer}
+
+## NEW QUESTION (Target):
+{target_question}
+{context_str}
+
+## YOUR TASK:
+Adapt the approved answer to specifically address the NEW question while:
+1. PRESERVING the core facts, metrics, and value propositions
+2. ADJUSTING terminology and focus to match the new question's specifics
+3. REMOVING any parts not relevant to the new question
+4. ADDING brief context if needed to directly answer the new question
+
+## OUTPUT FORMAT:
+First provide the adapted answer, then after a line "---NOTES---", briefly explain what you changed (2-3 sentences max).
+
+## ADAPTED ANSWER:"""
+
+            response = llm.generate_content(prompt)
+            
+            # Parse response to separate answer from notes
+            adapted_answer = response
+            adaptation_notes = ""
+            
+            if "---NOTES---" in response:
+                parts = response.split("---NOTES---")
+                adapted_answer = parts[0].strip()
+                if len(parts) > 1:
+                    adaptation_notes = parts[1].strip()
+            
+            # Calculate confidence based on answer changes
+            source_len = len(source_answer)
+            adapted_len = len(adapted_answer)
+            length_change = abs(source_len - adapted_len) / max(source_len, adapted_len)
+            
+            # High confidence if moderate adaptation (not too different, not identical)
+            if 0.05 < length_change < 0.4:
+                confidence = 0.9
+            elif length_change <= 0.05:
+                confidence = 0.95  # Very similar, minimal adaptation needed
+            else:
+                confidence = 0.75  # Significant changes, may need review
+            
+            logger.info(f"Adapted answer: original={source_len} chars, adapted={adapted_len} chars, confidence={confidence}")
+            
+            return {
+                'adapted_answer': adapted_answer,
+                'adaptation_notes': adaptation_notes,
+                'confidence': confidence,
+                'source_preserved': length_change < 0.5
+            }
+            
+        except Exception as e:
+            logger.error(f"Answer adaptation failed: {e}")
+            # Return original answer on failure
+            return {
+                'adapted_answer': source_answer,
+                'adaptation_notes': f"Adaptation failed: {e}. Original answer returned.",
+                'confidence': 0.5,
+                'source_preserved': True
+            }
+    
+    def find_and_adapt_answer(
+        self,
+        question_text: str,
+        org_id: int,
+        project_context: Dict = None,
+        auto_adapt: bool = True
+    ) -> Optional[Dict]:
+        """
+        Find a similar answer and optionally adapt it for the new context.
+        
+        This is the main entry point for context-aware answer reuse.
+        
+        Args:
+            question_text: The new question to answer
+            org_id: Organization ID
+            project_context: Optional project info for context
+            auto_adapt: Whether to automatically adapt the answer
+        
+        Returns:
+            Dict with suggested/adapted answer or None if no good match
+        """
+        # Find similar approved answers
+        similar = self.find_similar_answers(question_text, org_id, limit=1)
+        
+        if not similar:
+            return None
+        
+        best_match = similar[0]
+        
+        # If similarity is high enough and we should adapt
+        if best_match['similarity_score'] >= self.SIMILARITY_THRESHOLD:
+            result = {
+                'source_answer_id': best_match['answer_id'],
+                'source_question': best_match['question_text'],
+                'original_answer': best_match['answer_content'],
+                'similarity_score': best_match['similarity_score'],
+                'category': best_match['category']
+            }
+            
+            # Auto-adapt if enabled and similarity isn't perfect
+            if auto_adapt and best_match['similarity_score'] < 0.98:
+                adaptation = self.adapt_answer_for_context(
+                    source_answer=best_match['answer_content'],
+                    source_question=best_match['question_text'],
+                    target_question=question_text,
+                    org_id=org_id,
+                    project_context=project_context
+                )
+                
+                result['adapted_answer'] = adaptation['adapted_answer']
+                result['adaptation_notes'] = adaptation['adaptation_notes']
+                result['adaptation_confidence'] = adaptation['confidence']
+                result['was_adapted'] = True
+            else:
+                # Use original answer for very high similarity
+                result['adapted_answer'] = best_match['answer_content']
+                result['adaptation_notes'] = "No adaptation needed - questions are nearly identical"
+                result['adaptation_confidence'] = 1.0
+                result['was_adapted'] = False
+            
+            return result
+        
+        return None
 
 
 # Singleton instance

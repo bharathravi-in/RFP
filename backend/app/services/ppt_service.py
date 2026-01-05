@@ -57,19 +57,80 @@ class PPTService:
         )
     
     def _extract_template_colors(self, prs: Presentation):
-        """Extract theme colors from template slide master."""
+        """Extract theme colors from template slide master and update self.colors."""
         try:
-            # Try to get colors from the first slide master's theme
-            if prs.slide_masters and len(prs.slide_masters) > 0:
-                master = prs.slide_masters[0]
-                theme = master.slide_master.element
-                
-                # Log available theme info for debugging
-                logger.info(f"Template has {len(prs.slide_masters)} slide masters")
-                
-                # The theme colors are embedded in the XML, for now we'll just log
-                # and keep using template layouts which will inherit the styling
-                logger.info("Template colors will be inherited from slide layouts")
+            if not prs.slide_masters or len(prs.slide_masters) == 0:
+                return
+            
+            master = prs.slide_masters[0]
+            logger.info(f"Template has {len(prs.slide_masters)} slide masters, {len(prs.slide_layouts)} layouts")
+            
+            # Try to get theme colors from slide master's theme
+            # The theme part contains accent colors
+            try:
+                theme_part = master.part.related_parts.get('/ppt/theme/theme1.xml')
+                if theme_part:
+                    # Parse theme XML for color scheme
+                    from lxml import etree
+                    theme_xml = etree.fromstring(theme_part.blob)
+                    
+                    # Namespace for theme XML
+                    nsmap = {
+                        'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+                    }
+                    
+                    # Find color scheme
+                    clr_scheme = theme_xml.find('.//a:clrScheme', nsmap)
+                    if clr_scheme is not None:
+                        # Extract key colors
+                        color_names = ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3']
+                        extracted_colors = {}
+                        
+                        for color_name in color_names:
+                            color_elem = clr_scheme.find(f'a:{color_name}', nsmap)
+                            if color_elem is not None:
+                                # Check for srgbClr (RGB) or sysClr (system color)
+                                srgb = color_elem.find('a:srgbClr', nsmap)
+                                if srgb is not None:
+                                    hex_val = srgb.get('val')
+                                    if hex_val:
+                                        extracted_colors[color_name] = RGBColor(
+                                            int(hex_val[0:2], 16),
+                                            int(hex_val[2:4], 16),
+                                            int(hex_val[4:6], 16)
+                                        )
+                        
+                        # Map theme colors to our color scheme
+                        if 'accent1' in extracted_colors:
+                            self.colors['primary'] = extracted_colors['accent1']
+                        if 'accent2' in extracted_colors:
+                            self.colors['secondary'] = extracted_colors['accent2']
+                        if 'accent3' in extracted_colors:
+                            self.colors['accent'] = extracted_colors['accent3']
+                        if 'dk1' in extracted_colors:
+                            self.colors['text_dark'] = extracted_colors['dk1']
+                        if 'lt1' in extracted_colors:
+                            self.colors['text_light'] = extracted_colors['lt1']
+                        
+                        logger.info(f"Extracted {len(extracted_colors)} theme colors from template")
+                        return
+                        
+            except Exception as e:
+                logger.debug(f"Could not parse theme XML: {e}")
+            
+            # Fallback: Try to get colors from first shape in slide master
+            for shape in master.shapes:
+                if hasattr(shape, 'fill') and shape.fill.type is not None:
+                    try:
+                        if shape.fill.fore_color and shape.fill.fore_color.type == 1:  # RGB
+                            self.colors['primary'] = shape.fill.fore_color.rgb
+                            logger.info(f"Extracted primary color from master shape: {shape.fill.fore_color.rgb}")
+                            break
+                    except:
+                        pass
+            
+            logger.info("Template colors will be inherited from slide layouts")
+            
         except Exception as e:
             logger.warning(f"Could not extract template colors: {e}")
     
@@ -219,21 +280,21 @@ class PPTService:
                     ph_type = shape.placeholder_format.type
                     # Title placeholder (usually type 1 or CENTER_TITLE)
                     if ph_type in [1, 3]:  # TITLE or CENTER_TITLE
-                        shape.text = data.get('title', title)
+                        # Clear existing text and set new title
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('title', title)
                     # Subtitle placeholder (usually type 2)
                     elif ph_type == 2:  # SUBTITLE
-                        shape.text = f"Proposal for {client_name}"
+                        # Clear existing text and set subtitle
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('subtitle', f"Proposal for {client_name}")
             
-            # Add company name at bottom
-            company_box = slide.shapes.add_textbox(
-                Inches(0.75), Inches(6.5),
-                Inches(11.5), Inches(0.5)
-            )
-            company_frame = company_box.text_frame
-            company_para = company_frame.paragraphs[0]
-            company_para.text = f"Prepared by: {company_name}"
-            company_para.font.size = Pt(14)
-            company_para.alignment = PP_ALIGN.CENTER
+            # DON'T add extra textbox - template has the company name already
+            return
         else:
             # Original custom layout for non-template mode
             # Background shape
@@ -302,12 +363,16 @@ class PPTService:
                     ph_type = shape.placeholder_format.type
                     # Title placeholder
                     if ph_type == 1:  # TITLE
-                        shape.text = data.get('title', 'Content')
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('title', 'Content')
                     # Body/content placeholder  
                     elif ph_type == 2 or ph_type == 7:  # BODY or OBJECT
                         if hasattr(shape, 'text_frame'):
                             tf = shape.text_frame
-                            for i, bullet in enumerate(bullets[:6]):
+                            tf.clear()  # Clear existing placeholder text
+                            for i, bullet in enumerate(bullets[:5]):  # Max 5 bullets
                                 if i == 0:
                                     para = tf.paragraphs[0]
                                 else:
@@ -379,9 +444,38 @@ class PPTService:
     
     def _add_agenda_slide(self, prs: Presentation, data: Dict[str, Any]):
         """Add an agenda slide."""
-        slide_layout = prs.slide_layouts[6]
-        slide = prs.slides.add_slide(slide_layout)
+        # Use template layout if available
+        if self._using_template:
+            slide_layout = self._get_best_layout(prs, 'agenda')
+        else:
+            slide_layout = prs.slide_layouts[6]
         
+        slide = prs.slides.add_slide(slide_layout)
+        bullets = data.get('bullets', [])
+        
+        if self._using_template:
+            # Use template placeholders
+            for shape in slide.shapes:
+                if shape.is_placeholder:
+                    ph_type = shape.placeholder_format.type
+                    if ph_type == 1:  # TITLE
+                        tf = shape.text_frame
+                        tf.clear()
+                        para = tf.paragraphs[0]
+                        para.text = data.get('title', 'Agenda')
+                    elif ph_type in [2, 7] and hasattr(shape, 'text_frame'):
+                        tf = shape.text_frame
+                        tf.clear()
+                        for i, item in enumerate(bullets[:7], 1):
+                            if i == 1:
+                                para = tf.paragraphs[0]
+                            else:
+                                para = tf.add_paragraph()
+                            para.text = f"{i}. {item}"
+                            para.level = 0
+            return
+        
+        # Non-template mode: custom layout
         # Header
         header = slide.shapes.add_shape(
             MSO_SHAPE.RECTANGLE,
@@ -405,7 +499,6 @@ class PPTService:
         title_para.font.color.rgb = self.colors['text_light']
         
         # Agenda items with numbers
-        bullets = data.get('bullets', [])
         if bullets:
             content_box = slide.shapes.add_textbox(
                 Inches(1), Inches(1.8),
@@ -414,7 +507,7 @@ class PPTService:
             content_frame = content_box.text_frame
             content_frame.word_wrap = True
             
-            for i, item in enumerate(bullets[:10], 1):
+            for i, item in enumerate(bullets[:7], 1):
                 if i == 1:
                     para = content_frame.paragraphs[0]
                 else:

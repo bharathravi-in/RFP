@@ -4,28 +4,23 @@ RFP Pro is developed by **QuadCrew**, a team of passionate engineers and AI spec
 
 ## QuadCrew members
 
-| Role | Responsibility |
-|------|----------------|
-| **AI Strategy & Lead** | System architecture and agent orchestration |
-| **Backend Engineering** | API development, RAG pipeline, and storage |
-| **Frontend & UX** | User interface, real-time editing, and visualizations |
-| **Product & Quality** | Domain expertise and compliance logic |
+| Role | Focus Area |
+|------|------------|
+| **AI Architect** | Lead for multi-agent orchestration and Gemini 2.0 integration |
+| **Full Stack Engineer** | RAG pipeline development, Qdrant indexing, and React UI |
+| **Product Strategist** | Domain expertise in RFP workflows and compliance logic |
+| **Quality Specialist** | Testing Agent behaviors and prompt engineering refinement |
 
-## Acknowledgments
+## Our Vision
 
-This project was built for the **AI Hackathon 2025-2026** using:
-- **Google Gemini 2.0**: The power behind our multi-agent system.
-- **Qdrant**: Efficient vector search for our RAG pipeline.
-- **PostgreSQL**: Robust relational data management.
-- **Mermaid.js**: Dynamic diagram generation.
-
----
+At **QuadCrew**, we believe that the complexity of modern RFPs shouldn't be a barrier to innovation. Our mission is to democratize high-quality proposal writing by leveraging the world's most advanced AI models, allowing teams to focus on strategy and value creation rather than administrative overhead.
 
 ## Project Resources
 
 - **GitHub Repository**: [bharathravi-in/RFP](https://github.com/bharathravi-in/RFP)
+- **Live Demo**: [RFP Pro Dashboard](http://localhost:5173)
+- **Built for**: Google AI Hackathon 2025-2026
 - **Documentation**: [Built with GitBook]
-- **Hackathon Submission**: [RFP Pro Dashboard]
 
 ---
 

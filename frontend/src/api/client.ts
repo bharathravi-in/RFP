@@ -51,6 +51,11 @@ api.interceptors.response.use(
                     window.location.href = '/login';
                     return Promise.reject(refreshError);
                 }
+            } else {
+                // No refresh token - logout immediately
+                localStorage.removeItem('access_token');
+                window.location.href = '/login';
+                return Promise.reject(error);
             }
         }
 
@@ -196,7 +201,7 @@ export const questionsApi = {
     create: (projectId: number, data: { text: string; section?: string }) =>
         api.post('/questions', { project_id: projectId, ...data }),
 
-    update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string }>) =>
+    update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string; assigned_to: number | null; due_date: string | null }>) =>
         api.put(`/questions/${id}`, data),
 
     merge: (questionIds: number[], mergedText?: string) =>
@@ -274,6 +279,9 @@ export const knowledgeApi = {
 
     reindex: () =>
         api.post('/knowledge/reindex'),
+
+    getProfiles: () =>
+        api.get('/knowledge/profiles'),
 };
 
 // ===============================
@@ -415,8 +423,8 @@ export const sectionsApi = {
         api.post(`/section-templates/${templateId}/apply`, { section_id: sectionId, variables }),
 
     // Export
-    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', includeQA: boolean = true) =>
-        api.post(`/projects/${projectId}/export/proposal`, { format, include_qa: includeQA }, { responseType: 'blob' }),
+    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', templateId?: number, includeQA: boolean = true) =>
+        api.post(`/projects/${projectId}/export/proposal`, { format, template_id: templateId, include_qa: includeQA }, { responseType: 'blob' }),
 
     getExportPreview: (projectId: number) =>
         api.get(`/projects/${projectId}/export/preview`),
@@ -463,7 +471,7 @@ export const usersApi = {
     getProfile: () =>
         api.get('/users/profile'),
 
-    updateProfile: (data: { name?: string; email?: string }) =>
+    updateProfile: (data: { name?: string; email?: string; expertise_tags?: string[] }) =>
         api.put('/users/profile', data),
 
     uploadPhoto: (file: File) => {
@@ -498,9 +506,10 @@ export const organizationsApi = {
     delete: (id: number, confirm: boolean = false) =>
         api.delete(`/organizations/${id}`, { data: { confirm } }),
 
-    extractVendorProfile: (file: File) => {
+    extractVendorProfile: (file: File, apiKey?: string) => {
         const formData = new FormData();
         formData.append('file', file);
+        if (apiKey) formData.append('api_key', apiKey);
         return api.post('/organizations/extract-vendor-profile', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -718,6 +727,9 @@ export const analyticsApi = {
     getProjectStats: (projectId: number) =>
         api.get(`/analytics/project/${projectId}`),
 
+    getProjectHealth: (projectId: number) =>
+        api.get(`/analytics/project-health/${projectId}`),
+
     getOverview: () =>
         api.get('/analytics/overview'),
 
@@ -841,7 +853,7 @@ export const diagramsApi = {
 // ===============================
 
 export const pptApi = {
-    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string> }) =>
+    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string>; template_id?: number }) =>
         api.post(`/ppt/generate/${projectId}`, options, { responseType: 'blob' }),
 
     preview: (projectId: number) =>
@@ -984,6 +996,71 @@ export const agentsApi = {
 
     saveLegalReview: (projectId: number, reviewData: Record<string, unknown>) =>
         api.post(`/agents/strategy/${projectId}/legal-review`, reviewData),
+
+    saveDiagrams: (projectId: number, diagramsData: any[]) =>
+        api.post(`/agents/strategy/${projectId}/diagrams`, diagramsData),
+
+    // ========================================
+    // EXPERT ROUTING & CONTENT FRESHNESS (NEW)
+    // ========================================
+    suggestOwners: (projectId: number, questionIds?: number[]) =>
+        api.post('/agents/suggest-owners', { project_id: projectId, question_ids: questionIds }),
+
+    checkFreshness: (data: { project_id: number; library_item_ids?: number[] }) =>
+        api.post('/agents/check-freshness', data),
+
+    // ========================================
+    // A/B EXPERIMENTS (NEW)
+    // ========================================
+    getExperiments: () =>
+        api.get('/agents/experiments'),
+
+    createExperiment: (data: {
+        experiment_id: string;
+        agent_name: string;
+        control_version: string;
+        treatment_version: string;
+        traffic_split?: number;
+    }) =>
+        api.post('/agents/experiments', data),
+
+    getExperimentResults: (experimentId: string) =>
+        api.get(`/agents/experiments/${experimentId}`),
+};
+
+// ===============================
+// Webhooks API (NEW)
+// ===============================
+
+export const webhooksApi = {
+    list: () =>
+        api.get('/webhooks'),
+
+    create: (data: {
+        name: string;
+        url: string;
+        secret?: string;
+        events: string[];
+    }) =>
+        api.post('/webhooks', data),
+
+    update: (id: number, data: Partial<{
+        name: string;
+        url: string;
+        secret: string;
+        events: string[];
+        is_active: boolean;
+    }>) =>
+        api.put(`/webhooks/${id}`, data),
+
+    delete: (id: number) =>
+        api.delete(`/webhooks/${id}`),
+
+    test: (id: number) =>
+        api.post(`/webhooks/${id}/test`),
+
+    getDeliveries: (webhookId: number) =>
+        api.get(`/webhooks/${webhookId}/deliveries`),
 };
 
 
@@ -1057,6 +1134,9 @@ export const exportTemplatesApi = {
     getDefault: (type: 'docx' | 'pptx') =>
         api.get(`/export-templates/default/${type}`),
 };
+
+// Alias for backwards compatibility
+export const templatesApi = exportTemplatesApi;
 
 export default api;
 

@@ -2,7 +2,7 @@ name: Deploy GitBook to GitHub Pages
 
 on:
   push:
-    branches: ["main", "documentation"]
+    branches: ["main", "documentation", "phase-9-notifications-comments"]
     paths:
       - 'docs/book/**'
   workflow_dispatch:
@@ -40,6 +40,8 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

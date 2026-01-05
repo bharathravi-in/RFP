@@ -74,7 +74,13 @@ class QdrantService:
             logger.info(f"Created collection: {self.COLLECTION_NAME}")
     
     def _init_embedding_provider(self, org_id: int):
-        """Initialize embedding provider from organization config."""
+        """Initialize embedding provider from organization config.
+        
+        Tries these in order:
+        1. Dedicated embedding_api_key 
+        2. LiteLLM API key (same key that works for LLM generation)
+        3. Environment GOOGLE_API_KEY fallback
+        """
         from app.models import OrganizationAIConfig
         from app.services.embedding_providers import EmbeddingProviderFactory
         
@@ -84,20 +90,55 @@ class QdrantService:
         ).first()
         
         if config:
-            try:
-                self.embedding_provider = EmbeddingProviderFactory.create(
-                    provider=config.embedding_provider,
-                    api_key=config.get_embedding_key(),
-                    model=config.embedding_model,
-                    endpoint=config.embedding_api_endpoint
-                )
-                logger.info(f"Initialized {config.embedding_provider} embedding provider for org {org_id}")
-            except Exception as e:
-                logger.error(f"Failed to initialize embedding provider: {e}")
-                self._init_fallback_provider()
-        else:
-            logger.warning(f"No AI config found for org {org_id}, using fallback")
-            self._init_fallback_provider()
+            # Try 1: Use dedicated embedding API key
+            embedding_key = config.get_embedding_key()
+            if embedding_key:
+                try:
+                    self.embedding_provider = EmbeddingProviderFactory.create(
+                        provider=config.embedding_provider,
+                        api_key=embedding_key,
+                        model=config.embedding_model,
+                        endpoint=config.embedding_api_endpoint
+                    )
+                    logger.info(f"[EMBEDDING] Using {config.embedding_provider} with dedicated embedding key for org {org_id}")
+                    return
+                except Exception as e:
+                    logger.warning(f"[EMBEDDING] Dedicated embedding key failed: {e}")
+            
+            # Try 2: Use LiteLLM API key (same key that works for LLM generation)
+            litellm_key = config.get_litellm_key()
+            if litellm_key:
+                try:
+                    # Use Google embedding provider with LiteLLM key (often same Gemini key)
+                    self.embedding_provider = EmbeddingProviderFactory.create(
+                        provider='google',
+                        api_key=litellm_key,
+                        model='models/embedding-001',
+                        endpoint=None
+                    )
+                    logger.info(f"[EMBEDDING] Using Google embedding with LiteLLM key for org {org_id}")
+                    return
+                except Exception as e:
+                    logger.warning(f"[EMBEDDING] LiteLLM key also failed for embeddings: {e}")
+            
+            # Try 3: Use LLM API key
+            llm_key = config.get_llm_key()
+            if llm_key:
+                try:
+                    self.embedding_provider = EmbeddingProviderFactory.create(
+                        provider='google',
+                        api_key=llm_key,
+                        model='models/embedding-001', 
+                        endpoint=None
+                    )
+                    logger.info(f"[EMBEDDING] Using Google embedding with LLM key for org {org_id}")
+                    return
+                except Exception as e:
+                    logger.warning(f"[EMBEDDING] LLM key also failed for embeddings: {e}")
+        
+        # Final fallback: Environment variable
+        logger.warning(f"[EMBEDDING] No org config keys worked for org {org_id}, trying environment fallback")
+        self._init_fallback_provider()
     
     def _init_fallback_provider(self):
         """Initialize fallback provider using system environment variables."""
@@ -106,9 +147,9 @@ class QdrantService:
         api_key = current_app.config.get('GOOGLE_API_KEY')
         if api_key:
             self.embedding_provider = GoogleEmbeddingProvider(api_key=api_key)
-            logger.info("Using fallback Google AI provider from environment")
+            logger.info("[EMBEDDING] Using fallback Google AI provider from environment")
         else:
-            logger.warning("No fallback API key configured")
+            logger.warning("[EMBEDDING] No fallback API key configured - embeddings will fail")
     
     def _get_embedding(self, text: str) -> List[float]:
         """Generate embedding using configured provider."""

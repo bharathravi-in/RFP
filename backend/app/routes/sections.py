@@ -361,11 +361,49 @@ def add_section_comment(section_id):
         'created_at': datetime.utcnow().isoformat(),
     }
     
-    # Add to comments array
-    comments = section.comments or []
+    # Add to comments array - IMPORTANT: make a copy to ensure SQLAlchemy detects the change
+    from sqlalchemy.orm.attributes import flag_modified
+    comments = list(section.comments or [])  # Make a copy, not reference
     comments.append(comment)
     section.comments = comments
+    flag_modified(section, 'comments')  # Force SQLAlchemy to detect JSON change
     section.updated_at = datetime.utcnow()
+    
+    # --- Create notifications for relevant users ---
+    from app.models import Notification
+    
+    # Get users to notify: admins, reviewers, and section assignee
+    users_to_notify = set()
+    
+    # Notify admins and reviewers in the organization
+    admin_reviewers = User.query.filter(
+        User.organization_id == user.organization_id,
+        User.role.in_(['admin', 'reviewer'])
+    ).all()
+    for u in admin_reviewers:
+        if u.id != user_id:  # Don't notify yourself
+            users_to_notify.add(u.id)
+    
+    # Notify section assignee if different from commenter
+    if section.assigned_to and section.assigned_to != user_id:
+        users_to_notify.add(section.assigned_to)
+    
+    # Create notifications
+    project = section.project
+    section_title = section.title or section.section_type.name
+    
+    for notify_user_id in users_to_notify:
+        notification = Notification(
+            user_id=notify_user_id,
+            actor_id=user_id,
+            type='comment',
+            entity_type='section',
+            entity_id=section_id,
+            title=f'New comment on "{section_title}"',
+            message=f'{user.name} commented: "{text[:80]}{"..." if len(text) > 80 else ""}"',
+            link=f'/projects/{project.id}/proposal'
+        )
+        db.session.add(notification)
     
     db.session.commit()
     
@@ -373,6 +411,7 @@ def add_section_comment(section_id):
         'message': 'Comment added',
         'comment': comment,
         'comments': section.comments,
+        'notifications_sent': len(users_to_notify)
     }), 201
 
 
@@ -558,7 +597,7 @@ def chat_for_section():
         search_results = qdrant.search(
             query=message,
             org_id=user.organization_id,
-            limit=5,
+            limit=10,
             filters=dimension_filters if dimension_filters else None
         )
         for result in search_results:
@@ -588,7 +627,7 @@ Client: {project.client_name or 'Not specified'}
     # Add knowledge context
     if context:
         system_context += "\nRelevant Knowledge Base Content:\n"
-        for i, ctx in enumerate(context[:5], 1):
+        for i, ctx in enumerate(context[:10], 1):
             content = ctx.get('content', '')[:500]
             title = ctx.get('metadata', {}).get('title', f'Source {i}')
             system_context += f"\n[{title}]\n{content}\n"
@@ -652,6 +691,7 @@ def generate_section_content(section_id):
     
     # Retrieve context from knowledge base with project dimension filtering
     from app.services.qdrant_service import get_qdrant_service
+    from app.models import KnowledgeItem
     qdrant = get_qdrant_service(user.organization_id)
     context = []
     
@@ -671,15 +711,127 @@ def generate_section_content(section_id):
     if project.knowledge_profiles:
         dimension_filters['knowledge_profile_ids'] = [p.id for p in project.knowledge_profiles]
     
+    
     try:
         context = qdrant.search(
             query=search_query, 
             org_id=user.organization_id, 
-            limit=5,
-            filters=dimension_filters if dimension_filters else None
+            limit=10,  # Increased from 5 to allow more sources if relevant
+            filters=dimension_filters if dimension_filters else None,
+            score_threshold=0.6  # Only return relevant results
         )
+        print(f"[SOURCES DEBUG] Qdrant search returned {len(context)} results")
+        for c in context:
+            print(f"[SOURCES DEBUG]   - {c.get('title', 'Unknown')}: score={c.get('score', 0)}")
     except Exception as e:
-        print(f"Error retrieving context: {e}")
+        print(f"[SOURCES DEBUG] Qdrant search failed: {e}")
+        # Fallback: Smart keyword-based search with calculated relevance
+        try:
+            from sqlalchemy import or_, func
+            
+            # Get ALL knowledge items for this organization (we'll score and rank them)
+            all_items = KnowledgeItem.query.filter_by(
+                organization_id=user.organization_id
+            ).all()
+            
+            if not all_items:
+                print("[SOURCES DEBUG] No knowledge items found in database")
+            else:
+                # Build search terms from section type, title, and search query
+                search_terms = set()
+                # From section type name (e.g., "Functional Requirements" -> ["functional", "requirements"])
+                for word in section_type.name.lower().split():
+                    if len(word) > 2:
+                        search_terms.add(word)
+                # From section type slug (e.g., "functional_requirements")
+                for word in section_type.slug.replace('_', ' ').split():
+                    if len(word) > 2:
+                        search_terms.add(word)
+                # From search query
+                for word in search_query.lower().split():
+                    if len(word) > 3:  # Slightly longer for query terms
+                        search_terms.add(word)
+                
+                print(f"[SOURCES DEBUG] Section '{section_type.name}' search terms: {search_terms}")
+                
+                # Score each knowledge item based on keyword matches
+                scored_items = []
+                for item in all_items:
+                    title_lower = (item.title or '').lower()
+                    content_lower = (item.content or '')[:2000].lower()  # First 2000 chars
+                    
+                    # Calculate relevance score based on matches
+                    score = 0.0
+                    matches = 0
+                    for term in search_terms:
+                        # Title matches are worth more
+                        if term in title_lower:
+                            score += 0.15
+                            matches += 1
+                        # Content matches
+                        term_count = content_lower.count(term)
+                        if term_count > 0:
+                            score += min(0.05 * term_count, 0.2)  # Cap at 0.2 per term
+                            matches += 1
+                    
+                    # Normalize score based on number of search terms
+                    if len(search_terms) > 0:
+                        score = score / len(search_terms)
+                    
+                    # Only include items with some relevance
+                    if score > 0.05:
+                        scored_items.append({
+                            'item': item,
+                            'score': min(score, 0.95),  # Cap at 95%
+                            'matches': matches
+                        })
+                
+                # Sort by score (highest first) and take top 10
+                scored_items.sort(key=lambda x: x['score'], reverse=True)
+                scored_items = scored_items[:10]
+                
+                print(f"[SOURCES DEBUG] Found {len(scored_items)} relevant items for '{section_type.name}'")
+                for si in scored_items:
+                    print(f"[SOURCES DEBUG]   - {si['item'].title}: score={si['score']:.2f}, matches={si['matches']}")
+                    context.append({
+                        'item_id': si['item'].id,
+                        'title': si['item'].title,
+                        'content_preview': (si['item'].content or '')[:500],
+                        'score': round(si['score'], 2),
+                    })
+                
+                # Removed generic fallback that forces 5 random items
+                if not scored_items:
+                    print("[SOURCES DEBUG] No relevant matches found in keyword search")
+
+        except Exception as e2:
+            print(f"[SOURCES DEBUG] Fallback also failed: {e2}")
+    
+    # ========================================
+    # WIN THEME INTEGRATION (Phase 2 Enhancement)
+    # ========================================
+    # Fetch win themes from ProjectStrategy and add to generation context
+    win_themes_context = []
+    try:
+        from ..models import ProjectStrategy
+        strategy = ProjectStrategy.query.filter_by(project_id=project.id).first()
+        if strategy and strategy.win_themes:
+            win_themes = strategy.win_themes
+            if isinstance(win_themes, list):
+                for theme in win_themes[:3]:  # Top 3 themes
+                    if isinstance(theme, dict):
+                        win_themes_context.append({
+                            'theme': theme.get('title', theme.get('theme', '')),
+                            'description': theme.get('description', ''),
+                            'talking_points': theme.get('talking_points', theme.get('key_points', []))
+                        })
+        
+        if win_themes_context:
+            # Add themes to generation params for AI to consider
+            generation_params['win_themes'] = win_themes_context
+            print(f"[WIN THEMES] Added {len(win_themes_context)} themes to section generation")
+    except Exception as e:
+        print(f"[WIN THEMES] Failed to fetch win themes: {e}")
     
     # Generate content
     generator = get_section_generator(org_id=user.organization_id)
@@ -906,15 +1058,83 @@ def regenerate_section(section_id):
     if project.knowledge_profiles:
         dimension_filters['knowledge_profile_ids'] = [p.id for p in project.knowledge_profiles]
     
+    context = []
     try:
         context = qdrant.search(
             query=section.section_type.name, 
             org_id=user.organization_id, 
-            limit=5,
+            limit=10,
             filters=dimension_filters if dimension_filters else None
         )
-    except:
-        context = []
+        print(f"[SOURCES DEBUG] Regenerate: Qdrant returned {len(context)} results")
+    except Exception as e:
+        print(f"[SOURCES DEBUG] Regenerate: Qdrant search failed: {e}")
+        # Fallback: Smart keyword-based search with calculated relevance
+        try:
+            from app.models import KnowledgeItem
+            
+            section_type = section.section_type
+            
+            # Get ALL knowledge items for this organization
+            all_items = KnowledgeItem.query.filter_by(
+                organization_id=user.organization_id
+            ).all()
+            
+            if all_items:
+                # Build search terms from section type
+                search_terms = set()
+                for word in section_type.name.lower().split():
+                    if len(word) > 2:
+                        search_terms.add(word)
+                for word in section_type.slug.replace('_', ' ').split():
+                    if len(word) > 2:
+                        search_terms.add(word)
+                
+                print(f"[SOURCES DEBUG] Regenerate: Section '{section_type.name}' search terms: {search_terms}")
+                
+                # Score each item
+                scored_items = []
+                for item in all_items:
+                    title_lower = (item.title or '').lower()
+                    content_lower = (item.content or '')[:2000].lower()
+                    
+                    score = 0.0
+                    matches = 0
+                    for term in search_terms:
+                        if term in title_lower:
+                            score += 0.15
+                            matches += 1
+                        term_count = content_lower.count(term)
+                        if term_count > 0:
+                            score += min(0.05 * term_count, 0.2)
+                            matches += 1
+                    
+                    if len(search_terms) > 0:
+                        score = score / len(search_terms)
+                    
+                    if score > 0.05:
+                        scored_items.append({
+                            'item': item,
+                            'score': min(score, 0.95),
+                            'matches': matches
+                        })
+                
+                scored_items.sort(key=lambda x: x['score'], reverse=True)
+                
+                print(f"[SOURCES DEBUG] Regenerate: Found {len(scored_items)} relevant items for '{section_type.name}'")
+                for si in scored_items:  # Return all relevant sources, not limited to 5
+                    print(f"[SOURCES DEBUG]   - {si['item'].title}: score={si['score']:.2f}")
+                    context.append({
+                        'item_id': si['item'].id,
+                        'title': si['item'].title,
+                        'content_preview': (si['item'].content or '')[:500],
+                        'score': round(si['score'], 2),
+                    })
+                
+                if not scored_items:
+                    print("[SOURCES DEBUG] Regenerate: No relevant matches found in keyword search")
+        except Exception as e2:
+            print(f"[SOURCES DEBUG] Regenerate: Fallback failed: {e2}")
     
     result = generator.regenerate_with_feedback(
         original_content=section.content or '',
@@ -1160,7 +1380,7 @@ def export_proposal(project_id):
     """Export full proposal with sections to DOCX"""
     from flask import send_file
     from app.services.export_service import generate_proposal_docx, generate_proposal_xlsx
-    from app.models import Question
+    from app.models import Question, ComplianceItem, ProjectStrategy
     
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
@@ -1175,6 +1395,8 @@ def export_proposal(project_id):
     data = request.get_json() or {}
     format_type = data.get('format', 'docx')  # docx or xlsx
     include_qa = data.get('include_qa', True)
+    include_compliance = data.get('include_compliance', True)
+    include_strategy = data.get('include_strategy', True)
     
     # Get all approved sections in order
     sections = RFPSection.query.filter_by(project_id=project_id)\
@@ -1184,6 +1406,16 @@ def export_proposal(project_id):
     questions = None
     if include_qa:
         questions = Question.query.filter_by(project_id=project_id).all()
+    
+    # Get compliance items
+    compliance_items = None
+    if include_compliance:
+        compliance_items = ComplianceItem.query.filter_by(project_id=project_id).all()
+    
+    # Get project strategy (win themes, pricing, diagrams, etc.)
+    strategy = None
+    if include_strategy:
+        strategy = ProjectStrategy.query.filter_by(project_id=project_id).first()
     
     if format_type == 'xlsx':
         buffer = generate_proposal_xlsx(project, sections, questions)
@@ -1202,8 +1434,11 @@ def export_proposal(project_id):
         if template and os.path.exists(template.file_path):
             template_path = template.file_path
         
-        # Pass organization and template for vendor visibility section
-        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization, template_path)
+        # Pass organization, template, compliance, and strategy for full proposal
+        buffer = generate_proposal_docx(
+            project, sections, include_qa, questions, project.organization, template_path,
+            compliance_items=compliance_items, strategy=strategy
+        )
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     

@@ -82,6 +82,11 @@ class SectionGenerationService:
         Returns:
             Dict with content, confidence_score, sources, flags
         """
+        # Debug: log context received
+        print(f"[SOURCES DEBUG] generate_section_content received {len(context)} context items")
+        for i, item in enumerate(context[:5]):
+            print(f"[SOURCES DEBUG]   Context {i}: title={item.get('title', 'N/A')}, has_content={bool(item.get('content') or item.get('content_preview'))}")
+        
         # Prepare the prompt
         prompt = self._prepare_prompt(prompt_template, inputs, context, generation_params)
         
@@ -94,6 +99,9 @@ class SectionGenerationService:
             
             # Extract sources from context
             sources = self._extract_sources(context)
+            print(f"[SOURCES DEBUG] Extracted {len(sources)} sources from context")
+            for s in sources:
+                print(f"[SOURCES DEBUG]   Source: {s.get('title', 'Unknown')}, relevance={s.get('relevance', 0)}")
             
             # Detect any flags/warnings
             flags = self._detect_flags(content, context, inputs, section_type_slug)
@@ -150,6 +158,26 @@ class SectionGenerationService:
                 param_text += f"\n- Length: {params['length']}"
             if params.get('format'):
                 param_text += f"\n- Format: {params['format']}"
+            
+            # WIN THEMES INTEGRATION (Phase 2 Enhancement)
+            if params.get('win_themes'):
+                win_themes = params['win_themes']
+                param_text += "\n\n---\n## WIN THEMES - Incorporate these differentiators naturally:\n"
+                for i, theme in enumerate(win_themes, 1):
+                    theme_title = theme.get('theme', 'Key Advantage')
+                    theme_desc = theme.get('description', '')
+                    param_text += f"\n### Theme {i}: {theme_title}"
+                    if theme_desc:
+                        param_text += f"\n{theme_desc}"
+                    
+                    talking_points = theme.get('talking_points', [])
+                    if talking_points and isinstance(talking_points, list):
+                        param_text += "\nKey Points:"
+                        for point in talking_points[:3]:
+                            param_text += f"\n  • {point}"
+                    param_text += "\n"
+                param_text += "\nNaturally weave these themes into your response without explicitly mentioning 'win theme'."
+            
             prompt = f"{prompt}\n{param_text}"
         
         # Enhanced system instructions to use KB context as format reference
@@ -200,11 +228,17 @@ Generate the content now, following the reference format precisely:"""
         """Extract source citations from context items"""
         sources = []
         for item in context[:5]:
+            # Handle different field names from Qdrant vs direct knowledge items
+            title = item.get('title') or item.get('metadata', {}).get('title', 'Unknown Source')
+            content = item.get('content') or item.get('content_preview', '')
+            relevance = item.get('score') or item.get('relevance', 0.5)
+            item_id = item.get('item_id') or item.get('id')
+            
             sources.append({
-                'title': item.get('title', 'Unknown Source'),
-                'relevance': item.get('score', 0.5),
-                'snippet': (item.get('content', '')[:150] + '...') if item.get('content') else '',
-                'item_id': item.get('item_id') or item.get('id'),
+                'title': title,
+                'relevance': relevance,
+                'snippet': (content[:150] + '...') if len(content) > 150 else content,
+                'item_id': item_id,
             })
         return sources
     

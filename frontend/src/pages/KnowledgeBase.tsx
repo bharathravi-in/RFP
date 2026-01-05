@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     MagnifyingGlassIcon,
     FolderIcon,
@@ -275,9 +276,9 @@ export default function KnowledgeBasePage() {
         .slice(0, 5);
 
     return (
-        <div className="h-[calc(100vh-64px)] flex bg-gray-50">
-            {/* Sidebar */}
-            <div className="w-60 bg-white border-r border-gray-200 flex-shrink-0 flex flex-col">
+        <div className="h-[calc(100vh-64px)] flex flex-col md:flex-row bg-gray-50">
+            {/* Sidebar - hidden on mobile, shown on md+ */}
+            <div className="hidden md:flex w-52 lg:w-60 bg-white border-r border-gray-200 flex-shrink-0 flex-col">
                 {/* Upload Button */}
                 {selectedFolder && (
                     <div className="p-4">
@@ -319,7 +320,7 @@ export default function KnowledgeBasePage() {
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {/* Toolbar */}
-                <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-6 py-3 bg-white border-b border-gray-200">
                     {/* Breadcrumb */}
                     <div className="flex items-center gap-2 text-sm">
                         <button
@@ -337,6 +338,18 @@ export default function KnowledgeBasePage() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Global Upload Button */}
+                        <button
+                            onClick={() => {
+                                setUploadFolderId(selectedFolder?.id || folders[0]?.id || 0);
+                                setIsUploadOpen(true);
+                            }}
+                            className="btn-primary py-1.5 px-3 text-sm flex items-center gap-2"
+                        >
+                            <CloudArrowUpIcon className="h-4 w-4" />
+                            <span className="hidden sm:inline">Upload</span>
+                        </button>
+
                         {/* Search */}
                         <div className="relative">
                             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -345,7 +358,7 @@ export default function KnowledgeBasePage() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search files..."
-                                className="w-64 pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
+                                className="w-full sm:w-48 lg:w-64 pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
                             />
                         </div>
 
@@ -397,9 +410,12 @@ export default function KnowledgeBasePage() {
                                     ? 'Try a different search term'
                                     : 'Upload files to your knowledge base to get started'}
                             </p>
-                            {selectedFolder && !searchQuery && (
+                            {(!searchQuery) && (
                                 <button
-                                    onClick={() => handleUploadFiles(selectedFolder.id)}
+                                    onClick={() => {
+                                        setUploadFolderId(selectedFolder?.id || folders[0]?.id || 0);
+                                        setIsUploadOpen(true);
+                                    }}
                                     className="btn-primary"
                                 >
                                     <CloudArrowUpIcon className="h-5 w-5" />
