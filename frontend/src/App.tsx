@@ -6,6 +6,8 @@ import { useAuthStore } from '@/store/authStore';
 // Pages
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
+import ResetPassword from '@/pages/auth/ResetPassword';
 import AcceptInvite from '@/pages/AcceptInvite';
 import Dashboard from '@/pages/Dashboard';
 import Projects from '@/pages/Projects';
@@ -94,6 +96,8 @@ function App() {
                 {/* Public routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/accept-invite" element={<AcceptInvite />} />
 
                 {/* Onboarding Wizard - Full screen, protected but no layout */}

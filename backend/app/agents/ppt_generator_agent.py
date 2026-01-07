@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 class PPTGeneratorAgent:
     """Agent for generating PowerPoint presentation content from proposal data."""
     
-    MASTER_PROMPT = """You are a **STRICT ENTERPRISE PPT COMPLIANCE AGENT**.
-
-Your responsibility is **DESIGN + QUALITY COMPLIANCE** for client-ready proposal presentations.
+    MASTER_PROMPT = """You are a **SENIOR ENTERPRISE PROPOSAL DESIGNER** creating client-ready, boardroom-quality PPT.
 
 ## OUTPUT FORMAT (JSON - MANDATORY)
 Generate a JSON response with this EXACT structure:
@@ -31,95 +29,93 @@ Generate a JSON response with this EXACT structure:
       "title": "Slide Title",
       "subtitle": "Optional subtitle",
       "bullets": ["Point 1", "Point 2"],
-      "notes": "Speaker notes"
+      "notes": "Speaker notes with transition"
     }}
   ]
 }}
 
-## SLIDE TYPES
+## SLIDE TYPES (Use EXACTLY these)
 - cover: Title slide with proposal name, client, date
-- agenda: Table of contents (5-7 items max)
-- content: Standard bullet slide
-- architecture: Technical architecture (use structured bullets)
+- agenda: Table of contents (5-7 items)
+- problem: Client challenges and pain points
+- solution: Proposed solution overview
+- content: Standard content slide
+- architecture: Technical architecture (structured layers)
 - timeline: Phase-wise milestones
-- team: Roles and governance
+- team: Roles and governance model
+- risk: Risks and mitigation strategies
+- roi: Value, ROI, and success metrics
 - pricing: Investment summary
-- closing: Thank you / Q&A
+- closing: Next steps and thank you
 
-## MANDATORY SLIDE ORDER (19 SLIDES)
-1. **Cover** - Proposal title, client name, date
-2. **Agenda** - Clean overview of sections
-3. **Client Context** - Business challenges
-4. **Our Understanding** - Problem restatement
-5. **Solution Overview** - High-level approach
-6. **Architecture** - Components as structured bullets
-7. **Scope of Work** - In/out of scope
-8. **Implementation Approach** - Phases, methodology
-9. **Timeline** - Phase milestones
-10. **Team & Governance** - Roles, communication
-11. **Security & Compliance** - Standards addressed
-12. **Risks & Mitigation** - Key risks with strategies
-13. **Value Proposition** - ROI, quantifiable benefits
-14. **Case Studies** - Past success (if available)
-15. **Pricing Summary** - Investment breakdown
-16. **Assumptions** - Client dependencies
-17. **Why Choose Us** - Key differentiators
-18. **Next Steps** - Path forward
-19. **Thank You** - Contact details
+## MANDATORY 13-SLIDE NARRATIVE (STRICT ORDER)
+1. **Cover** (slide_type: "cover") - Proposal title, client name, date
+2. **Agenda** (slide_type: "agenda") - Clean 5-7 item overview
+3. **Client Challenges** (slide_type: "problem") - Explicit pain points from RFP
+4. **Our Understanding** (slide_type: "content") - Problem restatement in client's terms
+5. **Proposed Solution** (slide_type: "solution") - High-level approach with outcomes
+6. **Architecture & Design** (slide_type: "architecture") - 4-layer technical structure
+7. **Delivery Methodology** (slide_type: "content") - Agile phases, approach
+8. **Project Roadmap** (slide_type: "timeline") - Key milestones
+9. **Team & Governance** (slide_type: "team") - Roles, escalation, communication
+10. **Security & Compliance** (slide_type: "content") - Standards, certifications
+11. **Risks & Mitigation** (slide_type: "risk") - Top 3-4 risks with strategies
+12. **Value & ROI** (slide_type: "roi") - Quantifiable benefits, success metrics
+13. **Next Steps** (slide_type: "closing") - Call to action, contact
 
-## CONTENT DISCIPLINE (STRICT)
-
-### Each Slide MUST Have:
-- **ONE insight-driven title** (not section name)
-- **3-5 bullets ONLY**
-- Each bullet: **MAX 12 words**
+## CONTENT QUALITY RULES (CRITICAL)
 
 ### BANNED PHRASES (NEVER USE):
-- "leveraging"
-- "cutting-edge"
-- "next-generation"
-- "seamlessly"
-- "robust solution"
-- "revolutionary"
-- "state-of-the-art"
-- "holistic approach"
-- "synergy"
+- "leveraging", "cutting-edge", "next-generation", "seamlessly"
+- "robust solution", "revolutionary", "state-of-the-art"
+- "holistic approach", "synergy", "best-in-class"
+- "world-class", "game-changing", "paradigm shift"
 
-### Content Quality:
-- Business outcome focused
-- Formal enterprise language
-- No marketing fluff
-- No AI-generated buzzwords
+### REQUIRED CONTENT STYLE:
+- Every claim MUST have: Method + Tool + Deliverable + Outcome
+- Use CLIENT-SPECIFIC language from RFP data
+- NO generic marketing phrases
+- Concrete, measurable statements only
+- Example: "Reduce hiring time by 40% using AI-powered screening"
 
-## ARCHITECTURE SLIDE RULES
-Architecture slides MUST use structured bullets:
-- "User Layer: Web portal, mobile app, admin console"
-- "Application: Core modules, business logic"
-- "Services: REST APIs, authentication, notifications"
-- "Data: Database, document storage, integrations"
+### BULLET DISCIPLINE:
+- 3-5 bullets per slide ONLY
+- MAX 10 words per bullet
+- Start with action verbs or results
+- No redundant points
 
-## BRAND SAFETY
-- Organization name MUST be consistent everywhere
-- Do NOT invent brand names
-- Do NOT mix client/vendor identities
+## ARCHITECTURE SLIDE FORMAT
+For architecture slides, structure bullets as 4 layers:
+- "Presentation: [specific components from RFP]"
+- "Application: [modules, services]"
+- "Integration: [APIs, connectors, external systems]"
+- "Data: [database, storage, analytics]"
+
+## RFP ALIGNMENT (CRITICAL)
+- Extract actual requirements from proposal data
+- Map every slide to RFP sections
+- Use terminology from client's RFP document
+- Address ALL mandatory requirements
 
 ## SPEAKER NOTES (MANDATORY)
 Every slide "notes" field MUST include:
-- 2-3 key talking points
-- Transition phrase to next slide
+- 2-3 key talking points with client value
+- Smooth transition phrase to next slide
+- Example: "This leads us to how we'll structure the team..."
 
-## PRE-OUTPUT AUDIT (MANDATORY)
-Before output, verify:
-- All bullets ≤ 12 words
-- No banned phrases used
-- Content matches slide title
-- 19 slides generated
-- JSON is valid
+## QUALITY CHECKLIST (VERIFY BEFORE OUTPUT)
+- [ ] Exactly 13 slides in correct order
+- [ ] No banned phrases used
+- [ ] All bullets ≤ 10 words
+- [ ] Architecture has 4 layers
+- [ ] Every claim is evidence-based
+- [ ] Client name used correctly
+- [ ] JSON is valid
 
 ## PROPOSAL DATA:
 {proposal_data}
 
-Generate the complete slide deck JSON now. Return ONLY valid JSON:"""
+Generate the complete 13-slide deck JSON. Return ONLY valid JSON:"""
 
     STYLE_PROMPTS = {
         'modern': "Use modern, clean design language with bold headlines and minimal text.",
@@ -262,10 +258,13 @@ Generate the complete slide deck JSON now. Return ONLY valid JSON:"""
             # Parse the response
             result = self._parse_response(response_text)
             
+            # Post-process slides to enforce constraints
+            validated_slides = self._validate_and_fix_slides(result.get('slides', []))
+            
             return {
                 'success': True,
-                'slides': result.get('slides', []),
-                'slide_count': len(result.get('slides', [])),
+                'slides': validated_slides,
+                'slide_count': len(validated_slides),
                 'style': style,
                 'provider': self.config.provider,
                 'model': self.config.model_name,
@@ -278,6 +277,77 @@ Generate the complete slide deck JSON now. Return ONLY valid JSON:"""
                 'error': str(e),
                 'slides': [],
             }
+    
+    def _validate_and_fix_slides(self, slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Post-process slides to ensure content meets constraints.
+        Fixes common issues: long bullets, too many bullets, missing fields.
+        
+        Args:
+            slides: List of slide dictionaries from AI
+            
+        Returns:
+            Validated and fixed slide list
+        """
+        MAX_BULLETS = 6
+        MAX_BULLET_CHARS = 80
+        MAX_TITLE_CHARS = 60
+        
+        fixed_slides = []
+        
+        for slide in slides:
+            fixed = slide.copy()
+            
+            # Truncate title
+            if 'title' in fixed and fixed['title']:
+                title = str(fixed['title']).strip()
+                if len(title) > MAX_TITLE_CHARS:
+                    # Try to break at word boundary
+                    truncated = title[:MAX_TITLE_CHARS-3]
+                    last_space = truncated.rfind(' ')
+                    if last_space > MAX_TITLE_CHARS * 0.6:
+                        truncated = truncated[:last_space]
+                    fixed['title'] = truncated.rstrip() + '...'
+            
+            # Fix bullets
+            if 'bullets' in fixed and fixed['bullets']:
+                bullets = fixed['bullets']
+                if not isinstance(bullets, list):
+                    bullets = [str(bullets)]
+                
+                fixed_bullets = []
+                for bullet in bullets[:MAX_BULLETS]:
+                    bullet_text = str(bullet).strip()
+                    # Remove leading bullet markers that AI might add
+                    bullet_text = bullet_text.lstrip('•-*→▪►◆').strip()
+                    # Remove double spaces
+                    bullet_text = ' '.join(bullet_text.split())
+                    # Truncate if too long
+                    if len(bullet_text) > MAX_BULLET_CHARS:
+                        truncated = bullet_text[:MAX_BULLET_CHARS-3]
+                        last_space = truncated.rfind(' ')
+                        if last_space > MAX_BULLET_CHARS * 0.6:
+                            truncated = truncated[:last_space]
+                        bullet_text = truncated.rstrip() + '...'
+                    
+                    if bullet_text:
+                        fixed_bullets.append(bullet_text)
+                
+                fixed['bullets'] = fixed_bullets
+            
+            # Ensure slide_type exists
+            if 'slide_type' not in fixed or not fixed['slide_type']:
+                fixed['slide_type'] = 'content'
+            
+            # Ensure notes exist (for speaker notes)
+            if 'notes' not in fixed or not fixed['notes']:
+                title = fixed.get('title', 'Slide')
+                fixed['notes'] = f"Key points for {title}. Emphasize value and client benefits."
+            
+            fixed_slides.append(fixed)
+        
+        logger.info(f"Validated {len(fixed_slides)} slides, enforced content constraints")
+        return fixed_slides
     
     def _build_proposal_data(
         self,

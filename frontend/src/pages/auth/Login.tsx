@@ -105,7 +105,7 @@ export default function Login() {
 
                 {/* Footer */}
                 <div className="relative z-10 text-white/60 text-sm">
-                    Trusted by 500+ companies worldwide
+                    © {new Date().getFullYear()} RFP Pro. All rights reserved.
                 </div>
             </div>
 
@@ -178,9 +178,9 @@ export default function Login() {
                                     <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary" />
                                     <span className="text-sm text-gray-600">Remember me</span>
                                 </label>
-                                <a href="#" className="text-sm text-primary hover:underline font-medium">
+                                <Link to="/forgot-password" className="text-sm text-primary hover:underline font-medium">
                                     Forgot password?
-                                </a>
+                                </Link>
                             </div>
 
                             <button

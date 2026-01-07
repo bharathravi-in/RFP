@@ -31,7 +31,7 @@ def generate_ppt(project_id):
     }
     """
     from ..agents.ppt_generator_agent import PPTGeneratorAgent
-    from ..services.ppt_service import PPTService
+    from ..services.simple_ppt_service import SimplePPTService
     from ..models import ComplianceItem, ProjectStrategy
     
     user_id = int(get_jwt_identity())
@@ -206,8 +206,8 @@ def generate_ppt(project_id):
                     slide['mermaid_code'] = diagram_data.get('mermaid_code', '')
                     logger.info("Injected mermaid code into architecture slide")
         
-        # Step 2: Generate PPTX file (using template if available)
-        ppt_service = PPTService(branding=branding, template_path=template_path)
+        # Step 2: Generate PPTX file (using new simple service - no templates)
+        ppt_service = SimplePPTService(branding=branding)
         pptx_buffer = ppt_service.generate_pptx(
             slides_data=slides,
             title=project.name,
