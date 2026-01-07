@@ -51,6 +51,11 @@ api.interceptors.response.use(
                     window.location.href = '/login';
                     return Promise.reject(refreshError);
                 }
+            } else {
+                // No refresh token - logout immediately
+                localStorage.removeItem('access_token');
+                window.location.href = '/login';
+                return Promise.reject(error);
             }
         }
 
@@ -74,6 +79,12 @@ export const authApi = {
 
     me: () =>
         api.get('/auth/me'),
+
+    forgotPassword: (email: string) =>
+        api.post('/auth/forgot-password', { email }),
+
+    resetPassword: (token: string, password: string) =>
+        api.post('/auth/reset-password', { token, password }),
 };
 
 // ===============================
@@ -274,6 +285,9 @@ export const knowledgeApi = {
 
     reindex: () =>
         api.post('/knowledge/reindex'),
+
+    getProfiles: () =>
+        api.get('/knowledge/profiles'),
 };
 
 // ===============================
@@ -415,8 +429,8 @@ export const sectionsApi = {
         api.post(`/section-templates/${templateId}/apply`, { section_id: sectionId, variables }),
 
     // Export
-    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', includeQA: boolean = true) =>
-        api.post(`/projects/${projectId}/export/proposal`, { format, include_qa: includeQA }, { responseType: 'blob' }),
+    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', templateId?: number, includeQA: boolean = true) =>
+        api.post(`/projects/${projectId}/export/proposal`, { format, template_id: templateId, include_qa: includeQA }, { responseType: 'blob' }),
 
     getExportPreview: (projectId: number) =>
         api.get(`/projects/${projectId}/export/preview`),
@@ -498,9 +512,10 @@ export const organizationsApi = {
     delete: (id: number, confirm: boolean = false) =>
         api.delete(`/organizations/${id}`, { data: { confirm } }),
 
-    extractVendorProfile: (file: File) => {
+    extractVendorProfile: (file: File, apiKey?: string) => {
         const formData = new FormData();
         formData.append('file', file);
+        if (apiKey) formData.append('api_key', apiKey);
         return api.post('/organizations/extract-vendor-profile', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -844,7 +859,7 @@ export const diagramsApi = {
 // ===============================
 
 export const pptApi = {
-    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string> }) =>
+    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string>; template_id?: number }) =>
         api.post(`/ppt/generate/${projectId}`, options, { responseType: 'blob' }),
 
     preview: (projectId: number) =>
@@ -997,8 +1012,49 @@ export const agentsApi = {
     suggestOwners: (projectId: number, questionIds?: number[]) =>
         api.post('/agents/suggest-owners', { project_id: projectId, question_ids: questionIds }),
 
-    checkFreshness: () =>
-        api.post('/agents/check-freshness'),
+    checkFreshness: (data: { project_id: number; library_item_ids?: number[] }) =>
+        api.post('/agents/check-freshness', data),
+
+    // ========================================
+    // A/B EXPERIMENTS (NEW)
+    // ========================================
+    getExperiments: () =>
+        api.get('/agents/experiments'),
+};
+
+// ===============================
+// Webhooks API (NEW)
+// ===============================
+
+export const webhooksApi = {
+    list: () =>
+        api.get('/webhooks'),
+
+    create: (data: {
+        name: string;
+        url: string;
+        secret?: string;
+        events: string[];
+    }) =>
+        api.post('/webhooks', data),
+
+    update: (id: number, data: Partial<{
+        name: string;
+        url: string;
+        secret: string;
+        events: string[];
+        is_active: boolean;
+    }>) =>
+        api.put(`/webhooks/${id}`, data),
+
+    delete: (id: number) =>
+        api.delete(`/webhooks/${id}`),
+
+    test: (id: number) =>
+        api.post(`/webhooks/${id}/test`),
+
+    getDeliveries: (webhookId: number) =>
+        api.get(`/webhooks/${webhookId}/deliveries`),
 };
 
 

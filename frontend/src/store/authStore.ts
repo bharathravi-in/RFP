@@ -34,12 +34,12 @@ export const useAuthStore = create<AuthState>()(
                 set({ isLoading: true });
                 try {
                     const response = await authApi.login(email, password);
-                    const { user, access_token, refresh_token } = response.data;
+                    const { user, organization, access_token, refresh_token } = response.data;
 
                     localStorage.setItem('access_token', access_token);
                     localStorage.setItem('refresh_token', refresh_token);
 
-                    set({ user, isAuthenticated: true, isLoading: false });
+                    set({ user, organization, isAuthenticated: true, isLoading: false });
                 } catch (error) {
                     set({ isLoading: false });
                     throw error;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { projectsApi, questionsApi, knowledgeApi } from '@/api/client';
 import { Project } from '@/types';
@@ -35,11 +36,14 @@ const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
 export default function Dashboard() {
     const { user, organization } = useAuthStore();
+    const { t } = useTranslation();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showTour, setShowTour] = useState(false);
+    const [profilesCount, setProfilesCount] = useState<number>(0);
+
 
     // Check if user has seen the tour on first load
     useEffect(() => {
@@ -60,6 +64,14 @@ export default function Dashboard() {
 
     useEffect(() => {
         const loadDashboardData = async () => {
+            if (!user) return;
+
+            // Safety net: if user is logged in but organization is missing, try to fetch it
+            if (!organization && user) {
+                const { fetchUser } = useAuthStore.getState();
+                await fetchUser();
+            }
+
             try {
                 setLoading(true);
                 const projectsResponse = await projectsApi.list();
@@ -83,6 +95,13 @@ export default function Dashboard() {
                     } catch { }
                 }
 
+                let knowledgeProfilesCount = 0;
+                try {
+                    const profilesResponse = await knowledgeApi.getProfiles();
+                    knowledgeProfilesCount = profilesResponse.data.profiles?.length || 0;
+                } catch { }
+
+                setProfilesCount(knowledgeProfilesCount);
                 setStats({ activeProjects, pendingReviews, completedProjects, totalQuestions, knowledgeItems });
                 setProjects(allProjects.sort((a: Project, b: Project) =>
                     new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
@@ -94,7 +113,7 @@ export default function Dashboard() {
             }
         };
         loadDashboardData();
-    }, []);
+    }, [user, organization?.id]);
 
     const STATS = [
         { name: 'Active', value: stats?.activeProjects || 0, icon: FolderIcon, color: 'text-blue-600 bg-blue-50', href: '/projects?status=active' },
@@ -112,6 +131,13 @@ export default function Dashboard() {
 
     const isNewUser = !loading && projects.length === 0;
 
+    const isReadyForProject = (
+        (organization?.name ? 1 : 0) +
+        ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
+        (profilesCount > 0 ? 1 : 0) +
+        (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0)
+    ) === 4;
+
     return (
         <div className="space-y-6">
             {/* Platform Tour Modal */}
@@ -121,21 +147,32 @@ export default function Dashboard() {
                 onComplete={handleTourComplete}
             />
 
-
             {/* Header Row */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Welcome back, {user?.name?.split(' ')[0]} 👋
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                        {t('dashboard.welcome')}, {user?.name?.split(' ')[0]} 👋
                     </h1>
                     <p className="text-gray-500 text-sm mt-1">
                         {isNewUser ? "Let's get started with your first RFP" : "Here's your RFP overview"}
                     </p>
                 </div>
-                <Link to="/projects" className="btn-primary">
-                    <PlusIcon className="h-4 w-4" />
-                    New Project
-                </Link>
+                {isReadyForProject ? (
+                    <Link to="/projects" className="btn-primary w-full sm:w-auto justify-center">
+                        <PlusIcon className="h-4 w-4" />
+                        {t('dashboard.createProject')}
+                    </Link>
+                ) : (
+                    <div className="relative group w-full sm:w-auto">
+                        <button disabled className="btn-primary w-full sm:w-auto justify-center opacity-50 cursor-not-allowed">
+                            <PlusIcon className="h-4 w-4" />
+                            {t('dashboard.createProject')}
+                        </button>
+                        <div className="absolute top-full mt-2 right-0 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                            Complete the setup checklist to start your first project.
+                        </div>
+                    </div>
+                )}
             </div>
 
             {error && (
@@ -144,73 +181,222 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Stats Row - Compact */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {STATS.map((stat) => (
-                    <Link
-                        key={stat.name}
-                        to={stat.href}
-                        className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-gray-200 transition-all group"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className={clsx('p-2.5 rounded-lg', stat.color)}>
-                                <stat.icon className="h-5 w-5" />
-                            </div>
+            {/* Onboarding Checklist for Everyone - Priority view for new users */}
+            {(isNewUser || (
+                (organization?.name ? 1 : 0) +
+                ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
+                (profilesCount > 0 ? 1 : 0) +
+                (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
+                (projects.length > 0 ? 1 : 0)
+            ) < 5) && (
+                    <div className="bg-white rounded-xl border border-gray-100 p-6">
+                        <div className="flex items-center justify-between mb-6">
                             <div>
-                                <p className="text-2xl font-bold text-gray-900 group-hover:text-primary">
-                                    {loading ? '—' : stat.value}
-                                </p>
-                                <p className="text-xs text-gray-500">{stat.name}</p>
+                                <h2 className="text-lg font-bold text-gray-900">Setup Checklist</h2>
+                                <p className="text-sm text-gray-500">Complete these steps to get the most out of RFP Pro</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="h-2 w-32 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-primary transition-all duration-500"
+                                        style={{
+                                            width: `${(
+                                                (organization?.name ? 1 : 0) +
+                                                ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
+                                                (profilesCount > 0 ? 1 : 0) +
+                                                (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
+                                                (projects.length > 0 ? 1 : 0)
+                                            ) / 5 * 100}%`
+                                        }}
+                                    />
+                                </div>
+                                <span className="text-sm font-medium text-primary">
+                                    {Math.round((
+                                        (organization?.name ? 1 : 0) +
+                                        ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
+                                        (profilesCount > 0 ? 1 : 0) +
+                                        (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
+                                        (projects.length > 0 ? 1 : 0)
+                                    ) / 5 * 100)}%
+                                </span>
                             </div>
                         </div>
-                    </Link>
-                ))}
-            </div>
 
-            {/* Quick Actions - Horizontal Compact */}
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Actions</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {QUICK_ACTIONS.map((action) => (
-                        <Link
-                            key={action.title}
-                            to={action.href}
-                            className={clsx(
-                                'flex items-center gap-3 p-4 rounded-xl border transition-all group',
-                                action.bg
-                            )}
-                        >
-                            <div className={clsx('p-2 rounded-lg bg-white shadow-sm', action.color)}>
-                                <action.icon className="h-5 w-5" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                            {/* Step 1: Organization */}
+                            <div className={clsx(
+                                "p-4 rounded-xl border transition-all",
+                                organization?.name ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                            )}>
+                                <div className="flex items-center gap-3 mb-2">
+                                    {organization?.name ? (
+                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                    ) : (
+                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                    )}
+                                    <h3 className="font-semibold text-sm">Organization</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-3">Set up your team and company details.</p>
+                                <Link to="/settings?tab=organization" className="text-xs font-medium text-primary hover:underline">
+                                    {organization?.name ? "Update Settings →" : "Configure Now →"}
+                                </Link>
                             </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-900">{action.title}</p>
-                                <p className="text-xs text-gray-500">{action.desc}</p>
+
+                            {/* Step 2: Vendor Profile */}
+                            <div className={clsx(
+                                "p-4 rounded-xl border transition-all",
+                                (organization?.settings as any)?.vendor_profile?.registration_country ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                            )}>
+                                <div className="flex items-center gap-3 mb-2">
+                                    {(organization?.settings as any)?.vendor_profile?.registration_country ? (
+                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                    ) : (
+                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                    )}
+                                    <h3 className="font-semibold text-sm">Vendor Profile</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-3">Add certifications and business details.</p>
+                                <Link to="/settings?tab=vendor" className="text-xs font-medium text-primary hover:underline">
+                                    {(organization?.settings as any)?.vendor_profile?.registration_country ? "Edit Profile →" : "Complete Profile →"}
+                                </Link>
+                            </div>
+
+                            {/* Step 3: Knowledge Profile */}
+                            <div className={clsx(
+                                "p-4 rounded-xl border transition-all",
+                                profilesCount > 0 ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                            )}>
+                                <div className="flex items-center gap-3 mb-2">
+                                    {profilesCount > 0 ? (
+                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                    ) : (
+                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                    )}
+                                    <h3 className="font-semibold text-sm">Knowledge Profile</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-3">Set up AI dimensions & filters.</p>
+                                <Link to="/settings?tab=knowledge" className="text-xs font-medium text-primary hover:underline">
+                                    {profilesCount > 0 ? "Manage Profiles →" : "Set Up Now →"}
+                                </Link>
+                            </div>
+
+                            {/* Step 4: Knowledge Base */}
+                            <div className={clsx(
+                                "p-4 rounded-xl border transition-all",
+                                (stats?.knowledgeItems && stats.knowledgeItems > 0) ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                            )}>
+                                <div className="flex items-center gap-3 mb-2">
+                                    {(stats?.knowledgeItems && stats.knowledgeItems > 0) ? (
+                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                    ) : (
+                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                    )}
+                                    <h3 className="font-semibold text-sm">Knowledge Base</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-3">Upload your past proposals and docs.</p>
+                                <Link to="/knowledge" className="text-xs font-medium text-primary hover:underline">
+                                    {(stats?.knowledgeItems && stats.knowledgeItems > 0) ? "Add More →" : "Upload Documents →"}
+                                </Link>
+                            </div>
+
+                            {/* Step 5: First Project */}
+                            <div className={clsx(
+                                "p-4 rounded-xl border transition-all",
+                                projects.length > 0 ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                            )}>
+                                <div className="flex items-center gap-3 mb-2">
+                                    {projects.length > 0 ? (
+                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                    ) : (
+                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                    )}
+                                    <h3 className="font-semibold text-sm">First Project</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-3">Launch your first RFP response.</p>
+                                <Link to="/projects?action=create" className="text-xs font-medium text-primary hover:underline">
+                                    {projects.length > 0 ? "Create New →" : "Start Now →"}
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+            {/* New User Onboarding Banner - Keep but emphasize checklist above */}
+            {isNewUser && (
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+                    <div className="flex items-start gap-4">
+                        <RocketLaunchIcon className="h-8 w-8 text-blue-100" />
+                        <div className="flex-1">
+                            <h3 className="text-lg font-semibold mb-2">
+                                {isReadyForProject ? "Ready to win more RFPs?" : "Let's get set up for success"}
+                            </h3>
+                            <p className="text-blue-50 text-sm mb-4">
+                                {isReadyForProject
+                                    ? "You're all set! Launch your first AI-powered proposal response."
+                                    : "Complete the setup checklist above to unlock project creation."}
+                            </p>
+                            {isReadyForProject ? (
+                                <Link to="/projects?action=create" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-primary rounded-lg font-medium hover:bg-gray-100 transition-colors">
+                                    Start First Project <ArrowRightIcon className="h-4 w-4" />
+                                </Link>
+                            ) : (
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 text-white rounded-lg font-medium cursor-default">
+                                    Setup In Progress...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stats Row - Compact */}
+            {!isNewUser && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {STATS.map((stat) => (
+                        <Link
+                            key={stat.name}
+                            to={stat.href}
+                            className="bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 transition-all shadow-sm hover-elevate group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={clsx('p-2.5 rounded-lg', stat.color)}>
+                                    <stat.icon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900 group-hover:text-primary">
+                                        {loading ? '—' : stat.value}
+                                    </p>
+                                    <p className="text-xs text-gray-500">{stat.name}</p>
+                                </div>
                             </div>
                         </Link>
                     ))}
                 </div>
-            </div>
+            )}
 
-            {/* New User Onboarding */}
-            {isNewUser && (
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
-                    <div className="flex items-start gap-4">
-                        <RocketLaunchIcon className="h-8 w-8" />
-                        <div className="flex-1">
-                            <h3 className="text-lg font-semibold mb-2">Getting Started</h3>
-                            <div className="grid grid-cols-5 gap-3 text-sm">
-                                {['Knowledge Profile', 'Knowledge Base', 'Create Project', 'Upload & Analyze', 'Generate & Export'].map((step, i) => (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <span className="h-6 w-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">{i + 1}</span>
-                                        <span className="text-white/90">{step}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <Link to="/projects" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-white text-primary rounded-lg font-medium hover:bg-gray-100">
-                                Start First Project <ArrowRightIcon className="h-4 w-4" />
+            {/* Quick Actions - Horizontal Compact */}
+            {!isNewUser && (
+                <div className="bg-white rounded-xl border border-gray-100 p-4">
+                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Actions</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {QUICK_ACTIONS.map((action) => (
+                            <Link
+                                key={action.title}
+                                to={action.href}
+                                className={clsx(
+                                    'flex items-center gap-3 p-4 rounded-xl border transition-all shadow-sm hover-elevate group',
+                                    action.bg
+                                )}
+                            >
+                                <div className={clsx('p-2 rounded-lg bg-white shadow-sm', action.color)}>
+                                    <action.icon className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-gray-900">{action.title}</p>
+                                    <p className="text-xs text-gray-500">{action.desc}</p>
+                                </div>
                             </Link>
-                        </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -276,7 +462,7 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* Recent Projects */}
+                        {/* Recent Projects Activity */}
                         <div className="bg-white rounded-xl border border-gray-100">
                             <div className="flex items-center justify-between p-4 border-b border-gray-50">
                                 <h2 className="font-semibold text-gray-900">Recent Activity</h2>

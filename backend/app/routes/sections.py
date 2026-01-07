@@ -597,7 +597,7 @@ def chat_for_section():
         search_results = qdrant.search(
             query=message,
             org_id=user.organization_id,
-            limit=5,
+            limit=10,
             filters=dimension_filters if dimension_filters else None
         )
         for result in search_results:
@@ -627,7 +627,7 @@ Client: {project.client_name or 'Not specified'}
     # Add knowledge context
     if context:
         system_context += "\nRelevant Knowledge Base Content:\n"
-        for i, ctx in enumerate(context[:5], 1):
+        for i, ctx in enumerate(context[:10], 1):
             content = ctx.get('content', '')[:500]
             title = ctx.get('metadata', {}).get('title', f'Source {i}')
             system_context += f"\n[{title}]\n{content}\n"
@@ -711,12 +711,14 @@ def generate_section_content(section_id):
     if project.knowledge_profiles:
         dimension_filters['knowledge_profile_ids'] = [p.id for p in project.knowledge_profiles]
     
+    
     try:
         context = qdrant.search(
             query=search_query, 
             org_id=user.organization_id, 
-            limit=5,
-            filters=dimension_filters if dimension_filters else None
+            limit=10,  # Increased from 5 to allow more sources if relevant
+            filters=dimension_filters if dimension_filters else None,
+            score_threshold=0.6  # Only return relevant results
         )
         print(f"[SOURCES DEBUG] Qdrant search returned {len(context)} results")
         for c in context:
@@ -784,11 +786,12 @@ def generate_section_content(section_id):
                             'matches': matches
                         })
                 
-                # Sort by score (highest first) and take top 5
+                # Sort by score (highest first) and take top 10
                 scored_items.sort(key=lambda x: x['score'], reverse=True)
+                scored_items = scored_items[:10]
                 
                 print(f"[SOURCES DEBUG] Found {len(scored_items)} relevant items for '{section_type.name}'")
-                for si in scored_items:  # Return all relevant sources, not limited to 5
+                for si in scored_items:
                     print(f"[SOURCES DEBUG]   - {si['item'].title}: score={si['score']:.2f}, matches={si['matches']}")
                     context.append({
                         'item_id': si['item'].id,
@@ -797,18 +800,38 @@ def generate_section_content(section_id):
                         'score': round(si['score'], 2),
                     })
                 
-                # If no scored items, fall back to first 5 with low score
+                # Removed generic fallback that forces 5 random items
                 if not scored_items:
-                    print("[SOURCES DEBUG] No relevant matches, using generic fallback")
-                    for item in all_items[:5]:
-                        context.append({
-                            'item_id': item.id,
-                            'title': item.title,
-                            'content_preview': (item.content or '')[:500],
-                            'score': 0.2,  # Low score indicating no specific match
-                        })
+                    print("[SOURCES DEBUG] No relevant matches found in keyword search")
+
         except Exception as e2:
             print(f"[SOURCES DEBUG] Fallback also failed: {e2}")
+    
+    # ========================================
+    # WIN THEME INTEGRATION (Phase 2 Enhancement)
+    # ========================================
+    # Fetch win themes from ProjectStrategy and add to generation context
+    win_themes_context = []
+    try:
+        from ..models import ProjectStrategy
+        strategy = ProjectStrategy.query.filter_by(project_id=project.id).first()
+        if strategy and strategy.win_themes:
+            win_themes = strategy.win_themes
+            if isinstance(win_themes, list):
+                for theme in win_themes[:3]:  # Top 3 themes
+                    if isinstance(theme, dict):
+                        win_themes_context.append({
+                            'theme': theme.get('title', theme.get('theme', '')),
+                            'description': theme.get('description', ''),
+                            'talking_points': theme.get('talking_points', theme.get('key_points', []))
+                        })
+        
+        if win_themes_context:
+            # Add themes to generation params for AI to consider
+            generation_params['win_themes'] = win_themes_context
+            print(f"[WIN THEMES] Added {len(win_themes_context)} themes to section generation")
+    except Exception as e:
+        print(f"[WIN THEMES] Failed to fetch win themes: {e}")
     
     # Generate content
     generator = get_section_generator(org_id=user.organization_id)
@@ -1040,7 +1063,7 @@ def regenerate_section(section_id):
         context = qdrant.search(
             query=section.section_type.name, 
             org_id=user.organization_id, 
-            limit=5,
+            limit=10,
             filters=dimension_filters if dimension_filters else None
         )
         print(f"[SOURCES DEBUG] Regenerate: Qdrant returned {len(context)} results")
@@ -1109,13 +1132,7 @@ def regenerate_section(section_id):
                     })
                 
                 if not scored_items:
-                    for item in all_items[:5]:
-                        context.append({
-                            'item_id': item.id,
-                            'title': item.title,
-                            'content_preview': (item.content or '')[:500],
-                            'score': 0.2,
-                        })
+                    print("[SOURCES DEBUG] Regenerate: No relevant matches found in keyword search")
         except Exception as e2:
             print(f"[SOURCES DEBUG] Regenerate: Fallback failed: {e2}")
     
@@ -1363,7 +1380,7 @@ def export_proposal(project_id):
     """Export full proposal with sections to DOCX"""
     from flask import send_file
     from app.services.export_service import generate_proposal_docx, generate_proposal_xlsx
-    from app.models import Question
+    from app.models import Question, ComplianceItem, ProjectStrategy
     
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
@@ -1378,6 +1395,8 @@ def export_proposal(project_id):
     data = request.get_json() or {}
     format_type = data.get('format', 'docx')  # docx or xlsx
     include_qa = data.get('include_qa', True)
+    include_compliance = data.get('include_compliance', True)
+    include_strategy = data.get('include_strategy', True)
     
     # Get all approved sections in order
     sections = RFPSection.query.filter_by(project_id=project_id)\
@@ -1387,6 +1406,16 @@ def export_proposal(project_id):
     questions = None
     if include_qa:
         questions = Question.query.filter_by(project_id=project_id).all()
+    
+    # Get compliance items
+    compliance_items = None
+    if include_compliance:
+        compliance_items = ComplianceItem.query.filter_by(project_id=project_id).all()
+    
+    # Get project strategy (win themes, pricing, diagrams, etc.)
+    strategy = None
+    if include_strategy:
+        strategy = ProjectStrategy.query.filter_by(project_id=project_id).first()
     
     if format_type == 'xlsx':
         buffer = generate_proposal_xlsx(project, sections, questions)
@@ -1405,8 +1434,11 @@ def export_proposal(project_id):
         if template and os.path.exists(template.file_path):
             template_path = template.file_path
         
-        # Pass organization and template for vendor visibility section
-        buffer = generate_proposal_docx(project, sections, include_qa, questions, project.organization, template_path)
+        # Pass organization, template, compliance, and strategy for full proposal
+        buffer = generate_proposal_docx(
+            project, sections, include_qa, questions, project.organization, template_path,
+            compliance_items=compliance_items, strategy=strategy
+        )
         filename = f'{project.name.replace(" ", "_")}_proposal.docx'
         mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     

@@ -6,6 +6,8 @@ import { useAuthStore } from '@/store/authStore';
 // Pages
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
+import ResetPassword from '@/pages/auth/ResetPassword';
 import AcceptInvite from '@/pages/AcceptInvite';
 import Dashboard from '@/pages/Dashboard';
 import Projects from '@/pages/Projects';
@@ -22,10 +24,16 @@ import CoPilotPage from '@/pages/CoPilotPage';
 import DocumentChatPage from '@/pages/DocumentChatPage';
 import KnowledgeChatPage from '@/pages/KnowledgeChatPage';
 import ProposalChatPage from '@/pages/ProposalChatPage';
+import UsageDashboard from '@/pages/UsageDashboard';
+import Onboarding from '@/pages/Onboarding';
+import AgentPerformanceDashboard from '@/pages/AgentPerformanceDashboard';
+import BrandingSettings from '@/pages/BrandingSettings';
+import { SuperAdminDashboard, TenantManagement, FeatureFlags } from '@/pages/superadmin';
 
 // Layout
 import PageLayout from '@/components/layout/PageLayout';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { useBranding } from '@/hooks/useBranding';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -47,7 +55,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-    const { checkAuth } = useAuthStore();
+    const { checkAuth, isAuthenticated } = useAuthStore();
+
+    // Load and apply organization branding
+    useBranding();
 
     useEffect(() => {
         checkAuth();
@@ -85,7 +96,21 @@ function App() {
                 {/* Public routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/accept-invite" element={<AcceptInvite />} />
+
+                {/* Onboarding Wizard - Full screen, protected but no layout */}
+                <Route
+                    path="/onboarding"
+                    element={
+                        <ProtectedRoute>
+                            <ErrorBoundary>
+                                <Onboarding />
+                            </ErrorBoundary>
+                        </ProtectedRoute>
+                    }
+                />
 
                 {/* Document Chat - Full screen experience */}
                 <Route
@@ -146,7 +171,14 @@ function App() {
                     <Route path="library" element={<AnswerLibrary />} />
                     <Route path="analytics" element={<AnalyticsDeepDive />} />
                     <Route path="co-pilot" element={<CoPilotPage />} />
+                    <Route path="usage" element={<UsageDashboard />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="settings/branding" element={<BrandingSettings />} />
+                    {/* Super Admin Routes */}
+                    <Route path="superadmin" element={<SuperAdminDashboard />} />
+                    <Route path="superadmin/tenants" element={<TenantManagement />} />
+                    <Route path="superadmin/features" element={<FeatureFlags />} />
+                    <Route path="superadmin/agent-performance" element={<AgentPerformanceDashboard />} />
                 </Route>
 
                 {/* Catch-all redirect */}

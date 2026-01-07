@@ -28,6 +28,7 @@ import DiagramRenderer from '@/components/diagrams/DiagramRenderer';
 import SimpleMarkdown from '@/components/common/SimpleMarkdown';
 import TruthScoreBadge from '@/components/common/TruthScoreBadge';
 import SuggestedOwnersPanel from '@/components/collaboration/SuggestedOwnersPanel';
+import BulkActionBar from '@/components/common/BulkActionBar';
 
 // Category configuration for badges
 const CATEGORY_CONFIG: Record<string, { icon: typeof ShieldCheckIcon; color: string; bg: string }> = {
@@ -59,6 +60,10 @@ export default function AnswerWorkspace() {
     const [showSimilarPanel, setShowSimilarPanel] = useState(false);
     const [isPreview, setIsPreview] = useState(false);
     const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(false);
+
+    // Bulk selection state
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [isBulkLoading, setIsBulkLoading] = useState(false);
 
     // Collaboration hook
     const { activeUsers, updateCursor, broadcastChange, lastRemoteChange } = useRealTime(id);
@@ -239,6 +244,87 @@ export default function AnswerWorkspace() {
         }
     };
 
+    // Bulk selection handlers
+    const toggleQuestionSelection = (questionId: number, event: React.MouseEvent) => {
+        event.stopPropagation();
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(questionId)) {
+                newSet.delete(questionId);
+            } else {
+                newSet.add(questionId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = () => {
+        const filteredQuestions = questions.filter(q => categoryFilter === 'all' || q.category === categoryFilter);
+        setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
+    };
+
+    const handleClearSelection = () => {
+        setSelectedIds(new Set());
+    };
+
+    const handleBulkGenerate = async () => {
+        if (selectedIds.size === 0) return;
+        setIsBulkLoading(true);
+        try {
+            const promises = Array.from(selectedIds).map(qId => answersApi.generate(qId));
+            const results = await Promise.allSettled(promises);
+            const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+            await loadQuestions();
+            setSelectedIds(new Set());
+            toast.success(`Generated answers for ${successCount} questions!`);
+        } catch {
+            toast.error('Failed to generate some answers');
+        } finally {
+            setIsBulkLoading(false);
+        }
+    };
+
+    const handleBulkApprove = async () => {
+        if (selectedIds.size === 0) return;
+        setIsBulkLoading(true);
+        try {
+            const questionsToApprove = questions.filter(q => selectedIds.has(q.id) && q.answer);
+            const promises = questionsToApprove.map(q => answersApi.review(q.answer!.id, 'approve'));
+            await Promise.allSettled(promises);
+
+            setQuestions(questions.map(q =>
+                selectedIds.has(q.id) && q.answer ? { ...q, status: 'approved' } : q
+            ));
+            setSelectedIds(new Set());
+            toast.success(`Approved ${questionsToApprove.length} answers!`);
+        } catch {
+            toast.error('Failed to approve some answers');
+        } finally {
+            setIsBulkLoading(false);
+        }
+    };
+
+    const handleBulkReject = async () => {
+        if (selectedIds.size === 0) return;
+        setIsBulkLoading(true);
+        try {
+            const questionsToReject = questions.filter(q => selectedIds.has(q.id) && q.answer);
+            const promises = questionsToReject.map(q => answersApi.review(q.answer!.id, 'reject'));
+            await Promise.allSettled(promises);
+
+            setQuestions(questions.map(q =>
+                selectedIds.has(q.id) && q.answer ? { ...q, status: 'answered' } : q
+            ));
+            setSelectedIds(new Set());
+            toast.success(`Rejected ${questionsToReject.length} answers`);
+        } catch {
+            toast.error('Failed to reject some answers');
+        } finally {
+            setIsBulkLoading(false);
+        }
+    };
+
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'approved':
@@ -263,26 +349,31 @@ export default function AnswerWorkspace() {
     return (
         <div className="h-[calc(100vh-48px)] flex flex-col -m-content">
             {/* Header */}
-            <div className="flex items-center gap-4 px-6 py-4 border-b border-border bg-surface">
-                <button
-                    onClick={() => navigate(`/projects/${id}`)}
-                    className="p-2 rounded-lg hover:bg-background transition-colors"
-                >
-                    <ArrowLeftIcon className="h-5 w-5 text-text-secondary" />
-                </button>
-                <div className="flex-1">
-                    <h1 className="text-lg font-semibold text-text-primary">Answer Workspace</h1>
-                    <p className="text-sm text-text-secondary">
-                        {questions.filter(q => q.status === 'approved').length} / {questions.length} questions approved
-                    </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 sm:px-6 py-3 sm:py-4 border-b border-border bg-surface">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate(`/projects/${id}`)}
+                        className="p-2 rounded-lg hover:bg-background transition-colors"
+                    >
+                        <ArrowLeftIcon className="h-5 w-5 text-text-secondary" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-base sm:text-lg font-semibold text-text-primary">Answer Workspace</h1>
+                        <p className="text-xs sm:text-sm text-text-secondary">
+                            {questions.filter(q => q.status === 'approved').length} / {questions.length} approved
+                        </p>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-6">
-                    {/* Active Users */}
-                    <ActiveUsers users={activeUsers} />
+                <div className="flex items-center gap-3 sm:gap-6 ml-auto">
+                    {/* Active Users - hidden on mobile */}
+                    <div className="hidden sm:block">
+                        <ActiveUsers users={activeUsers} />
+                    </div>
 
+                    {/* Progress bar - smaller on mobile */}
                     <div className="flex items-center gap-2">
-                        <div className="h-2 w-32 bg-background rounded-full overflow-hidden border border-border">
+                        <div className="h-2 w-20 sm:w-32 bg-background rounded-full overflow-hidden border border-border">
                             <div
                                 className="h-full bg-primary rounded-full transition-all duration-500"
                                 style={{ width: `${(questions.filter(q => q.status === 'approved').length / Math.max(questions.length, 1)) * 100}%` }}
@@ -292,18 +383,18 @@ export default function AnswerWorkspace() {
 
                     <button
                         onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
-                        className="btn-secondary flex items-center gap-2 text-sm"
+                        className="btn-secondary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
                     >
                         <SparklesIcon className="h-4 w-4" />
-                        AI Assign
+                        <span className="hidden sm:inline">AI Assign</span>
                     </button>
                 </div>
             </div>
 
-            {/* 3-Column Layout */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left: Question Navigator */}
-                <div className="w-[280px] border-r border-border bg-surface overflow-y-auto custom-scrollbar">
+            {/* Layout - responsive */}
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+                {/* Left: Question Navigator - collapsible on mobile */}
+                <div className="md:w-[240px] lg:w-[280px] border-b md:border-b-0 md:border-r border-border bg-surface overflow-y-auto custom-scrollbar max-h-[200px] md:max-h-none">
                     <div className="p-4">
                         {/* Category Filter */}
                         <div className="flex items-center justify-between mb-3">
@@ -333,42 +424,56 @@ export default function AnswerWorkspace() {
                                     const CategoryIcon = categoryConfig?.icon || DocumentTextIcon;
 
                                     return (
-                                        <button
+                                        <div
                                             key={question.id}
-                                            onClick={() => handleSelectQuestion(question)}
                                             className={clsx(
-                                                'w-full text-left p-3 rounded-lg transition-all',
+                                                'w-full text-left p-3 rounded-lg transition-all flex gap-2',
                                                 selectedQuestion?.id === question.id
                                                     ? 'bg-primary-light border border-primary'
                                                     : 'hover:bg-background'
                                             )}
                                         >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                {getStatusIcon(question.status)}
-                                                <span className="text-xs text-text-muted">#{index + 1}</span>
-                                                {question.category && (
-                                                    <span className={clsx(
-                                                        'text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1',
-                                                        categoryConfig?.bg, categoryConfig?.color
-                                                    )}>
-                                                        <CategoryIcon className="h-3 w-3" />
-                                                        {question.category}
-                                                    </span>
-                                                )}
-                                                {question.priority === 'high' && (
-                                                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
-                                                        High
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-sm text-text-primary line-clamp-2">{question.text}</p>
-                                            {question.flags && question.flags.length > 0 && (
-                                                <div className="flex items-center gap-1 mt-1">
-                                                    <ExclamationTriangleIcon className="h-3 w-3 text-warning" />
-                                                    <span className="text-xs text-warning">{question.flags.length} flag(s)</span>
+                                            {/* Checkbox for bulk selection */}
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(question.id)}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleQuestionSelection(question.id, e as any);
+                                                }}
+                                                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary flex-shrink-0"
+                                            />
+                                            <button
+                                                onClick={() => handleSelectQuestion(question)}
+                                                className="flex-1 text-left"
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {getStatusIcon(question.status)}
+                                                    <span className="text-xs text-text-muted">#{index + 1}</span>
+                                                    {question.category && (
+                                                        <span className={clsx(
+                                                            'text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1',
+                                                            categoryConfig?.bg, categoryConfig?.color
+                                                        )}>
+                                                            <CategoryIcon className="h-3 w-3" />
+                                                            {question.category}
+                                                        </span>
+                                                    )}
+                                                    {question.priority === 'high' && (
+                                                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                                                            High
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </button>
+                                                <p className="text-sm text-text-primary line-clamp-2">{question.text}</p>
+                                                {question.flags && question.flags.length > 0 && (
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        <ExclamationTriangleIcon className="h-3 w-3 text-warning" />
+                                                        <span className="text-xs text-warning">{question.flags.length} flag(s)</span>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        </div>
                                     );
                                 })}
                         </div>
@@ -581,8 +686,8 @@ export default function AnswerWorkspace() {
                     )}
                 </div>
 
-                {/* Right: Sources & Similar Answers Panel */}
-                <div className="w-[320px] border-l border-border bg-surface overflow-y-auto custom-scrollbar">
+                {/* Right: Sources & Similar Answers Panel - hidden on mobile */}
+                <div className="hidden lg:block w-[280px] xl:w-[320px] border-l border-border bg-surface overflow-y-auto custom-scrollbar">
                     <div className="p-4 space-y-6">
                         {/* Similar Answers Section */}
                         {showSimilarPanel && similarAnswers.length > 0 && (
@@ -715,6 +820,19 @@ export default function AnswerWorkspace() {
                     </div>
                 </div>
             )}
+
+            {/* Bulk Action Bar */}
+            <BulkActionBar
+                selectedCount={selectedIds.size}
+                totalCount={questions.filter(q => categoryFilter === 'all' || q.category === categoryFilter).length}
+                onSelectAll={handleSelectAll}
+                onClearSelection={handleClearSelection}
+                onBulkGenerate={handleBulkGenerate}
+                onBulkApprove={handleBulkApprove}
+                onBulkReject={handleBulkReject}
+                isLoading={isBulkLoading}
+                actions={['generate', 'approve', 'reject']}
+            />
         </div >
     );
 }

@@ -12,6 +12,7 @@ export interface User {
     role: UserRole;
     organization_id: number | null;
     is_active: boolean;
+    is_super_admin?: boolean;
     created_at: string;
     expertise_tags?: string[];
 }

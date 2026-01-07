@@ -17,12 +17,10 @@ logger = logging.getLogger(__name__)
 class PPTGeneratorAgent:
     """Agent for generating PowerPoint presentation content from proposal data."""
     
-    MASTER_PROMPT = """You are a Senior Enterprise Pre-Sales Consultant and Proposal Architect specializing in RFP responses and executive-ready presentations.
+    MASTER_PROMPT = """You are a **SENIOR ENTERPRISE PROPOSAL DESIGNER** creating client-ready, boardroom-quality PPT.
 
-Your task is to generate professional, client-ready PowerPoint presentation content based on the provided proposal data.
-
-## Output Format
-Generate a JSON response with the following structure:
+## OUTPUT FORMAT (JSON - MANDATORY)
+Generate a JSON response with this EXACT structure:
 {{
   "slides": [
     {{
@@ -31,67 +29,93 @@ Generate a JSON response with the following structure:
       "title": "Slide Title",
       "subtitle": "Optional subtitle",
       "bullets": ["Point 1", "Point 2"],
-      "visual_suggestion": "Architecture diagram / Timeline / etc",
-      "notes": "Speaker notes for this slide"
+      "notes": "Speaker notes with transition"
     }}
   ]
 }}
 
-## Slide Types
+## SLIDE TYPES (Use EXACTLY these)
 - cover: Title slide with proposal name, client, date
-- agenda: Table of contents
-- content: Standard bullet point slide
-- two_column: Two column layout for comparisons
-- architecture: Technical diagram placeholder
-- timeline: Project timeline visualization
-- team: Team structure slide
-- pricing: Pricing summary slide
-- case_study: Case study highlight
-- closing: Thank you / Q&A slide
+- agenda: Table of contents (5-7 items)
+- problem: Client challenges and pain points
+- solution: Proposed solution overview
+- content: Standard content slide
+- architecture: Technical architecture (structured layers)
+- timeline: Phase-wise milestones
+- team: Roles and governance model
+- risk: Risks and mitigation strategies
+- roi: Value, ROI, and success metrics
+- pricing: Investment summary
+- closing: Next steps and thank you
 
-## Mandatory Slide Structure (generate in this order):
-1. Cover Slide - Proposal title, client name, date
-2. Agenda - Overview of sections
-3. Client Context & Challenges - Business context, key challenges
-4. Understanding of the Problem - Restate problem clearly
-5. Proposed Solution Overview - High-level solution, differentiators
-6. Solution Architecture - System components, data flow
-7. Scope of Work - In-scope and out-of-scope items
-8. Implementation Approach - Phases, methodology, milestones
-9. Project Timeline - Phase-wise timeline
-10. Team & Governance - Team roles, communication model
-11. Security & Compliance - Data security, compliance standards
-12. Risks & Mitigation - Key risks and strategies
-13. Value Proposition - Quantifiable benefits, ROI
-14. Case Studies - Problem, solution, results (if available)
-15. Pricing Summary - High-level pricing
-16. Assumptions & Dependencies - Client responsibilities
-17. Why Choose Us - Differentiators, experience
-18. Next Steps - Approval steps, proposed kickoff
-19. Thank You / Q&A - Contact details
+## MANDATORY 13-SLIDE NARRATIVE (STRICT ORDER)
+1. **Cover** (slide_type: "cover") - Proposal title, client name, date
+2. **Agenda** (slide_type: "agenda") - Clean 5-7 item overview
+3. **Client Challenges** (slide_type: "problem") - Explicit pain points from RFP
+4. **Our Understanding** (slide_type: "content") - Problem restatement in client's terms
+5. **Proposed Solution** (slide_type: "solution") - High-level approach with outcomes
+6. **Architecture & Design** (slide_type: "architecture") - 4-layer technical structure
+7. **Delivery Methodology** (slide_type: "content") - Agile phases, approach
+8. **Project Roadmap** (slide_type: "timeline") - Key milestones
+9. **Team & Governance** (slide_type: "team") - Roles, escalation, communication
+10. **Security & Compliance** (slide_type: "content") - Standards, certifications
+11. **Risks & Mitigation** (slide_type: "risk") - Top 3-4 risks with strategies
+12. **Value & ROI** (slide_type: "roi") - Quantifiable benefits, success metrics
+13. **Next Steps** (slide_type: "closing") - Call to action, contact
 
-## Guidelines:
-- Maximum 6 bullet points per slide
-- Each bullet should be concise (under 15 words)
-- Use executive, confident, concise tone
-- Focus on clarity, outcomes, and value
-- Suggest relevant visuals for each slide
+## CONTENT QUALITY RULES (CRITICAL)
 
-## Speaker Notes (MANDATORY for every slide):
-- Include detailed speaker notes in the "notes" field for EVERY slide
-- Notes should include:
-  * Key talking points to expand on bullets
-  * Data points and metrics to mention
-  * Transition phrases to next slide
-  * Potential questions to anticipate
-- Write notes as if coaching a presenter
-- Notes should be 3-5 sentences per slide
-- Example: "Emphasize that our team has successfully delivered X similar projects. Mention specific client names if audience permits. Transition to next slide by highlighting the implementation approach."
+### BANNED PHRASES (NEVER USE):
+- "leveraging", "cutting-edge", "next-generation", "seamlessly"
+- "robust solution", "revolutionary", "state-of-the-art"
+- "holistic approach", "synergy", "best-in-class"
+- "world-class", "game-changing", "paradigm shift"
 
-## Proposal Data:
+### REQUIRED CONTENT STYLE:
+- Every claim MUST have: Method + Tool + Deliverable + Outcome
+- Use CLIENT-SPECIFIC language from RFP data
+- NO generic marketing phrases
+- Concrete, measurable statements only
+- Example: "Reduce hiring time by 40% using AI-powered screening"
+
+### BULLET DISCIPLINE:
+- 3-5 bullets per slide ONLY
+- MAX 10 words per bullet
+- Start with action verbs or results
+- No redundant points
+
+## ARCHITECTURE SLIDE FORMAT
+For architecture slides, structure bullets as 4 layers:
+- "Presentation: [specific components from RFP]"
+- "Application: [modules, services]"
+- "Integration: [APIs, connectors, external systems]"
+- "Data: [database, storage, analytics]"
+
+## RFP ALIGNMENT (CRITICAL)
+- Extract actual requirements from proposal data
+- Map every slide to RFP sections
+- Use terminology from client's RFP document
+- Address ALL mandatory requirements
+
+## SPEAKER NOTES (MANDATORY)
+Every slide "notes" field MUST include:
+- 2-3 key talking points with client value
+- Smooth transition phrase to next slide
+- Example: "This leads us to how we'll structure the team..."
+
+## QUALITY CHECKLIST (VERIFY BEFORE OUTPUT)
+- [ ] Exactly 13 slides in correct order
+- [ ] No banned phrases used
+- [ ] All bullets ≤ 10 words
+- [ ] Architecture has 4 layers
+- [ ] Every claim is evidence-based
+- [ ] Client name used correctly
+- [ ] JSON is valid
+
+## PROPOSAL DATA:
 {proposal_data}
 
-Generate the complete slide deck JSON now:"""
+Generate the complete 13-slide deck JSON. Return ONLY valid JSON:"""
 
     STYLE_PROMPTS = {
         'modern': "Use modern, clean design language with bold headlines and minimal text.",
@@ -234,10 +258,13 @@ Generate the complete slide deck JSON now:"""
             # Parse the response
             result = self._parse_response(response_text)
             
+            # Post-process slides to enforce constraints
+            validated_slides = self._validate_and_fix_slides(result.get('slides', []))
+            
             return {
                 'success': True,
-                'slides': result.get('slides', []),
-                'slide_count': len(result.get('slides', [])),
+                'slides': validated_slides,
+                'slide_count': len(validated_slides),
                 'style': style,
                 'provider': self.config.provider,
                 'model': self.config.model_name,
@@ -250,6 +277,77 @@ Generate the complete slide deck JSON now:"""
                 'error': str(e),
                 'slides': [],
             }
+    
+    def _validate_and_fix_slides(self, slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Post-process slides to ensure content meets constraints.
+        Fixes common issues: long bullets, too many bullets, missing fields.
+        
+        Args:
+            slides: List of slide dictionaries from AI
+            
+        Returns:
+            Validated and fixed slide list
+        """
+        MAX_BULLETS = 6
+        MAX_BULLET_CHARS = 80
+        MAX_TITLE_CHARS = 60
+        
+        fixed_slides = []
+        
+        for slide in slides:
+            fixed = slide.copy()
+            
+            # Truncate title
+            if 'title' in fixed and fixed['title']:
+                title = str(fixed['title']).strip()
+                if len(title) > MAX_TITLE_CHARS:
+                    # Try to break at word boundary
+                    truncated = title[:MAX_TITLE_CHARS-3]
+                    last_space = truncated.rfind(' ')
+                    if last_space > MAX_TITLE_CHARS * 0.6:
+                        truncated = truncated[:last_space]
+                    fixed['title'] = truncated.rstrip() + '...'
+            
+            # Fix bullets
+            if 'bullets' in fixed and fixed['bullets']:
+                bullets = fixed['bullets']
+                if not isinstance(bullets, list):
+                    bullets = [str(bullets)]
+                
+                fixed_bullets = []
+                for bullet in bullets[:MAX_BULLETS]:
+                    bullet_text = str(bullet).strip()
+                    # Remove leading bullet markers that AI might add
+                    bullet_text = bullet_text.lstrip('•-*→▪►◆').strip()
+                    # Remove double spaces
+                    bullet_text = ' '.join(bullet_text.split())
+                    # Truncate if too long
+                    if len(bullet_text) > MAX_BULLET_CHARS:
+                        truncated = bullet_text[:MAX_BULLET_CHARS-3]
+                        last_space = truncated.rfind(' ')
+                        if last_space > MAX_BULLET_CHARS * 0.6:
+                            truncated = truncated[:last_space]
+                        bullet_text = truncated.rstrip() + '...'
+                    
+                    if bullet_text:
+                        fixed_bullets.append(bullet_text)
+                
+                fixed['bullets'] = fixed_bullets
+            
+            # Ensure slide_type exists
+            if 'slide_type' not in fixed or not fixed['slide_type']:
+                fixed['slide_type'] = 'content'
+            
+            # Ensure notes exist (for speaker notes)
+            if 'notes' not in fixed or not fixed['notes']:
+                title = fixed.get('title', 'Slide')
+                fixed['notes'] = f"Key points for {title}. Emphasize value and client benefits."
+            
+            fixed_slides.append(fixed)
+        
+        logger.info(f"Validated {len(fixed_slides)} slides, enforced content constraints")
+        return fixed_slides
     
     def _build_proposal_data(
         self,
@@ -315,6 +413,72 @@ Generate the complete slide deck JSON now:"""
             answered = [q for q in questions if q.get('status') in ['answered', 'approved']]
             data['qa_count'] = len(answered)
             data['total_questions'] = len(questions)
+        
+        # Add compliance data if available (passed through project_data)
+        compliance_items = project_data.get('compliance', [])
+        if compliance_items:
+            compliant_count = sum(1 for c in compliance_items if c.get('status') == 'compliant')
+            partial_count = sum(1 for c in compliance_items if c.get('status') == 'partial')
+            non_compliant_count = sum(1 for c in compliance_items if c.get('status') == 'non_compliant')
+            
+            data['compliance_summary'] = {
+                'total_requirements': len(compliance_items),
+                'compliant': compliant_count,
+                'partial': partial_count,
+                'non_compliant': non_compliant_count,
+                'compliance_rate': round(compliant_count / len(compliance_items) * 100, 1) if compliance_items else 0,
+            }
+            # Include top requirements for context
+            data['key_compliance_items'] = [
+                {'requirement': c.get('requirement', ''), 'status': c.get('status', '')}
+                for c in compliance_items[:10]
+            ]
+        
+        # Add strategy data if available (passed through project_data)
+        strategy = project_data.get('strategy')
+        if strategy:
+            # Win themes for value proposition and differentiators
+            if strategy.get('win_themes'):
+                win_themes_data = strategy['win_themes']
+                themes = win_themes_data.get('win_themes', [])
+                data['win_themes'] = [
+                    {
+                        'title': t.get('theme_title', ''),
+                        'statement': t.get('theme_statement', ''),
+                        'benefit': t.get('customer_benefit', ''),
+                        'priority': t.get('priority', ''),
+                    }
+                    for t in themes[:5]  # Top 5 themes
+                ]
+                data['differentiators'] = win_themes_data.get('differentiators', [])[:5]
+            
+            # Pricing for investment slide
+            if strategy.get('pricing'):
+                pricing_data = strategy['pricing']
+                pricing_summary = pricing_data.get('pricing_summary', {})
+                data['pricing'] = {
+                    'total_cost': pricing_summary.get('total_cost', 0),
+                    'currency': pricing_summary.get('currency_symbol', '$'),
+                    'validity': pricing_summary.get('validity_period', ''),
+                }
+                effort_breakdown = pricing_data.get('effort_breakdown', [])
+                data['effort_breakdown'] = [
+                    {'phase': p.get('phase', ''), 'cost': p.get('phase_total', 0)}
+                    for p in effort_breakdown
+                ]
+            
+            # Legal review for risks slide
+            if strategy.get('legal_review'):
+                legal_data = strategy['legal_review']
+                data['risk_assessment'] = {
+                    'overall_level': legal_data.get('overall_risk_level', ''),
+                    'summary': legal_data.get('review_summary', ''),
+                }
+                risk_items = legal_data.get('risk_items', [])
+                data['key_risks'] = [
+                    {'severity': r.get('severity', ''), 'description': r.get('description', '')}
+                    for r in risk_items[:5]  # Top 5 risks
+                ]
         
         return data
     

@@ -28,6 +28,7 @@ google-cloud-aiplatform>=1.38.1
 qdrant-client>=1.7.0
 # sentence-transformers>=2.2.2  # DISABLED: Heavy dependency - enables embeddings
 litellm==1.55.3
+json_repair>=0.30.0  # Repair malformed JSON from LLM responses
 
 # Utilities
 marshmallow==3.20.1

@@ -131,20 +131,24 @@ def update_subscription(org_id):
 @require_super_admin
 def update_features(org_id):
     """Enable/disable specific features for an organization."""
+    from sqlalchemy.orm.attributes import flag_modified
+    
     org = Organization.query.get(org_id)
     if not org:
         return jsonify({'error': 'Organization not found'}), 404
     
     data = request.get_json()
     
-    # Get current feature flags
-    flags = org.feature_flags or {}
+    # Get current feature flags (make a copy to ensure mutation is detected)
+    flags = dict(org.feature_flags or {})
     
     # Update features
     for feature, enabled in data.items():
         flags[feature] = enabled
     
+    # Reassign to ensure SQLAlchemy detects the change
     org.feature_flags = flags
+    flag_modified(org, 'feature_flags')
     db.session.commit()
     
     return jsonify({

@@ -614,3 +614,68 @@ def get_reuse_stats():
     return jsonify({
         'most_reused_answers': most_reused
     }), 200
+
+
+@bp.route('/adapt', methods=['POST'])
+@jwt_required()
+def adapt_answer():
+    """
+    Context-aware answer adaptation using AI.
+    
+    Finds a similar approved answer and adapts it for the new question context.
+    This is the main endpoint for intelligent answer reuse.
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    data = request.get_json()
+    question_text = data.get('question_text')
+    project_id = data.get('project_id')
+    category = data.get('category')
+    auto_adapt = data.get('auto_adapt', True)
+    
+    if not question_text:
+        return jsonify({'error': 'Question text required'}), 400
+    
+    # Build project context if project_id provided
+    project_context = {}
+    if project_id:
+        from ..models import Project
+        project = Project.query.get(project_id)
+        if project and project.organization_id == user.organization_id:
+            project_context = {
+                'client_name': project.client_name,
+                'industry': project.industry,
+                'client_type': project.client_type
+            }
+    
+    from ..services.answer_reuse_service import answer_reuse_service
+    
+    # Find and adapt similar answer
+    result = answer_reuse_service.find_and_adapt_answer(
+        question_text=question_text,
+        org_id=user.organization_id,
+        project_context=project_context,
+        auto_adapt=auto_adapt
+    )
+    
+    if result:
+        return jsonify({
+            'found': True,
+            'adapted_answer': result['adapted_answer'],
+            'original_answer': result['original_answer'],
+            'source_question': result['source_question'],
+            'source_answer_id': result['source_answer_id'],
+            'similarity_score': result['similarity_score'],
+            'adaptation_confidence': result.get('adaptation_confidence', 1.0),
+            'adaptation_notes': result.get('adaptation_notes', ''),
+            'was_adapted': result.get('was_adapted', False),
+            'category': result.get('category')
+        }), 200
+    else:
+        return jsonify({
+            'found': False,
+            'message': 'No similar approved answers found above threshold',
+            'suggestion': 'Consider generating a new answer using AI'
+        }), 200
+

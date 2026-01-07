@@ -78,6 +78,44 @@ class DiagramGeneratorAgent:
     - Mind maps (topic overview)
     """
     
+    # Validation rules for mermaid diagrams
+    DIAGRAM_VALIDATION_RULES = {
+        'max_node_label_length': 30,
+        'max_nodes_per_diagram': 50,
+        'max_lines': 100,
+        'forbidden_chars_in_labels': ['(', ')', ':', '"', "'", '&', '<', '>'],
+        'required_header': {
+            'flowchart': ['flowchart TB', 'flowchart LR', 'flowchart TD', 'flowchart RL'],
+            'sequence': ['sequenceDiagram'],
+            'gantt': ['gantt'],
+            'erDiagram': ['erDiagram'],
+            'mindmap': ['mindmap']
+        }
+    }
+    
+    # Common mermaid syntax fix patterns
+    DIAGRAM_FIX_PATTERNS = {
+        # Pattern: (regex, replacement, description)
+        'unicode_arrows': [
+            (r'→', '-->', 'Unicode right arrow'),
+            (r'←', '<--', 'Unicode left arrow'),
+            (r'↔', '<-->', 'Unicode bidir arrow'),
+            (r'➡', '-->', 'Heavy right arrow'),
+            (r'⇒', '-->', 'Double right arrow'),
+        ],
+        'label_fixes': [
+            (r'\(([^)]*)\)', '', 'Remove parentheses content'),
+            (r'"', '', 'Remove double quotes'),
+            (r"'", '', 'Remove single quotes'),
+            (r'&', 'and', 'Replace ampersand'),
+        ],
+        'structural_fixes': [
+            (r'\[\s*\]', '[Node]', 'Fix empty brackets'),
+            (r'\{\s*\}', '{Decision}', 'Fix empty braces'),
+            (r'subgraph\s*\n', 'subgraph Group\n', 'Fix empty subgraph'),
+        ]
+    }
+    
     ARCHITECTURE_PROMPT = """You are an expert system architect. Analyze this RFP document and create a Mermaid.js architecture diagram.
 
 **CRITICAL MERMAID SYNTAX RULES:**

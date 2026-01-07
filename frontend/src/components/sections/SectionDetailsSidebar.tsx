@@ -539,16 +539,16 @@ export default function SectionDetailsSidebar({
                                 <span className="font-medium text-text-primary text-sm">Knowledge Sources</span>
                             </div>
                             <p className="text-text-muted text-xs mb-4">Documents and data used to generate this section</p>
-                            {section.sources && section.sources.length > 0 ? (
+                            {section.sources && section.sources.filter(s => typeof s === 'string' || !s.relevance || s.relevance > 0.01).length > 0 ? (
                                 <div>
                                     {/* Source Count Header */}
                                     <p className="text-sm text-gray-600 mb-3">
-                                        <span className="font-medium">{section.sources.length}</span> source{section.sources.length !== 1 ? 's' : ''} checked
+                                        <span className="font-medium">{section.sources.filter(s => typeof s === 'string' || !s.relevance || s.relevance > 0.01).length}</span> source{section.sources.filter(s => typeof s === 'string' || !s.relevance || s.relevance > 0.01).length !== 1 ? 's' : ''} used
                                     </p>
 
                                     {/* Numbered Source Buttons */}
                                     <div className="flex flex-wrap gap-2 mb-4">
-                                        {section.sources.map((source, idx) => (
+                                        {section.sources.filter(s => typeof s === 'string' || !s.relevance || s.relevance > 0.01).map((source, idx) => (
                                             <button
                                                 key={idx}
                                                 onClick={() => setSelectedSource({ source, index: idx })}
@@ -562,7 +562,7 @@ export default function SectionDetailsSidebar({
 
                                     {/* Source List with Details */}
                                     <div className="space-y-2 mt-4">
-                                        {section.sources.map((source, idx) => (
+                                        {section.sources.filter(s => typeof s === 'string' || !s.relevance || s.relevance > 0.01).map((source, idx) => (
                                             <button
                                                 key={idx}
                                                 onClick={() => setSelectedSource({ source, index: idx })}

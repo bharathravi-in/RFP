@@ -13,10 +13,10 @@ import {
 } from '@heroicons/react/24/outline';
 
 const BENEFITS = [
-    { icon: CheckCircleIcon, text: '14-day free trial, no credit card required' },
-    { icon: UserGroupIcon, text: 'Invite your team members' },
-    { icon: ClockIcon, text: 'Setup in under 5 minutes' },
-    { icon: ChartBarIcon, text: 'Increase win rate by 40%' },
+    { icon: CheckCircleIcon, text: 'AI-powered RFP analysis' },
+    { icon: UserGroupIcon, text: 'Collaborate with your team' },
+    { icon: ClockIcon, text: 'Quick and easy setup' },
+    { icon: ChartBarIcon, text: 'Track your proposal performance' },
 ];
 
 export default function Register() {
@@ -93,7 +93,7 @@ export default function Register() {
                             Start winning more proposals today
                         </h1>
                         <p className="text-white/80 text-lg">
-                            Join thousands of teams using AI to create better proposals faster
+                            Use AI to create better proposals faster
                         </p>
                     </div>
 
@@ -108,27 +108,11 @@ export default function Register() {
                             </div>
                         ))}
                     </div>
-
-                    {/* Testimonial */}
-                    <div className="bg-white/10 backdrop-blur rounded-xl p-5">
-                        <p className="text-white/90 italic mb-3">
-                            "RFP Pro cut our proposal creation time by 70%. We've won 3 major contracts since using it."
-                        </p>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-white/30 flex items-center justify-center text-white font-semibold">
-                                SK
-                            </div>
-                            <div>
-                                <p className="text-white font-medium">Sarah Kim</p>
-                                <p className="text-white/60 text-sm">VP of Sales, TechCorp</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Footer */}
                 <div className="relative z-10 text-white/60 text-sm">
-                    Trusted by 500+ companies worldwide
+                    © {new Date().getFullYear()} RFP Pro. All rights reserved.
                 </div>
             </div>
 

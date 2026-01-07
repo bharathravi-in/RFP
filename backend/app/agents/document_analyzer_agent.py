@@ -399,12 +399,70 @@ Return ONLY valid JSON."""
         fallback_models=['gemini-1.5-pro']
     )
     def _analyze_with_ai(self, text: str) -> Dict:
-        """Use AI to analyze document structure."""
+        """Use AI to analyze document structure with chunked processing for large documents."""
         client = self.config.client
         if not client:
             return self._fallback_analysis(text)
         
-        prompt = self.ANALYSIS_PROMPT.format(text=text[:25000])
+        # Chunk size and overlap for processing large documents
+        CHUNK_SIZE = 20000  # 20K characters per chunk
+        CHUNK_OVERLAP = 2000  # 2K overlap to preserve context
+        
+        # If document fits in single chunk, process directly
+        if len(text) <= CHUNK_SIZE:
+            return self._analyze_single_chunk(text)
+        
+        # Process large documents in chunks
+        logger.info(f"Processing large document ({len(text)} chars) in chunks")
+        chunks = self._split_into_chunks(text, CHUNK_SIZE, CHUNK_OVERLAP)
+        logger.info(f"Split into {len(chunks)} chunks")
+        
+        # Analyze each chunk
+        chunk_analyses = []
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Analyzing chunk {i+1}/{len(chunks)}")
+            try:
+                chunk_result = self._analyze_single_chunk(chunk)
+                chunk_result['_chunk_index'] = i
+                chunk_analyses.append(chunk_result)
+            except Exception as e:
+                logger.warning(f"Chunk {i+1} analysis failed: {e}")
+        
+        # Merge chunk results
+        if not chunk_analyses:
+            return self._fallback_analysis(text)
+        
+        return self._merge_chunk_analyses(chunk_analyses)
+    
+    def _split_into_chunks(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+        """Split text into overlapping chunks, preferring to break at paragraph boundaries."""
+        chunks = []
+        start = 0
+        
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            
+            # If not at the end, try to find a good break point
+            if end < len(text):
+                search_start = max(end - 1000, start)
+                search_text = text[search_start:end]
+                para_break = search_text.rfind('\n\n')
+                if para_break != -1:
+                    end = search_start + para_break + 2
+                else:
+                    line_break = search_text.rfind('\n')
+                    if line_break != -1:
+                        end = search_start + line_break + 1
+            
+            chunks.append(text[start:end])
+            start = end - overlap if end < len(text) else len(text)
+        
+        return chunks
+    
+    def _analyze_single_chunk(self, text: str) -> Dict:
+        """Analyze a single text chunk with AI."""
+        client = self.config.client
+        prompt = self.ANALYSIS_PROMPT.format(text=text)
         
         try:
             if self.config.is_adk_enabled:
@@ -418,7 +476,6 @@ Return ONLY valid JSON."""
                 response = client.generate_content(prompt)
                 response_text = response.text
             
-            # Clean and parse JSON
             response_text = response_text.strip()
             if response_text.startswith('```'):
                 response_text = re.sub(r'^```(?:json)?\n?', '', response_text)
@@ -432,6 +489,62 @@ Return ONLY valid JSON."""
         except Exception as e:
             logger.error(f"AI analysis error: {e}")
             return self._fallback_analysis(text)
+    
+    def _merge_chunk_analyses(self, analyses: List[Dict]) -> Dict:
+        """Merge multiple chunk analyses into a single coherent result."""
+        merged = {
+            "sections": [], "themes": set(), "requirements": [],
+            "evaluation_criteria": [], "deliverables": [], "timeline": [],
+            "questions_identified": [], "tables_detected": [], "attachments": [],
+            "key_dates": [], "document_type": "rfp", "complexity_score": 0.0,
+            "estimated_response_time_hours": 0, "issuing_organization": None,
+            "_processing_info": {"chunks_processed": len(analyses), "chunked_processing": True}
+        }
+        
+        seen_sections, seen_requirements, seen_questions = set(), set(), set()
+        
+        for analysis in analyses:
+            for section in analysis.get("sections", []):
+                section_key = section.get("name", "").lower().strip()
+                if section_key and section_key not in seen_sections:
+                    seen_sections.add(section_key)
+                    merged["sections"].append(section)
+            
+            for theme in analysis.get("themes", []):
+                merged["themes"].add(theme.lower().strip() if isinstance(theme, str) else theme)
+            
+            for req in analysis.get("requirements", []):
+                req_text = req.get("text", "").lower().strip()[:100]
+                if req_text and req_text not in seen_requirements:
+                    seen_requirements.add(req_text)
+                    merged["requirements"].append(req)
+            
+            for q in analysis.get("questions_identified", []):
+                q_text = q.get("text", "").lower().strip()[:100]
+                if q_text and q_text not in seen_questions:
+                    seen_questions.add(q_text)
+                    merged["questions_identified"].append(q)
+            
+            merged["evaluation_criteria"].extend(analysis.get("evaluation_criteria", []))
+            merged["deliverables"].extend(analysis.get("deliverables", []))
+            merged["timeline"].extend(analysis.get("timeline", []))
+            merged["tables_detected"].extend(analysis.get("tables_detected", []))
+            merged["attachments"].extend(analysis.get("attachments", []))
+            merged["key_dates"].extend(analysis.get("key_dates", []))
+            merged["complexity_score"] += analysis.get("complexity_score", 0.5)
+            merged["estimated_response_time_hours"] += analysis.get("estimated_response_time_hours", 0)
+            
+            if not merged["issuing_organization"]:
+                merged["issuing_organization"] = analysis.get("issuing_organization")
+        
+        merged["themes"] = list(merged["themes"])
+        if analyses:
+            merged["complexity_score"] /= len(analyses)
+        merged["evaluation_criteria"] = list(set(merged["evaluation_criteria"]))
+        merged["deliverables"] = list(set(merged["deliverables"]))
+        
+        logger.info(f"Merged analysis: {len(merged['sections'])} sections, {len(merged['requirements'])} requirements")
+        return merged
     
     def _fallback_analysis(self, text: str) -> Dict:
         """Pattern-based analysis fallback."""

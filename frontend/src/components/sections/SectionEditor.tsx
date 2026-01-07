@@ -1083,14 +1083,14 @@ ${answer}
                         )}
 
                         {/* Knowledge Sources Panel - Show what docs were used */}
-                        {!isQASection && section.sources && section.sources.length > 0 && (
+                        {!isQASection && section.sources && section.sources.filter(s => !s.relevance || s.relevance > 0.01).length > 0 && (
                             <div className="mt-6 border-t border-border pt-4">
                                 <button
                                     onClick={() => setShowSources(!showSources)}
                                     className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors w-full"
                                 >
                                     <BookOpenIcon className="h-4 w-4" />
-                                    Sources Used ({section.sources.length})
+                                    Sources Used ({section.sources.filter(s => !s.relevance || s.relevance > 0.01).length})
                                     <span className={clsx(
                                         'ml-auto transition-transform',
                                         showSources ? 'rotate-180' : ''
@@ -1104,7 +1104,7 @@ ${answer}
                                         <p className="text-xs text-text-muted mb-2">
                                             This content was generated using the following knowledge sources:
                                         </p>
-                                        {section.sources.map((source, idx) => (
+                                        {section.sources.filter(s => !s.relevance || s.relevance > 0.01).map((source, idx) => (
                                             <div
                                                 key={idx}
                                                 className="p-3 rounded-lg border border-border bg-gradient-to-r from-purple-50/50 to-violet-50/50"

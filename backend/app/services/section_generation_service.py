@@ -158,6 +158,26 @@ class SectionGenerationService:
                 param_text += f"\n- Length: {params['length']}"
             if params.get('format'):
                 param_text += f"\n- Format: {params['format']}"
+            
+            # WIN THEMES INTEGRATION (Phase 2 Enhancement)
+            if params.get('win_themes'):
+                win_themes = params['win_themes']
+                param_text += "\n\n---\n## WIN THEMES - Incorporate these differentiators naturally:\n"
+                for i, theme in enumerate(win_themes, 1):
+                    theme_title = theme.get('theme', 'Key Advantage')
+                    theme_desc = theme.get('description', '')
+                    param_text += f"\n### Theme {i}: {theme_title}"
+                    if theme_desc:
+                        param_text += f"\n{theme_desc}"
+                    
+                    talking_points = theme.get('talking_points', [])
+                    if talking_points and isinstance(talking_points, list):
+                        param_text += "\nKey Points:"
+                        for point in talking_points[:3]:
+                            param_text += f"\n  • {point}"
+                    param_text += "\n"
+                param_text += "\nNaturally weave these themes into your response without explicitly mentioning 'win theme'."
+            
             prompt = f"{prompt}\n{param_text}"
         
         # Enhanced system instructions to use KB context as format reference

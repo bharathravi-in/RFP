@@ -83,11 +83,16 @@ def login():
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
     
-    return jsonify({
+    response = {
         'user': user.to_dict(),
         'access_token': access_token,
         'refresh_token': refresh_token
-    }), 200
+    }
+    
+    if user.organization:
+        response['organization'] = user.organization.to_dict()
+    
+    return jsonify(response), 200
 
 
 @bp.route('/me', methods=['GET'])
@@ -122,3 +127,83 @@ def logout():
     """Logout user (client should discard tokens)."""
     # In a production app, you'd add the token to a blocklist
     return jsonify({'message': 'Logged out successfully'}), 200
+
+
+@bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request password reset email."""
+    import secrets
+    from datetime import timedelta
+    from flask import current_app
+    from ..services.email_service import get_email_service
+    
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    # Always return success to prevent email enumeration attacks
+    user = User.query.filter_by(email=email).first()
+    
+    if user and user.is_active:
+        # Generate reset token
+        token = secrets.token_urlsafe(32)
+        user.password_reset_token = token
+        user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        db.session.commit()
+        
+        # Build reset URL
+        frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+        
+        # Send email
+        try:
+            email_service = get_email_service()
+            email_service.send_password_reset(
+                to=user.email,
+                user_name=user.name,
+                reset_link=reset_link
+            )
+        except Exception as e:
+            current_app.logger.error(f"Failed to send password reset email: {e}")
+    
+    # Always return success message
+    return jsonify({
+        'message': 'If an account exists with this email, you will receive password reset instructions.'
+    }), 200
+
+
+@bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password with token."""
+    data = request.get_json()
+    
+    token = data.get('token')
+    new_password = data.get('password')
+    
+    if not token or not new_password:
+        return jsonify({'error': 'Token and password are required'}), 400
+    
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    
+    # Find user by reset token
+    user = User.query.filter_by(password_reset_token=token).first()
+    
+    if not user:
+        return jsonify({'error': 'Invalid or expired reset token'}), 400
+    
+    # Check if token is expired
+    from datetime import datetime as dt
+    if user.password_reset_expires and user.password_reset_expires < dt.utcnow():
+        return jsonify({'error': 'Reset token has expired. Please request a new one.'}), 400
+    
+    # Update password
+    user.set_password(new_password)
+    user.password_reset_token = None
+    user.password_reset_expires = None
+    db.session.commit()
+    
+    return jsonify({'message': 'Password has been reset successfully. You can now log in.'}), 200
+
