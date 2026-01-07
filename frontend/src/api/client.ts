@@ -79,6 +79,12 @@ export const authApi = {
 
     me: () =>
         api.get('/auth/me'),
+
+    forgotPassword: (email: string) =>
+        api.post('/auth/forgot-password', { email }),
+
+    resetPassword: (token: string, password: string) =>
+        api.post('/auth/reset-password', { token, password }),
 };
 
 // ===============================
@@ -1014,18 +1020,6 @@ export const agentsApi = {
     // ========================================
     getExperiments: () =>
         api.get('/agents/experiments'),
-
-    createExperiment: (data: {
-        experiment_id: string;
-        agent_name: string;
-        control_version: string;
-        treatment_version: string;
-        traffic_split?: number;
-    }) =>
-        api.post('/agents/experiments', data),
-
-    getExperimentResults: (experimentId: string) =>
-        api.get(`/agents/experiments/${experimentId}`),
 };
 
 // ===============================

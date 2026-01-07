@@ -30,6 +30,10 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Password reset fields
+    password_reset_token = db.Column(db.String(255), nullable=True, index=True)
+    password_reset_expires = db.Column(db.DateTime, nullable=True)
+    
     # Platform-level super admin (can manage all organizations)
     is_super_admin = db.Column(db.Boolean, default=False)
     

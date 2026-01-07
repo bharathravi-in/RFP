@@ -236,9 +236,65 @@ This invitation will expire in 7 days.
         """
         
         return self.send_email([to], subject, html_body, text_body)
+    
+    def send_password_reset(
+        self,
+        to: str,
+        user_name: str,
+        reset_link: str
+    ) -> bool:
+        """Send password reset email."""
+        subject = 'Reset Your RFP Pro Password'
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb;">
+            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 28px;">Password Reset</h1>
+            </div>
+            <div style="padding: 40px; background: white;">
+                <p style="font-size: 16px; color: #374151;">Hi {user_name},</p>
+                <p style="font-size: 16px; color: #374151;">
+                    We received a request to reset your password. Click the button below to create a new password:
+                </p>
+                <div style="text-align: center; margin: 32px 0;">
+                    <a href="{reset_link}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                        Reset Password
+                    </a>
+                </div>
+                <p style="font-size: 14px; color: #6b7280;">
+                    This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.
+                </p>
+                <p style="font-size: 14px; color: #9ca3af; margin-top: 24px;">
+                    If the button doesn't work, copy and paste this link into your browser:<br>
+                    <a href="{reset_link}" style="color: #6366f1; word-break: break-all;">{reset_link}</a>
+                </p>
+            </div>
+            <div style="padding: 24px; text-align: center; color: #9ca3af; font-size: 12px; background: #f9fafb;">
+                <p style="margin: 0;">RFP Pro - AI-Powered RFP Responses</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_body = f"""
+Hi {user_name},
+
+We received a request to reset your password.
+
+Click here to reset your password: {reset_link}
+
+This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.
+
+- RFP Pro Team
+        """
+        
+        return self.send_email([to], subject, html_body, text_body)
 
 
 def get_email_service() -> EmailService:
     """Get email service instance."""
     return EmailService()
+
 
