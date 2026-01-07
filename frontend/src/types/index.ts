@@ -12,7 +12,9 @@ export interface User {
     role: UserRole;
     organization_id: number | null;
     is_active: boolean;
+    is_super_admin?: boolean;
     created_at: string;
+    expertise_tags?: string[];
 }
 
 export interface Organization {
@@ -62,6 +64,19 @@ export interface Project {
     loss_reason?: string;
 }
 
+export interface CreateProjectData {
+    name: string;
+    description?: string;
+    due_date?: string;
+    client_name?: string;
+    client_type?: string;
+    geography?: string;
+    currency?: string;
+    industry?: string;
+    compliance_requirements?: string[];
+    knowledge_profile_ids?: number[];
+}
+
 // ===============================
 // Document Types
 // ===============================
@@ -108,6 +123,9 @@ export interface Question {
     document_id: number | null;
     created_at: string;
     updated_at: string;
+    assigned_to: number | null;
+    due_date: string | null;
+    assignee_name?: string;
     answer?: Answer;
 }
 
@@ -136,6 +154,7 @@ export interface Answer {
     reviewed_by: number | null;
     reviewed_at: string | null;
     created_at: string;
+    verification_score: number;
     comments: AnswerComment[];
 }
 
@@ -177,6 +196,12 @@ export interface KnowledgeItem {
     created_by: number;
     created_at: string;
     updated_at: string;
+}
+
+export interface CreateKnowledgeData {
+    title: string;
+    content: string;
+    tags?: string[];
 }
 
 export interface KnowledgeSearchResult {
@@ -479,6 +504,13 @@ export interface AnswerLibraryItem {
     answer_text: string;
     category: string | null;
     tags: string[];
+    status: 'draft' | 'under_review' | 'approved' | 'archived';
+    version_number: number;
+    item_metadata: Record<string, any>;
+    last_reviewed_at: string | null;
+    next_review_due: string | null;
+    reviewed_by: number | null;
+    reviewed_by_name: string | null;
     source_project_id: number | null;
     source_project_name: string | null;
     source_question_id: number | null;

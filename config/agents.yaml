@@ -1,0 +1,324 @@
+# ============================================================================
+# Agent Configuration Schema
+#
+# This file defines the per-agent LLM provider and model configuration with:
+# - Multi-provider fallback chains
+# - Rate limiting policies
+# - Circuit breaker settings
+# - Cost budgets
+# - Latency SLAs
+#
+# Usage:
+#   Load with: router = AgentRouter("config/agents.yaml")
+#   Or: from agent_router import AgentRouter; router.get_adapter("document_analyzer")
+# ============================================================================
+
+# Global defaults applied to all agents unless overridden
+defaults:
+  temperature: 0.7
+  max_tokens: 4096
+  timeout: 60
+  retry_attempts: 3
+  retry_delay_seconds: 1.0
+  fallback_enabled: true
+  
+  rate_limit:
+    requests_per_minute: 60
+    tokens_per_minute: 100000
+    concurrent_requests: 10
+  
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout_seconds: 60
+    half_open_requests: 3
+
+# Provider definitions (shared across agents)
+providers:
+  litellm:
+    name: litellm
+    api_key_env: LITELLM_API_KEY
+    base_url_env: LITELLM_BASE_URL  # e.g., https://litellm.tarento.dev
+    models:
+      - gemini-flash
+      - gemini-pro
+      - gemini-flash-lite
+  
+  openai:
+    name: openai
+    api_key_env: OPENAI_API_KEY
+    models:
+      - gpt-4o
+      - gpt-4o-mini
+      - gpt-4-turbo
+      - gpt-3.5-turbo
+  
+  google:
+    name: google
+    api_key_env: GOOGLE_API_KEY
+    models:
+      - gemini-1.5-pro
+      - gemini-1.5-flash
+      - gemini-pro
+  
+  azure:
+    name: azure
+    api_key_env: AZURE_OPENAI_API_KEY
+    base_url_env: AZURE_OPENAI_ENDPOINT
+    models:
+      - gpt-4
+      - gpt-35-turbo
+
+# Agent-specific configurations
+agents:
+  # ============================================================================
+  # Document Analysis Agents
+  # ============================================================================
+  
+  document_analyzer:
+    description: "Analyzes RFP document structure, themes, and requirements"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+      - name: google
+        model: gemini-1.5-flash
+        priority: 2
+        api_key_env: GOOGLE_API_KEY
+    temperature: 0.3  # Lower for more consistent analysis
+    max_tokens: 8192
+    latency_sla_ms: 30000
+    cost_budget_per_hour: 5.0
+    
+  question_extractor:
+    description: "Extracts questions and requirements from RFP sections"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+      - name: openai
+        model: gpt-4o-mini
+        priority: 2
+        api_key_env: OPENAI_API_KEY
+    temperature: 0.2
+    max_tokens: 4096
+    
+  section_mapper:
+    description: "Maps RFP sections to proposal template sections"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.3
+    max_tokens: 4096
+
+  # ============================================================================
+  # Answer Generation Agents
+  # ============================================================================
+  
+  answer_generator:
+    description: "Generates answers using RAG context"
+    providers:
+      - name: litellm
+        model: gemini-pro
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+      - name: openai
+        model: gpt-4o
+        priority: 2
+        api_key_env: OPENAI_API_KEY
+      - name: google
+        model: gemini-1.5-pro
+        priority: 3
+        api_key_env: GOOGLE_API_KEY
+    temperature: 0.7
+    max_tokens: 8192
+    latency_sla_ms: 45000
+    cost_budget_per_hour: 10.0
+    rate_limit:
+      requests_per_minute: 30
+      tokens_per_minute: 150000
+    
+  answer_validator:
+    description: "Validates answer quality and completeness"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.2
+    max_tokens: 4096
+    
+  knowledge_base:
+    description: "Searches and retrieves relevant knowledge for RAG"
+    providers:
+      - name: litellm
+        model: gemini-flash-lite
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.5
+    max_tokens: 2048
+    rate_limit:
+      requests_per_minute: 100  # Higher for knowledge retrieval
+      tokens_per_minute: 200000
+
+  # ============================================================================
+  # Review & Quality Agents
+  # ============================================================================
+  
+  quality_reviewer:
+    description: "Reviews proposal quality and suggests improvements"
+    providers:
+      - name: litellm
+        model: gemini-pro
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+      - name: openai
+        model: gpt-4o
+        priority: 2
+        api_key_env: OPENAI_API_KEY
+    temperature: 0.4
+    max_tokens: 8192
+    
+  compliance_checker:
+    description: "Checks regulatory and RFP compliance requirements"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.1  # Very low for precise compliance checks
+    max_tokens: 4096
+    
+  proposal_quality_gate:
+    description: "Final quality gate before proposal submission"
+    providers:
+      - name: litellm
+        model: gemini-pro
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+      - name: openai
+        model: gpt-4o
+        priority: 2
+        api_key_env: OPENAI_API_KEY
+    temperature: 0.3
+    max_tokens: 8192
+    latency_sla_ms: 60000
+
+  # ============================================================================
+  # Specialized Agents
+  # ============================================================================
+  
+  executive_editor:
+    description: "Polishes executive summary and key sections"
+    providers:
+      - name: litellm
+        model: gemini-pro
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.6
+    max_tokens: 8192
+    
+  pricing_calculator:
+    description: "Assists with pricing strategy and calculations"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.2
+    max_tokens: 4096
+    
+  competitive_analysis:
+    description: "Analyzes competitive landscape and positioning"
+    providers:
+      - name: litellm
+        model: gemini-pro
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.5
+    max_tokens: 8192
+    
+  legal_review:
+    description: "Reviews legal terms and contract language"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.1
+    max_tokens: 4096
+    
+  diagram_generator:
+    description: "Generates architecture and process diagrams"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.4
+    max_tokens: 4096
+    
+  win_theme:
+    description: "Develops win themes and value propositions"
+    providers:
+      - name: litellm
+        model: gemini-pro
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.7
+    max_tokens: 4096
+
+  # ============================================================================
+  # Orchestration
+  # ============================================================================
+  
+  orchestrator:
+    description: "Coordinates multi-agent workflow"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+    temperature: 0.3
+    max_tokens: 4096
+    rate_limit:
+      requests_per_minute: 120  # High for orchestration
+      tokens_per_minute: 100000
+
+  # ============================================================================
+  # Default (fallback for unspecified agents)
+  # ============================================================================
+  
+  default:
+    description: "Default configuration for agents without specific config"
+    providers:
+      - name: litellm
+        model: gemini-flash
+        priority: 1
+        api_key_env: LITELLM_API_KEY
+        base_url: ${LITELLM_BASE_URL}
+      - name: google
+        model: gemini-1.5-flash
+        priority: 2
+        api_key_env: GOOGLE_API_KEY
+    temperature: 0.7
+    max_tokens: 4096

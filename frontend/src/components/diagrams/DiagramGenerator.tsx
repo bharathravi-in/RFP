@@ -13,7 +13,8 @@ import {
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import DiagramRenderer from './DiagramRenderer';
-import { diagramsApi } from '@/api/client';
+import { diagramsApi, agentsApi } from '@/api/client';
+import { useRef } from 'react';
 
 interface DiagramType {
     id: string;
@@ -51,8 +52,11 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
     const [diagramTypes, setDiagramTypes] = useState<DiagramType[]>([]);
     const [selectedType, setSelectedType] = useState<string>('architecture');
     const [diagrams, setDiagrams] = useState<GeneratedDiagram[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [isLoadingTypes, setIsLoadingTypes] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const isFirstRender = useRef(true);
+    const hasLoadedFromServer = useRef(false);
     const [error, setError] = useState<string | null>(null);
 
     // Load available diagram types
@@ -80,6 +84,51 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
         loadDiagramTypes();
     }, []);
 
+    // Load saved diagrams on mount
+    useEffect(() => {
+        const loadSavedDiagrams = async () => {
+            try {
+                const response = await agentsApi.getProjectStrategy(projectId);
+                if (response.data.success && response.data.strategy?.diagrams) {
+                    hasLoadedFromServer.current = true;
+                    setDiagrams(response.data.strategy.diagrams);
+                }
+            } catch (err) {
+                console.error('Error loading saved diagrams:', err);
+            }
+        };
+        if (projectId) loadSavedDiagrams();
+    }, [projectId]);
+
+    // Auto-save diagrams when they change (debounced)
+    useEffect(() => {
+        if (!projectId || diagrams.length === 0) return;
+
+        // Skip saving on first render or immediately after loading from server
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        if (hasLoadedFromServer.current) {
+            hasLoadedFromServer.current = false;
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setSaving(true);
+            try {
+                await agentsApi.saveDiagrams(projectId, diagrams);
+            } catch (err) {
+                console.error('Failed to auto-save diagrams:', err);
+            } finally {
+                setSaving(false);
+            }
+        }, 2000); // 2 second debounce
+
+        return () => clearTimeout(timer);
+    }, [diagrams, projectId]);
+
     // Generate diagram
     const handleGenerateDiagram = async () => {
         if (!documentId) {
@@ -87,7 +136,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
             return;
         }
 
-        setIsLoading(true);
+        setLoading(true);
         setError(null);
 
         try {
@@ -108,7 +157,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
             setError(message);
             toast.error(message);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
 
@@ -119,7 +168,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
             return;
         }
 
-        setIsLoading(true);
+        setLoading(true);
         setError(null);
 
         try {
@@ -140,7 +189,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
             setError(message);
             toast.error(message);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
 
@@ -200,10 +249,10 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
                 <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
                     <button
                         onClick={handleGenerateDiagram}
-                        disabled={isLoading || !documentId}
+                        disabled={loading || !documentId}
                         className="btn-primary flex items-center gap-2"
                     >
-                        {isLoading ? (
+                        {loading ? (
                             <>
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                                 Generating...
@@ -217,7 +266,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
                     </button>
                     <button
                         onClick={handleGenerateAll}
-                        disabled={isLoading || !documentId}
+                        disabled={loading || diagrams.length === 0}
                         className="btn-secondary flex items-center gap-2"
                     >
                         <PlusIcon className="h-4 w-4" />

@@ -13,10 +13,13 @@ from .document_analyzer_agent import get_document_analyzer_agent
 from .question_extractor_agent import get_question_extractor_agent
 from .knowledge_base_agent import get_knowledge_base_agent
 from .answer_generator_agent import get_answer_generator_agent
-from .answer_validator_agent import get_answer_validator_agent  # NEW
-from .compliance_checker_agent import get_compliance_checker_agent  # NEW
+from .answer_validator_agent import get_answer_validator_agent
+from .compliance_checker_agent import get_compliance_checker_agent
 from .clarification_agent import get_clarification_agent
 from .quality_reviewer_agent import get_quality_reviewer_agent
+from .proposal_quality_gate_agent import get_proposal_quality_gate_agent
+from .executive_editor_agent import get_executive_editor_agent
+from .similarity_validator_agent import get_similarity_validator_agent
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +39,51 @@ class OrchestratorAgent:
     6. Quality Reviewer → Reviews and validates
     """
     
+    # Workflow step definitions for progress tracking
+    WORKFLOW_STEPS = [
+        {'step': 1, 'id': 'document_analysis', 'name': 'Document Analysis', 'agent': 'DocumentAnalyzerAgent', 'weight': 10},
+        {'step': 2, 'id': 'question_extraction', 'name': 'Question Extraction', 'agent': 'QuestionExtractorAgent', 'weight': 10},
+        {'step': 3, 'id': 'knowledge_retrieval', 'name': 'Knowledge Retrieval', 'agent': 'KnowledgeBaseAgent', 'weight': 15},
+        {'step': 4, 'id': 'answer_generation', 'name': 'Answer Generation', 'agent': 'AnswerGeneratorAgent', 'weight': 20},
+        {'step': 5, 'id': 'answer_validation', 'name': 'Answer Validation', 'agent': 'AnswerValidatorAgent', 'weight': 10},
+        {'step': 6, 'id': 'compliance_check', 'name': 'Compliance Check', 'agent': 'ComplianceCheckerAgent', 'weight': 5},
+        {'step': 7, 'id': 'clarification', 'name': 'Clarification Analysis', 'agent': 'ClarificationAgent', 'weight': 5},
+        {'step': 8, 'id': 'quality_review', 'name': 'Quality Review', 'agent': 'QualityReviewerAgent', 'weight': 5},
+        {'step': 9, 'id': 'executive_edit', 'name': 'Executive Editing', 'agent': 'ExecutiveEditorAgent', 'weight': 10},
+        {'step': 10, 'id': 'similarity_validation', 'name': 'Similarity Validation', 'agent': 'SimilarityValidatorAgent', 'weight': 5},
+        {'step': 11, 'id': 'quality_gate', 'name': 'Quality Gate', 'agent': 'ProposalQualityGateAgent', 'weight': 5},
+    ]
+    
+    # Error recovery strategies
+    ERROR_RECOVERY = {
+        'document_analysis': {'fallback': 'skip', 'critical': True},
+        'question_extraction': {'fallback': 'skip', 'critical': True},
+        'knowledge_retrieval': {'fallback': 'continue_empty', 'critical': False},
+        'answer_generation': {'fallback': 'partial', 'critical': True},
+        'answer_validation': {'fallback': 'skip_validation', 'critical': False},
+        'compliance_check': {'fallback': 'skip', 'critical': False},
+        'clarification': {'fallback': 'skip', 'critical': False},
+        'quality_review': {'fallback': 'skip', 'critical': False},
+        'executive_edit': {'fallback': 'skip', 'critical': False},
+        'similarity_validation': {'fallback': 'skip', 'critical': False},
+        'quality_gate': {'fallback': 'pass_with_warning', 'critical': True},
+    }
+
+    
     def __init__(self, org_id: int = None):
         self.config = get_agent_config(org_id=org_id, agent_type='default')
         self.name = "OrchestratorAgent"
+        self.org_id = org_id
         
-        # Initialize sub-agents
-        self.document_analyzer = get_document_analyzer_agent()
-        self.question_extractor = get_question_extractor_agent()
-        self.knowledge_base = get_knowledge_base_agent()
-        self.answer_generator = get_answer_generator_agent()
-        self.answer_validator = get_answer_validator_agent()  # NEW
-        self.compliance_checker = get_compliance_checker_agent(org_id=org_id)  # NEW
-        self.clarification_agent = get_clarification_agent()
-        self.quality_reviewer = get_quality_reviewer_agent()
+        # Initialize sub-agents with org_id for proper LLM config
+        self.document_analyzer = get_document_analyzer_agent(org_id=org_id)
+        self.question_extractor = get_question_extractor_agent(org_id=org_id)
+        self.knowledge_base = get_knowledge_base_agent(org_id=org_id)
+        self.answer_generator = get_answer_generator_agent(org_id=org_id)
+        self.answer_validator = get_answer_validator_agent(org_id=org_id)
+        self.compliance_checker = get_compliance_checker_agent(org_id=org_id)
+        self.clarification_agent = get_clarification_agent(org_id=org_id)
+        self.quality_reviewer = get_quality_reviewer_agent(org_id=org_id)
     
     def analyze_rfp(
         self,
@@ -303,6 +338,6 @@ class OrchestratorAgent:
         return answer_result
 
 
-def get_orchestrator_agent() -> OrchestratorAgent:
+def get_orchestrator_agent(org_id: int = None) -> OrchestratorAgent:
     """Factory function to get the Orchestrator Agent."""
-    return OrchestratorAgent()
+    return OrchestratorAgent(org_id=org_id)

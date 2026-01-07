@@ -13,8 +13,6 @@ import re
 from typing import Dict, List, Optional
 from flask import current_app
 
-import google.generativeai as genai
-
 from app import db
 from app.models import (
     Document, Project, Question, RFPSection, RFPSectionType,
@@ -91,14 +89,10 @@ class RFPAnalysisAgent:
         return self._provider
     
     def _get_legacy_model(self):
-        """Fallback to legacy Google AI model."""
-        if self._legacy_model is None and current_app.config.get('GOOGLE_API_KEY'):
-            import google.generativeai as genai
-            genai.configure(api_key=current_app.config['GOOGLE_API_KEY'])
-            self._legacy_model = genai.GenerativeModel(
-                current_app.config.get('GOOGLE_MODEL', 'gemini-1.5-flash')
-            )
-        return self._legacy_model
+        """Return None - legacy Google AI fallback removed in favor of provider abstraction."""
+        # Legacy fallback removed - all LLM access should go through llm_service_helper
+        logger.debug("Legacy model fallback disabled - using provider abstraction only")
+        return None
     
     def _generate(self, prompt: str) -> str:
         """Generate content using configured provider."""
@@ -122,8 +116,10 @@ class RFPAnalysisAgent:
         """
         Main entry point: Analyze an RFP document.
         
+        Uses RFPSectionAlignmentAgent for comprehensive question-to-section mapping.
+        
         Returns:
-            Dict with structure, questions, themes, and suggested sections
+            Dict with structure, questions, themes, suggested sections, and section_mappings
         """
         document = Document.query.get(document_id)
         if not document:
@@ -134,19 +130,187 @@ class RFPAnalysisAgent:
         
         text = document.extracted_text
         
-        # Run AI analysis
+        # Run AI analysis for themes and structure
         analysis = self._analyze_with_ai(text)
         
-        # Map to proposal sections
+        # Map to proposal sections (legacy)
         suggested_sections = self._map_to_proposal_sections(analysis)
+        
+        # NEW: Use RFPSectionAlignmentFixerAgent for comprehensive section mapping
+        section_mappings = []
+        alignment_summary = None
+        try:
+            from app.agents import get_rfp_alignment_fixer
+            
+            # Get project's questions
+            questions = Question.query.filter_by(project_id=document.project_id).all()
+            extracted_questions = [q.to_dict() for q in questions] if questions else []
+            
+            # Get KB context for section taxonomy
+            kb_context = []
+            try:
+                from app.services.qdrant_service import get_qdrant_service
+                project = document.project
+                if project and project.organization_id:
+                    qdrant = get_qdrant_service(project.organization_id)
+                    kb_context = qdrant.search(
+                        query="proposal sections template structure",
+                        org_id=project.organization_id,
+                        limit=5
+                    )
+            except Exception as e:
+                logger.warning(f"Could not retrieve KB context: {e}")
+            
+            # Run alignment fixer
+            alignment_fixer = get_rfp_alignment_fixer(self.org_id)
+            alignment_result = alignment_fixer.analyze_and_fix_alignment(
+                rfp_text=text,
+                extracted_questions=extracted_questions,
+                kb_context=kb_context
+            )
+            
+            section_mappings = alignment_result.get('section_mappings', [])
+            alignment_summary = alignment_result.get('alignment_summary', {})
+            
+            # Build suggested_sections from alignment fixer's master taxonomy
+            if section_mappings:
+                suggested_sections = self._build_sections_from_alignment_fixer(section_mappings)
+            
+        except Exception as e:
+            logger.warning(f"Section alignment fixer failed: {e}")
+
         
         return {
             'document_id': document_id,
             'document_name': document.original_filename,
             'analysis': analysis,
             'suggested_sections': suggested_sections,
+            'section_mappings': section_mappings,
+
+            'alignment_summary': alignment_summary,
             'questions_extracted': len(document.questions) if document.questions else 0,
         }
+    
+    def _build_sections_from_alignment(self, section_mappings: List[Dict]) -> List[Dict]:
+        """Convert alignment mappings to suggested_sections format."""
+        section_types = {st.slug: st for st in RFPSectionType.query.filter_by(is_active=True).all()}
+        result = []
+        
+        for mapping in section_mappings:
+            section_id = mapping.get('section_id', '')
+            questions = mapping.get('questions', [])
+            
+            # Try to find matching section type
+            st = section_types.get(section_id)
+            if st:
+                result.append({
+                    'section_type_id': st.id,
+                    'section_type_slug': st.slug,
+                    'section_type_name': st.name,
+                    'icon': st.icon,
+                    'reason': f"Maps {len(questions)} RFP questions" if questions else "Standard proposal section",
+                    'selected': len(questions) > 0,
+                    'questions_count': len(questions),
+                    'is_narrative_only': mapping.get('is_narrative_only', False)
+                })
+            else:
+                # Custom section not in DB
+                result.append({
+                    'section_type_id': None,
+                    'section_type_slug': section_id,
+                    'section_type_name': mapping.get('section_name', section_id.replace('_', ' ').title()),
+                    'icon': '📄',
+                    'reason': f"Maps {len(questions)} RFP questions" if questions else "Standard proposal section",
+                    'selected': len(questions) > 0,
+                    'questions_count': len(questions),
+                    'is_narrative_only': mapping.get('is_narrative_only', False)
+                })
+        
+        return result
+
+    def _enhance_sections_with_alignment(
+        self, 
+        suggested_sections: List[Dict], 
+        section_mappings: List[Dict]
+    ) -> List[Dict]:
+        """
+        Enhance existing suggested_sections with question counts from alignment.
+        PRESERVES original sections - only adds questions_count and is_narrative_only.
+        """
+        # Build lookup from alignment mappings
+        alignment_lookup = {}
+        for mapping in section_mappings:
+            section_id = mapping.get('section_id', '')
+            questions = mapping.get('questions', [])
+            alignment_lookup[section_id] = {
+                'questions_count': len(questions),
+                'is_narrative_only': mapping.get('is_narrative_only', False)
+            }
+        
+        # Enhance each suggested section
+        for section in suggested_sections:
+            slug = section.get('section_type_slug', '')
+            
+            # Try to find matching alignment
+            if slug in alignment_lookup:
+                section['questions_count'] = alignment_lookup[slug]['questions_count']
+                section['is_narrative_only'] = alignment_lookup[slug]['is_narrative_only']
+                if alignment_lookup[slug]['questions_count'] > 0:
+                    section['reason'] = f"Maps {alignment_lookup[slug]['questions_count']} RFP questions"
+            else:
+                # No alignment data - keep original but mark as no questions
+                section['questions_count'] = 0
+                section['is_narrative_only'] = True
+        
+        return suggested_sections
+
+    def _build_sections_from_alignment_fixer(
+        self, 
+        section_mappings: List[Dict]
+    ) -> List[Dict]:
+        """
+        Build suggested_sections from alignment fixer's comprehensive section mappings.
+        This creates sections from the 18-section master taxonomy.
+        """
+        # Get section types from database
+        section_types = {st.slug: st for st in RFPSectionType.query.filter_by(is_active=True).all()}
+        
+        result = []
+        for mapping in section_mappings:
+            section_id = mapping.get('section_id', '')
+            section_name = mapping.get('section_name', '')
+            question_count = mapping.get('question_count', len(mapping.get('questions', [])))
+            is_narrative = mapping.get('is_narrative_only', False)
+            
+            # Try to find matching section type in database
+            st = section_types.get(section_id)
+            
+            if st:
+                result.append({
+                    'section_type_id': st.id,
+                    'section_type_slug': st.slug,
+                    'section_type_name': st.name,
+                    'icon': st.icon,
+                    'reason': f"Maps {question_count} questions" if question_count > 0 else "Standard proposal section",
+                    'selected': True,
+                    'questions_count': question_count,
+                    'is_narrative_only': is_narrative,
+                })
+            else:
+                # Section not in database - create as custom
+                result.append({
+                    'section_type_id': None,
+                    'section_type_slug': section_id,
+                    'section_type_name': section_name,
+                    'icon': '📄',
+                    'reason': f"Maps {question_count} questions" if question_count > 0 else "Standard proposal section",
+                    'selected': True,
+                    'questions_count': question_count,
+                    'is_narrative_only': is_narrative,
+                })
+        
+        return result
+
     
     def _analyze_with_ai(self, text: str) -> Dict:
         """Use AI to analyze RFP structure and content."""
@@ -243,20 +407,120 @@ Return ONLY the JSON object, no markdown formatting."""
         }
     
     def _map_to_proposal_sections(self, analysis: Dict) -> List[Dict]:
-        """Map RFP analysis to proposal section suggestions."""
+        """
+        Map RFP analysis to proposal section suggestions.
+        ENHANCED: Analyzes requirements and themes to suggest comprehensive sections.
+        """
         suggested = []
         added_slugs = set()
         
-        # Always suggest Executive Summary
-        suggested.append({
-            'slug': 'executive_summary',
-            'reason': 'Standard opening section summarizing the proposal',
-            'priority': 1,
-        })
-        added_slugs.add('executive_summary')
+        # CORE SECTIONS - Always include these for a complete proposal
+        core_sections = [
+            ('introduction', 'Opening introduction to set context', 1),
+            ('executive_summary', 'High-level proposal overview', 1),
+            ('our_understanding', 'Understanding of client needs', 2),
+            ('company_profile', 'Company background and capabilities', 2),
+            ('scope_of_work', 'Detailed work breakdown', 3),
+            ('functional_requirements', 'Feature specifications', 3),
+            ('technical_approach', 'Technical solution and methodology', 4),
+            ('technology_stack', 'Proposed technologies and tools', 4),
+            ('implementation_plan', 'Timeline and milestones', 5),
+            ('team_qualifications', 'Team structure and expertise', 5),
+            ('quality_management', 'QA processes and standards', 6),
+            ('risk_management', 'Risk identification and mitigation', 6),
+            ('assumptions_dependencies', 'Project assumptions', 7),
+            ('pricing_commercial', 'Pricing and commercial terms', 8),
+            ('confidentiality', 'NDA and confidentiality terms', 9),
+        ]
         
-        # Map from themes
-        for theme in analysis.get('themes', []):
+        for slug, reason, priority in core_sections:
+            suggested.append({'slug': slug, 'reason': reason, 'priority': priority})
+            added_slugs.add(slug)
+
+        
+        # CONTENT-BASED DETECTION - Check RFP content for section triggers
+        requirements = analysis.get('requirements', [])
+        themes = analysis.get('themes', [])
+        
+        # Build keyword string from all analysis content
+        all_content = ' '.join([
+            ' '.join(str(r) for r in requirements),
+            ' '.join(str(t) for t in themes),
+            ' '.join(str(d) for d in analysis.get('deliverables', [])),
+            ' '.join(s.get('name', '') for s in analysis.get('sections', []))
+        ]).lower()
+        
+        # Section triggers - if ANY keyword found, add the section
+        section_triggers = {
+            'security_compliance': {
+                'keywords': ['security', 'gdpr', 'hipaa', 'soc', 'encryption', 'authentication', 
+                            'data protection', 'privacy', 'compliance', 'iso 27001', 'access control',
+                            'password', 'firewall', 'vulnerability', 'penetration test'],
+                'reason': 'RFP contains security/compliance requirements',
+                'priority': 2
+            },
+            'implementation_plan': {
+                'keywords': ['implementation', 'timeline', 'schedule', 'milestone', 'phase', 
+                            'go-live', 'deployment', 'rollout', 'project plan'],
+                'reason': 'RFP requires implementation planning',
+                'priority': 2
+            },
+            'pricing_cost': {
+                'keywords': ['pricing', 'cost', 'fee', 'budget', 'commercial', 'payment', 
+                            'license', 'subscription', 'rate'],
+                'reason': 'RFP requests pricing information',
+                'priority': 2
+            },
+            'team_qualifications': {
+                'keywords': ['team', 'staff', 'resource', 'personnel', 'experience', 
+                            'qualification', 'resume', 'key personnel', 'project manager'],
+                'reason': 'RFP requires team information',
+                'priority': 3
+            },
+            'support_maintenance': {
+                'keywords': ['support', 'maintenance', 'sla', 'service level', 'helpdesk', 
+                            'availability', 'uptime', 'incident', 'ticket'],
+                'reason': 'RFP requires support/SLA information',
+                'priority': 3
+            },
+            'references': {
+                'keywords': ['reference', 'case study', 'past performance', 'client', 
+                            'similar project', 'testimonial'],
+                'reason': 'RFP requests references/experience',
+                'priority': 3
+            },
+            'training': {
+                'keywords': ['training', 'knowledge transfer', 'documentation', 'manual', 
+                            'user guide', 'onboarding'],
+                'reason': 'RFP includes training requirements',
+                'priority': 4
+            },
+            'quality_assurance': {
+                'keywords': ['quality', 'testing', 'qa', 'test plan', 'acceptance', 
+                            'defect', 'bug'],
+                'reason': 'RFP includes quality/testing requirements',
+                'priority': 4
+            },
+            'risk_management': {
+                'keywords': ['risk', 'mitigation', 'contingency', 'disaster recovery', 
+                            'business continuity'],
+                'reason': 'RFP mentions risk management',
+                'priority': 4
+            },
+        }
+        
+        for slug, config in section_triggers.items():
+            if slug not in added_slugs:
+                if any(kw in all_content for kw in config['keywords']):
+                    suggested.append({
+                        'slug': slug,
+                        'reason': config['reason'],
+                        'priority': config['priority']
+                    })
+                    added_slugs.add(slug)
+        
+        # Map from themes (legacy support)
+        for theme in themes:
             theme_lower = theme.lower()
             for keyword, slug in SECTION_MAPPING.items():
                 if keyword in theme_lower and slug not in added_slugs:
@@ -278,24 +542,12 @@ Return ONLY the JSON object, no markdown formatting."""
                 })
                 added_slugs.add(slug)
         
-        # Map from detected sections
-        for section in analysis.get('sections', []):
-            name_lower = section.get('name', '').lower()
-            for keyword, slug in SECTION_MAPPING.items():
-                if keyword in name_lower and slug not in added_slugs:
-                    suggested.append({
-                        'slug': slug,
-                        'reason': f'Matches RFP section: {section["name"]}',
-                        'priority': 3,
-                    })
-                    added_slugs.add(slug)
-        
-        # Add Q&A section if document has questions
+        # Add Q&A section if document has questions (at the end)
         if 'qa_questionnaire' not in added_slugs:
             suggested.append({
                 'slug': 'qa_questionnaire',
-                'reason': 'Include extracted questions from RFP',
-                'priority': 4,
+                'reason': 'Contains RFP questions requiring responses',
+                'priority': 5,
             })
             added_slugs.add('qa_questionnaire')
         
@@ -312,6 +564,7 @@ Return ONLY the JSON object, no markdown formatting."""
                 result.append({
                     'section_type_id': st.id,
                     'section_type_slug': st.slug,
+
                     'section_type_name': st.name,
                     'icon': st.icon,
                     'reason': s['reason'],

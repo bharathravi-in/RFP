@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
 import {
     DocumentTextIcon,
+    TableCellsIcon,
+    PresentationChartBarIcon,
     ArrowDownTrayIcon,
     XMarkIcon,
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
     ExclamationTriangleIcon,
-    TrashIcon,
 } from '@heroicons/react/24/outline';
 import api from '@/api/client';
+import ExcelViewer, { ExcelViewerModal } from '@/components/ui/ExcelViewer';
 
 interface KnowledgePreviewModalProps {
     isOpen: boolean;
@@ -21,9 +23,35 @@ interface KnowledgePreviewModalProps {
     onDelete?: () => void;
 }
 
+// Office file types and their brand colors
+type FileCategory = 'word' | 'excel' | 'powerpoint' | 'pdf' | 'unknown';
+
+const FILE_CONFIGS: Record<FileCategory, { color: string; icon: typeof DocumentTextIcon; label: string }> = {
+    word: { color: '#185ABD', icon: DocumentTextIcon, label: 'Word' },
+    excel: { color: '#217346', icon: TableCellsIcon, label: 'Excel' },
+    powerpoint: { color: '#B7472A', icon: PresentationChartBarIcon, label: 'PowerPoint' },
+    pdf: { color: '#DC2626', icon: DocumentTextIcon, label: 'PDF' },
+    unknown: { color: '#6B7280', icon: DocumentTextIcon, label: 'Document' },
+};
+
+// Detect file category from filename or MIME type
+function detectFileCategory(fileName: string, mimeType?: string): FileCategory {
+    const name = fileName?.toLowerCase() || '';
+    const mime = mimeType?.toLowerCase() || '';
+
+    if (name.endsWith('.docx') || name.endsWith('.doc') || mime.includes('word')) return 'word';
+    if (name.endsWith('.xlsx') || name.endsWith('.xls') || mime.includes('spreadsheet') || mime.includes('excel')) return 'excel';
+    if (name.endsWith('.pptx') || name.endsWith('.ppt') || mime.includes('presentation') || mime.includes('powerpoint')) return 'powerpoint';
+    if (name.endsWith('.pdf') || mime.includes('pdf')) return 'pdf';
+    return 'unknown';
+}
+
 /**
  * Modal for previewing Knowledge Base documents
- * Uses /preview/{item_id}/view endpoint for HTML preview
+ * 
+ * Uses:
+ * - ExcelViewer for Excel files (with sheet tabs via xlsx library)
+ * - Backend HTML conversion for Word, PowerPoint, PDF
  */
 export default function KnowledgePreviewModal({
     isOpen,
@@ -36,45 +64,57 @@ export default function KnowledgePreviewModal({
 }: KnowledgePreviewModalProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [viewerUrl, setViewerUrl] = useState<string>('');
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const [excelData, setExcelData] = useState<Blob | null>(null);
 
-    // Build preview URL with auth token
+    const fileCategory = detectFileCategory(itemTitle, fileType);
+    const config = FILE_CONFIGS[fileCategory];
+    const IconComponent = config.icon;
+    const isExcel = fileCategory === 'excel';
+
+    // Fetch Excel file as blob or set iframe URL
     useEffect(() => {
         if (!isOpen || !itemId) return;
 
         setIsLoading(true);
         setError(null);
+        setViewerUrl('');
+        setExcelData(null);
 
-        // Get auth token
         const token = localStorage.getItem('access_token');
 
-        // Build the preview URL with token as query param
-        const url = `/api/preview/${itemId}/view?token=${token}`;
-        setPreviewUrl(url);
-    }, [isOpen, itemId]);
-
-    // Handle iframe load
-    const handleIframeLoad = () => {
-        setIsLoading(false);
-    };
-
-    const handleIframeError = () => {
-        setIsLoading(false);
-        setError('Failed to load document preview');
-    };
+        if (isExcel) {
+            // Fetch Excel file as blob for ExcelViewer
+            api.get(`/preview/${itemId}/download`, {
+                responseType: 'blob',
+            })
+                .then((response) => {
+                    setExcelData(response.data);
+                    setIsLoading(false);
+                })
+                .catch((err) => {
+                    console.error('Failed to fetch Excel file:', err);
+                    setError('Failed to load Excel file');
+                    setIsLoading(false);
+                });
+        } else {
+            // Use backend HTML conversion for other files
+            setViewerUrl(`/api/preview/${itemId}/view?token=${token}`);
+        }
+    }, [isOpen, itemId, isExcel]);
 
     // Cleanup on close
     useEffect(() => {
         if (!isOpen) {
-            setPreviewUrl(null);
+            setViewerUrl('');
+            setExcelData(null);
             setError(null);
             setIsLoading(true);
         }
     }, [isOpen]);
 
-    const handleDownload = async () => {
+    const handleDownload = useCallback(async () => {
         try {
             const response = await api.get(`/preview/${itemId}/download`, {
                 responseType: 'blob',
@@ -91,7 +131,7 @@ export default function KnowledgePreviewModal({
         } catch (err) {
             console.error('Failed to download:', err);
         }
-    };
+    }, [itemId, itemTitle, onDownload]);
 
     const handleDelete = () => {
         if (window.confirm('Are you sure you want to delete this item?')) {
@@ -100,15 +140,15 @@ export default function KnowledgePreviewModal({
         }
     };
 
-    const toggleFullscreen = () => {
+    const toggleFullscreen = useCallback(() => {
         if (!document.fullscreenElement) {
-            containerRef.current?.requestFullscreen();
+            document.documentElement.requestFullscreen();
             setIsFullscreen(true);
         } else {
             document.exitFullscreen();
             setIsFullscreen(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -129,71 +169,81 @@ export default function KnowledgePreviewModal({
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    // Get file type icon color
-    const getFileTypeColor = (type: string) => {
-        const colors: Record<string, string> = {
-            pdf: 'text-red-500',
-            docx: 'text-blue-500',
-            doc: 'text-blue-500',
-            xlsx: 'text-green-500',
-            xls: 'text-green-500',
-            pptx: 'text-orange-500',
-            ppt: 'text-orange-500',
-        };
-        const ext = type.split('/').pop()?.toLowerCase() || type.toLowerCase();
-        return colors[ext] || 'text-gray-500';
+    const handleIframeLoad = () => {
+        setIsLoading(false);
     };
 
-    const getFileTypeLabel = (type: string) => {
-        if (!type) return '';
-        if (type.includes('pdf')) return 'PDF';
-        if (type.includes('word') || type.includes('docx')) return 'DOCX';
-        if (type.includes('presentation') || type.includes('ppt')) return 'PPT';
-        if (type.includes('spreadsheet') || type.includes('xls')) return 'XLS';
-        if (type.includes('text')) return 'TXT';
-        return type.split('/').pop()?.toUpperCase() || '';
+    const handleIframeError = () => {
+        setIsLoading(false);
+        setError('Failed to load document preview');
     };
 
     if (!isOpen) return null;
 
+    // Use ExcelViewer for Excel files
+    if (isExcel) {
+        if (isLoading || !excelData) {
+            return (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in"
+                    onClick={(e) => e.target === e.currentTarget && onClose()}
+                >
+                    <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4">
+                        <div className="h-10 w-10 border-4 border-[#217346]/30 border-t-[#217346] rounded-full animate-spin" />
+                        <span className="text-gray-600">Loading Excel spreadsheet...</span>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <ExcelViewerModal
+                isOpen={isOpen}
+                onClose={onClose}
+                fileData={excelData}
+                fileName={itemTitle}
+                onDownload={handleDownload}
+            />
+        );
+    }
+
+    // Default preview for Word, PowerPoint, PDF, etc.
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div
-                ref={containerRef}
                 className={clsx(
-                    'bg-surface rounded-xl border border-border overflow-hidden flex flex-col w-full max-w-5xl',
-                    isFullscreen ? 'fixed inset-0 z-50 rounded-none max-w-none' : 'max-h-[90vh]'
+                    'bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-2xl w-full max-w-6xl',
+                    isFullscreen ? 'fixed inset-0 z-50 rounded-none max-w-none max-h-none' : 'max-h-[90vh]'
                 )}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-elevated">
+                {/* Header with brand color */}
+                <div
+                    className="flex items-center justify-between px-4 py-3"
+                    style={{ backgroundColor: config.color }}
+                >
                     <div className="flex items-center gap-3">
-                        <DocumentTextIcon className={clsx('h-5 w-5', getFileTypeColor(fileType))} />
-                        <div>
-                            <h3 className="text-sm font-medium text-text-primary truncate max-w-[300px]">
-                                {itemTitle}
-                            </h3>
-                            {fileType && (
-                                <span className="text-xs text-text-muted uppercase">
-                                    {getFileTypeLabel(fileType)}
-                                </span>
-                            )}
-                        </div>
+                        <IconComponent className="h-5 w-5 text-white" />
+                        <span className="text-white font-medium truncate max-w-[300px]">
+                            {itemTitle}
+                        </span>
+                        <span className="text-white/70 text-xs px-2 py-0.5 bg-white/15 rounded">
+                            {config.label}
+                        </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={handleDownload}
-                            className="p-2 rounded-lg hover:bg-gray-100 text-text-secondary hover:text-success transition-colors"
+                            className="p-2 rounded hover:bg-white/20 text-white transition-colors"
                             title="Download"
                         >
                             <ArrowDownTrayIcon className="h-5 w-5" />
                         </button>
                         <button
                             onClick={toggleFullscreen}
-                            className="p-2 rounded-lg hover:bg-gray-100 text-text-secondary hover:text-primary transition-colors"
+                            className="p-2 rounded hover:bg-white/20 text-white transition-colors"
                             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                         >
                             {isFullscreen ? (
@@ -202,18 +252,9 @@ export default function KnowledgePreviewModal({
                                 <ArrowsPointingOutIcon className="h-5 w-5" />
                             )}
                         </button>
-                        {onDelete && (
-                            <button
-                                onClick={handleDelete}
-                                className="p-2 rounded-lg hover:bg-red-50 text-text-secondary hover:text-error transition-colors"
-                                title="Delete"
-                            >
-                                <TrashIcon className="h-5 w-5" />
-                            </button>
-                        )}
                         <button
                             onClick={onClose}
-                            className="p-2 rounded-lg hover:bg-gray-100 text-text-secondary hover:text-text-primary transition-colors"
+                            className="p-2 rounded hover:bg-white/20 text-white transition-colors"
                             title="Close"
                         >
                             <XMarkIcon className="h-5 w-5" />
@@ -221,49 +262,67 @@ export default function KnowledgePreviewModal({
                     </div>
                 </div>
 
-                {/* Content */}
-                <div className="relative flex-1 overflow-hidden" style={{ minHeight: '500px' }}>
+                {/* Viewer info bar */}
+                <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500">
+                    <span>Document Preview</span>
+                </div>
+
+                {/* Content area */}
+                <div className="relative flex-1 overflow-hidden bg-[#525659]" style={{ minHeight: '600px' }}>
                     {/* Loading State */}
                     {isLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                        <div className="absolute inset-0 flex items-center justify-center bg-[#525659] z-10">
                             <div className="flex flex-col items-center gap-3">
-                                <div className="h-8 w-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-                                <span className="text-sm text-text-secondary">Loading preview...</span>
+                                <div
+                                    className="h-10 w-10 border-4 rounded-full animate-spin"
+                                    style={{
+                                        borderColor: `${config.color}40`,
+                                        borderTopColor: config.color
+                                    }}
+                                />
+                                <span className="text-sm text-white">
+                                    Loading {config.label} document...
+                                </span>
                             </div>
                         </div>
                     )}
 
                     {/* Error State */}
                     {error && !isLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                            <div className="flex flex-col items-center gap-3 text-center p-6">
+                        <div className="absolute inset-0 flex items-center justify-center bg-[#525659] z-10">
+                            <div className="flex flex-col items-center gap-4 text-center p-6 bg-white rounded-lg shadow-lg max-w-sm">
                                 <ExclamationTriangleIcon className="h-12 w-12 text-amber-500" />
                                 <div>
-                                    <p className="text-sm font-medium text-text-primary">{error}</p>
-                                    <p className="text-xs text-text-muted mt-1">
+                                    <p className="text-sm font-medium text-gray-900">{error}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
                                         Try downloading the file instead.
                                     </p>
                                 </div>
-                                <button onClick={handleDownload} className="btn-secondary btn-sm mt-2">
-                                    <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
+                                <button
+                                    onClick={handleDownload}
+                                    className="flex items-center gap-1.5 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-colors"
+                                    style={{ backgroundColor: config.color }}
+                                >
+                                    <ArrowDownTrayIcon className="h-4 w-4" />
                                     Download
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Document Preview in iframe */}
-                    {previewUrl && (
+                    {/* Document Preview iframe */}
+                    {viewerUrl && (
                         <iframe
-                            src={previewUrl}
+                            key={viewerUrl}
+                            src={viewerUrl}
                             className={clsx(
-                                'w-full h-full border-0',
-                                isLoading && 'invisible'
+                                'w-full h-full border-0 bg-white',
+                                (isLoading || error) && 'invisible'
                             )}
-                            style={{ minHeight: '500px' }}
-                            title={`Preview: ${itemTitle}`}
+                            style={{ minHeight: '600px' }}
                             onLoad={handleIframeLoad}
                             onError={handleIframeError}
+                            title={`Preview: ${itemTitle}`}
                         />
                     )}
                 </div>

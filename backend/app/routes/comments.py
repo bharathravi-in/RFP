@@ -98,12 +98,13 @@ def create_comment():
         if mentioned_user.id != user_id:  # Don't notify yourself
             notification = Notification(
                 user_id=mentioned_user.id,
-                organization_id=user.organization_id,
+                actor_id=user_id,
                 type='mention',
+                entity_type='comment',
+                entity_id=comment.id,
                 title=f'{user.name} mentioned you',
                 message=content[:100] + ('...' if len(content) > 100 else ''),
-                related_id=comment.id,
-                related_type='comment'
+                link=f'/projects/{section_id}/builder' if section_id else None
             )
             db.session.add(notification)
     

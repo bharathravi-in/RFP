@@ -328,26 +328,95 @@ function ProfileModal({
         options: { code: string; name: string }[];
         selected: string[];
         setSelected: React.Dispatch<React.SetStateAction<string[]>>;
-    }) => (
-        <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">{label}</label>
-            <div className="flex flex-wrap gap-2">
-                {options.map((opt) => (
-                    <button
-                        key={opt.code}
-                        type="button"
-                        onClick={() => toggleItem(selected, setSelected, opt.code)}
-                        className={`px-3 py-1.5 rounded-full text-sm transition-all ${selected.includes(opt.code)
-                            ? 'bg-primary text-white'
-                            : 'bg-background text-text-secondary hover:bg-primary-light'
-                            }`}
-                    >
-                        {opt.name}
-                    </button>
-                ))}
+    }) => {
+        const [inputValue, setInputValue] = useState('');
+        const [showInput, setShowInput] = useState(false);
+
+        const handleAddCustom = (e?: React.FormEvent) => {
+            e?.preventDefault();
+            if (inputValue.trim()) {
+                const val = inputValue.trim();
+                if (!selected.includes(val)) {
+                    setSelected([...selected, val]);
+                }
+                setInputValue('');
+                setShowInput(false);
+            }
+        };
+
+        const knownCodes = new Set(options.map(o => o.code));
+        const customValues = selected.filter(s => !knownCodes.has(s));
+
+        return (
+            <div>
+                <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-text-primary">{label}</label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {/* Predefined Options */}
+                    {options.map((opt) => (
+                        <button
+                            key={opt.code}
+                            type="button"
+                            onClick={() => toggleItem(selected, setSelected, opt.code)}
+                            className={`px-3 py-1.5 rounded-full text-sm transition-all border ${selected.includes(opt.code)
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-background text-text-secondary border-gray-200 hover:border-primary/50'
+                                }`}
+                        >
+                            {opt.name}
+                        </button>
+                    ))}
+
+                    {/* Custom Values */}
+                    {customValues.map((val) => (
+                        <button
+                            key={val}
+                            type="button"
+                            onClick={() => toggleItem(selected, setSelected, val)}
+                            className="px-3 py-1.5 rounded-full text-sm transition-all border bg-primary text-white border-primary flex items-center gap-1"
+                        >
+                            {val}
+                            <span className="opacity-70 text-xs ml-1 hover:opacity-100">×</span>
+                        </button>
+                    ))}
+
+                    {/* Add Button / Input */}
+                    {showInput ? (
+                        <div className="flex items-center">
+                            <input
+                                type="text"
+                                className="px-3 py-1.5 text-sm border border-primary/50 rounded-l-full w-32 focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddCustom();
+                                    if (e.key === 'Escape') setShowInput(false);
+                                }}
+                                autoFocus
+                                placeholder="Add value..."
+                            />
+                            <button
+                                type="button"
+                                onClick={() => handleAddCustom()}
+                                className="px-3 py-1.5 text-sm bg-primary text-white rounded-r-full hover:bg-primary-dark"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setShowInput(true)}
+                            className="px-3 py-1.5 rounded-full text-sm border border-dashed border-gray-300 text-text-muted hover:border-primary hover:text-primary transition-all flex items-center gap-1"
+                        >
+                            <PlusIcon className="h-3 w-3" /> Add Value
+                        </button>
+                    )}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">

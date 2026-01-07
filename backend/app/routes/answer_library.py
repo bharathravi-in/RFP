@@ -5,6 +5,8 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import AnswerLibraryItem, Question, Answer, User
+from ..services.library_service import library_service
+
 
 bp = Blueprint('answer_library', __name__)
 
@@ -109,20 +111,18 @@ def create_library_item():
             import logging
             logging.getLogger(__name__).warning(f"Auto-tagging failed: {e}")
     
-    item = AnswerLibraryItem(
-        organization_id=user.organization_id,
+    item = library_service.promote_to_library(
         question_text=question_text,
         answer_text=answer_text,
+        organization_id=user.organization_id,
+        user_id=user_id,
         category=data.get('category'),
         tags=tags,
         source_project_id=data.get('source_project_id'),
         source_question_id=data.get('source_question_id'),
         source_answer_id=data.get('source_answer_id'),
-        created_by=user_id,
+        status=data.get('status', 'under_review')
     )
-    
-    db.session.add(item)
-    db.session.commit()
     
     return jsonify({
         'message': 'Answer saved to library',
@@ -181,23 +181,21 @@ def save_answer_to_library(answer_id):
             import logging
             logging.getLogger(__name__).warning(f"Auto-tagging failed: {e}")
     
-    item = AnswerLibraryItem(
-        organization_id=user.organization_id,
+    item = library_service.promote_to_library(
         question_text=question.text,
         answer_text=answer.content,
+        organization_id=user.organization_id,
+        user_id=user_id,
         category=question.category or data.get('category'),
         tags=tags,
         source_project_id=project.id,
         source_question_id=question.id,
         source_answer_id=answer.id,
-        created_by=user_id,
+        status='under_review'
     )
     
-    db.session.add(item)
-    db.session.commit()
-    
     return jsonify({
-        'message': 'Answer saved to library',
+        'message': 'Answer promoted to library (Under Review)',
         'item': item.to_dict(),
         'auto_generated_tags': auto_generated_tags,
     }), 201
@@ -218,26 +216,63 @@ def update_library_item(item_id):
         return jsonify({'error': 'Access denied'}), 403
     
     data = request.get_json()
+    item = library_service.update_item(item_id, data, user_id)
     
-    if 'question_text' in data:
-        item.question_text = data['question_text']
-    if 'answer_text' in data:
-        item.answer_text = data['answer_text']
-    if 'category' in data:
-        item.category = data['category']
-    if 'tags' in data:
-        item.tags = data['tags']
-    if 'is_active' in data:
-        item.is_active = data['is_active']
-    
-    item.updated_by = user_id
-    
-    db.session.commit()
+    if not item:
+        return jsonify({'error': 'Failed to update item'}), 500
     
     return jsonify({
         'message': 'Library item updated',
         'item': item.to_dict(),
     })
+
+
+@bp.route('/<int:item_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_library_item(item_id):
+    """Approve a library item."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    item = AnswerLibraryItem.query.get(item_id)
+    if not item:
+        return jsonify({'error': 'Item not found'}), 404
+        
+    if item.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+        
+    # Check if user is admin or reviewer
+    if user.role not in ['admin', 'reviewer']:
+        return jsonify({'error': 'Unauthorized to approve items'}), 403
+        
+    item = library_service.approve_item(item_id, user_id)
+    
+    return jsonify({
+        'message': 'Library item approved',
+        'item': item.to_dict(),
+    })
+
+
+@bp.route('/<int:item_id>/archive', methods=['POST'])
+@jwt_required()
+def archive_library_item(item_id):
+    """Archive a library item."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    item = AnswerLibraryItem.query.get(item_id)
+    if not item:
+        return jsonify({'error': 'Item not found'}), 404
+        
+    if item.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+        
+    success = library_service.archive_item(item_id)
+    
+    if not success:
+        return jsonify({'error': 'Failed to archive item'}), 500
+        
+    return jsonify({'message': 'Library item archived'})
 
 
 @bp.route('/<int:item_id>', methods=['DELETE'])

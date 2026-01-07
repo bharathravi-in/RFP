@@ -87,6 +87,8 @@ def generate_content(org_id: int, prompt: str, agent_type: str = 'default', **kw
     """
     Convenience function to generate content using the configured provider.
     
+    Includes automatic OpenTelemetry tracing for LLM calls.
+    
     Args:
         org_id: Organization ID
         prompt: The prompt to generate content from
@@ -97,7 +99,20 @@ def generate_content(org_id: int, prompt: str, agent_type: str = 'default', **kw
         Generated text content
     """
     provider = get_llm_provider(org_id, agent_type)
-    return provider.generate_content(prompt, **kwargs)
+    
+    # Trace the LLM call if telemetry is available
+    try:
+        from app.utils.telemetry import trace_llm_call
+        with trace_llm_call(
+            provider=provider.provider_name,
+            model=provider.model,
+            agent_type=agent_type,
+            org_id=org_id
+        ):
+            return provider.generate_content(prompt, **kwargs)
+    except ImportError:
+        # Telemetry not available, call directly
+        return provider.generate_content(prompt, **kwargs)
 
 
 def test_provider_connection(org_id: int, agent_type: str = 'default') -> dict:

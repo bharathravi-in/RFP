@@ -131,23 +131,39 @@ class ClassificationService:
         r'legal action'
     ]
 
-    def __init__(self):
+    def __init__(self, org_id: int = None):
+        self.org_id = org_id
         self.ai_enabled = False
         self.model = None
+        self._llm_provider = None
 
     def _init_ai(self) -> bool:
         """Initialize AI model for complex classification."""
-        try:
-            api_key = current_app.config.get('GOOGLE_API_KEY')
-            if api_key:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
-                self.ai_enabled = True
-                return True
-        except Exception as e:
-            logger.warning(f"AI initialization failed: {e}")
+        # Try dynamic LLM provider first
+        if self.org_id:
+            try:
+                from app.services.llm_service_helper import get_llm_provider
+                self._llm_provider = get_llm_provider(self.org_id, 'classification')
+                if self._llm_provider:
+                    self.ai_enabled = True
+                    logger.info(f"Classification using dynamic provider: {self._llm_provider.provider_name}")
+                    return True
+            except Exception as e:
+                logger.warning(f"Could not load dynamic LLM: {e}")
+        
+        # No legacy fallback - provider abstraction only
+        logger.debug("No dynamic LLM provider available, classification will use keyword-based only")
         return False
+    
+    def _generate(self, prompt: str) -> str:
+        """Generate content using configured provider."""
+        if self._llm_provider:
+            return self._llm_provider.generate_content(prompt)
+        elif self.model:
+            response = self.model.generate_content(prompt)
+            return response.text
+        else:
+            raise RuntimeError("No AI provider available")
 
     def classify_question(self, question_text: str) -> Dict:
         """
@@ -257,7 +273,7 @@ class ClassificationService:
 
     def _ai_classification(self, text: str) -> Optional[Dict]:
         """AI-powered classification for complex questions."""
-        if not self.model:
+        if not self._llm_provider and not self.model:
             return None
         
         categories_list = ', '.join(list(self.CATEGORIES.keys()) + ['general'])
@@ -274,15 +290,15 @@ SUB_CATEGORY: [specific topic]
 CONFIDENCE: [number between 0.5 and 1.0]"""
 
         try:
-            response = self.model.generate_content(prompt)
-            return self._parse_classification_response(response.text)
+            response_text = self._generate(prompt)
+            return self._parse_classification_response(response_text)
         except Exception as e:
             logger.error(f"AI classification failed: {e}")
             return None
 
     def _ai_batch_classification(self, questions: List[str]) -> List[Dict]:
         """Batch classification using AI."""
-        if not self.model or not questions:
+        if (not self._llm_provider and not self.model) or not questions:
             return [{'category': 'general', 'sub_category': None, 'confidence': 0.5}] * len(questions)
         
         categories_list = ', '.join(list(self.CATEGORIES.keys()) + ['general'])
@@ -302,8 +318,8 @@ Example:
 1. CATEGORY: security | SUB: encryption | CONF: 0.9"""
 
         try:
-            response = self.model.generate_content(prompt)
-            return self._parse_batch_response(response.text, len(questions))
+            response_text = self._generate(prompt)
+            return self._parse_batch_response(response_text, len(questions))
         except Exception as e:
             logger.error(f"Batch classification failed: {e}")
             return [self._keyword_classification(q) for q in questions]
@@ -386,5 +402,12 @@ Example:
         return descriptions.get(category, 'Uncategorized question')
 
 
-# Singleton instance
+# Singleton instance (for backward compatibility)
 classification_service = ClassificationService()
+
+
+def get_classification_service(org_id: int = None) -> ClassificationService:
+    """Get classification service instance with org-specific config."""
+    if org_id:
+        return ClassificationService(org_id=org_id)
+    return classification_service

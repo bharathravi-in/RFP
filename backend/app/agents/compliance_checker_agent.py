@@ -73,8 +73,62 @@ class ComplianceCheckerAgent:
             'full_name': 'Sarbanes-Oxley Act',
             'keywords': ['sarbanes', 'sox', 'financial controls', 'audit controls'],
             'risk_level': 'high'
+        },
+        # Regional Privacy Regulations
+        'pdpa': {
+            'name': 'PDPA',
+            'full_name': 'Personal Data Protection Act (Singapore)',
+            'keywords': ['pdpa', 'singapore privacy', 'singapore data protection', 'pdpc'],
+            'risk_level': 'medium',
+            'region': 'Singapore'
+        },
+        'lgpd': {
+            'name': 'LGPD',
+            'full_name': 'Lei Geral de Proteção de Dados (Brazil)',
+            'keywords': ['lgpd', 'brazil privacy', 'brazilian data', 'lei geral'],
+            'risk_level': 'medium',
+            'region': 'Brazil'
+        },
+        'pipl': {
+            'name': 'PIPL',
+            'full_name': 'Personal Information Protection Law (China)',
+            'keywords': ['pipl', 'china privacy', 'chinese data protection', 'china data law'],
+            'risk_level': 'high',
+            'region': 'China'
+        },
+        'pipeda': {
+            'name': 'PIPEDA',
+            'full_name': 'Personal Information Protection and Electronic Documents Act (Canada)',
+            'keywords': ['pipeda', 'canada privacy', 'canadian data protection'],
+            'risk_level': 'medium',
+            'region': 'Canada'
+        },
+        'appi': {
+            'name': 'APPI',
+            'full_name': 'Act on Protection of Personal Information (Japan)',
+            'keywords': ['appi', 'japan privacy', 'japanese data protection'],
+            'risk_level': 'medium',
+            'region': 'Japan'
+        },
+        'dpdp': {
+            'name': 'DPDP',
+            'full_name': 'Digital Personal Data Protection Act (India)',
+            'keywords': ['dpdp', 'india privacy', 'indian data protection', 'dpdp act'],
+            'risk_level': 'medium',
+            'region': 'India'
         }
     }
+    
+    # Certification expiry tracking configuration
+    CERTIFICATION_EXPIRY_CONFIG = {
+        'warning_days': 90,  # Days before expiry to warn
+        'critical_days': 30,  # Days before expiry to flag critical
+        'renewal_reminder_days': 180,  # Days before to send renewal reminder
+        'expires_annually': ['SOC 2', 'ISO 27001', 'PCI DSS'],
+        'expires_biennially': ['FedRAMP'],
+        'no_expiry': ['GDPR', 'CCPA', 'HIPAA', 'PDPA', 'LGPD']  # Regulatory compliance, not certifications
+    }
+
     
     COMPLIANCE_CHECK_PROMPT = """You are a compliance expert reviewing RFP answers for regulatory accuracy.
 

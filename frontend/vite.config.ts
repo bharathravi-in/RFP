@@ -10,13 +10,19 @@ export default defineConfig({
             '@': path.resolve(__dirname, './src'),
         },
     },
+    optimizeDeps: {
+        include: ['socket.io-client'],
+    },
+    ssr: {
+        noExternal: ['socket.io-client'],
+    },
     server: {
         host: '0.0.0.0',
         port: 5173,
         proxy: {
             '/api': {
-                // Docker: use 'http://backend:5000'; Local dev: use 'http://localhost:5001'
-                target: 'http://backend:5000',
+                // Docker: use 'http://autorespond-backend:5000'; Local dev: use 'http://localhost:5001'
+                target: 'http://autorespond-backend:5000',
                 changeOrigin: true,
             },
         },

@@ -61,6 +61,64 @@ def setup_document_styles(doc):
         pass
 
 
+def safe_add_heading(doc, text, level=1):
+    """
+    Safely add a heading, falling back to manual styling if style doesn't exist.
+    This handles templates that may lack standard Word heading styles.
+    """
+    try:
+        return doc.add_heading(text, level)
+    except KeyError:
+        # Fallback: create paragraph with manual heading styling
+        para = doc.add_paragraph()
+        run = para.add_run(text)
+        
+        if level == 0:  # Title
+            run.font.size = Pt(28)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(31, 73, 125)
+        elif level == 1:
+            run.font.size = Pt(18)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(31, 73, 125)
+        elif level == 2:
+            run.font.size = Pt(14)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(54, 95, 145)
+        else:
+            run.font.size = Pt(12)
+            run.font.bold = True
+        
+        run.font.name = 'Calibri'
+        return para
+
+
+def safe_add_paragraph(doc, text='', style=None):
+    """
+    Safely add a paragraph with optional style, falling back to manual styling if style doesn't exist.
+    This handles templates that may lack standard Word paragraph styles.
+    """
+    try:
+        if style:
+            para = doc.add_paragraph(text, style=style)
+        else:
+            para = doc.add_paragraph(text)
+        return para
+    except KeyError:
+        # Fallback: create paragraph without style, apply manual formatting
+        para = doc.add_paragraph()
+        if text:
+            run = para.add_run(text)
+            run.font.name = 'Calibri'
+            run.font.size = Pt(11)
+            # Add bullet character for list styles
+            if style and 'bullet' in style.lower():
+                run.text = '• ' + text
+            elif style and 'number' in style.lower():
+                run.text = text
+        return para
+
+
 def add_document_header(doc, project_name, organization_name=None):
     """
     Add professional header with company name and project to all pages.
@@ -98,6 +156,97 @@ def add_section_divider(doc):
     run.font.size = Pt(10)
 
 
+def add_real_toc(doc, heading_text='Table of Contents', sections=None):
+    """
+    Add a Table of Contents with actual section entries.
+    
+    Since python-docx cannot auto-update Word TOC fields, we create a
+    manual TOC that lists all section titles with their section numbers.
+    This approach ensures the TOC is visible immediately without needing
+    to right-click and update.
+    
+    Args:
+        doc: Document object
+        heading_text: Title for the TOC
+        sections: List of RFPSection objects to include in TOC
+    """
+    # Add TOC heading
+    toc_heading = doc.add_heading(heading_text, level=1)
+    toc_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    
+    # If sections provided, add manual entries
+    if sections:
+        # Standard pre-sections
+        pre_sections = [
+            ('Revision History', 1),
+            ('Vendor Eligibility & Credentials', 1),
+        ]
+        
+        # Add pre-section entries
+        for title, level in pre_sections:
+            p = doc.add_paragraph()
+            # Add indent based on level
+            p.paragraph_format.left_indent = Inches(0.25 * (level - 1))
+            run = p.add_run(f"• {title}")
+            run.font.size = Pt(11)
+            run.font.color.rgb = RGBColor(0, 0, 0)
+        
+        # Add numbered section entries
+        section_num = 1
+        for section in sections:
+            if section.content:  # Only include sections with content
+                p = doc.add_paragraph()
+                # Get section title
+                section_title = section.title or (section.section_type.name if section.section_type else f'Section {section_num}')
+                run = p.add_run(f"{section_num}. {section_title}")
+                run.font.size = Pt(11)
+                run.font.color.rgb = RGBColor(0, 0, 0)
+                section_num += 1
+        
+        # Add Q&A Responses if applicable
+        p = doc.add_paragraph()
+        run = p.add_run(f"{section_num}. Q&A Responses")
+        run.font.size = Pt(11)
+        run.font.color.rgb = RGBColor(0, 0, 0)
+    else:
+        # Fallback: Create Word TOC field (requires manual update)
+        paragraph = doc.add_paragraph()
+        
+        # Create field character elements for Word TOC field
+        fld_char_begin = OxmlElement('w:fldChar')
+        fld_char_begin.set(qn('w:fldCharType'), 'begin')
+        
+        instr_text = OxmlElement('w:instrText')
+        instr_text.set(qn('xml:space'), 'preserve')
+        instr_text.text = ' TOC \\o "1-3" \\h \\z \\u '
+        
+        fld_char_separate = OxmlElement('w:fldChar')
+        fld_char_separate.set(qn('w:fldCharType'), 'separate')
+        
+        placeholder = OxmlElement('w:t')
+        placeholder.text = 'Right-click and select "Update Field" to generate Table of Contents'
+        
+        fld_char_end = OxmlElement('w:fldChar')
+        fld_char_end.set(qn('w:fldCharType'), 'end')
+        
+        run1 = paragraph.add_run()
+        run1._r.append(fld_char_begin)
+        run1._r.append(instr_text)
+        run1._r.append(fld_char_separate)
+        
+        run2 = paragraph.add_run()
+        run2._r.append(placeholder)
+        
+        run3 = paragraph.add_run()
+        run3._r.append(fld_char_end)
+    
+    # Add spacing after TOC
+    doc.add_paragraph()
+    
+    return None
+
+
+
 def style_table(table):
     """Apply professional styling to a table."""
     # Set table alignment
@@ -127,6 +276,68 @@ def style_table(table):
                 cell._tc.get_or_add_tcPr().append(shading)
 
 
+def add_revision_history_table(doc, project, organization=None):
+    """
+    Add a revision history table to the document for professional tracking.
+    
+    Args:
+        doc: Document object
+        project: Project model instance
+        organization: Organization model instance
+    """
+    # Revision History heading
+    heading = doc.add_heading('Revision History', level=2)
+    heading.runs[0].font.color.rgb = RGBColor(75, 0, 130)
+    
+    # Create revision table
+    table = doc.add_table(rows=1, cols=4)
+    table.style = 'Table Grid'
+    
+    # Header row
+    header_cells = table.rows[0].cells
+    headers = ['Version', 'Date', 'Author', 'Description']
+    for i, header in enumerate(headers):
+        header_cells[i].text = header
+        header_cells[i].paragraphs[0].runs[0].font.bold = True
+        header_cells[i].paragraphs[0].runs[0].font.size = Pt(10)
+        # Add header background
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), '4B0082')  # Indigo
+        header_cells[i]._tc.get_or_add_tcPr().append(shading)
+        header_cells[i].paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+    
+    # Get version info
+    version_number = getattr(project, 'version', 1) or 1
+    current_date = datetime.now()
+    
+    # Get author name
+    author_name = 'Proposal Team'
+    if organization and hasattr(organization, 'settings') and organization.settings:
+        vendor_profile = organization.settings.get('vendor_profile', {})
+        author_name = vendor_profile.get('contact_name', 'Proposal Team')
+    
+    # Add current version row
+    row = table.add_row()
+    row.cells[0].text = f'{version_number}.0'
+    row.cells[1].text = current_date.strftime('%Y-%m-%d')
+    row.cells[2].text = author_name
+    row.cells[3].text = 'Initial proposal submission'
+    
+    # Style all cells
+    for cell in row.cells:
+        cell.paragraphs[0].runs[0].font.size = Pt(10) if cell.paragraphs[0].runs else None
+    
+    # Add a previous version placeholder if version > 1
+    if version_number > 1:
+        prev_row = table.add_row()
+        prev_row.cells[0].text = f'{version_number - 1}.0'
+        prev_row.cells[1].text = (current_date.replace(day=max(1, current_date.day - 7))).strftime('%Y-%m-%d')
+        prev_row.cells[2].text = author_name
+        prev_row.cells[3].text = 'Draft revision'
+    
+    doc.add_paragraph()  # Spacing after table
+
+
 def add_markdown_to_doc(doc, content):
     """
     Convert markdown content to Word document formatting.
@@ -148,7 +359,7 @@ def add_markdown_to_doc(doc, content):
             for item in current_list_items:
                 # Remove list markers
                 clean_item = re.sub(r'^[\*\-]\s*|^\d+\.\s*', '', item)
-                para = doc.add_paragraph(style='List Bullet')
+                para = safe_add_paragraph(doc, style='List Bullet')
                 add_formatted_text(para, clean_item)
             current_list_items = []
             is_in_list = False
@@ -515,8 +726,8 @@ def add_vendor_visibility_section(doc, project, organization=None):
         certifications = ['SOC 2 Type II', 'ISO 27001', 'GDPR Compliant']
     
     for cert in certifications:
-        cert_para = doc.add_paragraph(style='List Bullet')
-        cert_run = cert_para.add_run(f'✓ {cert}')
+        cert_para = safe_add_paragraph(doc, style='List Bullet')
+        cert_run = cert_para.add_run(cert)
         cert_run.font.size = Pt(10)
     
     doc.add_paragraph()
@@ -537,7 +748,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
     industries_run.font.size = Pt(10)
     
     for industry in industries:
-        ind_para = doc.add_paragraph(style='List Bullet')
+        ind_para = safe_add_paragraph(doc, style='List Bullet')
         ind_run = ind_para.add_run(industry)
         ind_run.font.size = Pt(10)
     
@@ -559,14 +770,14 @@ def add_vendor_visibility_section(doc, project, organization=None):
     geo_run.font.size = Pt(10)
     
     for geo in geographies:
-        geo_item = doc.add_paragraph(style='List Bullet')
+        geo_item = safe_add_paragraph(doc, style='List Bullet')
         geo_item_run = geo_item.add_run(geo)
         geo_item_run.font.size = Pt(10)
     
     doc.add_page_break()
 
 
-def generate_proposal_docx(project, sections, include_qa=True, questions=None, organization=None):
+def generate_proposal_docx(project, sections, include_qa=True, questions=None, organization=None, template_path=None, compliance_items=None, strategy=None):
     """
     Generate a full proposal DOCX with all sections.
     
@@ -576,18 +787,49 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
         include_qa: Whether to include Q&A section
         questions: List of Question model instances (if include_qa is True)
         organization: Organization model instance for vendor profile
+        template_path: Optional path to DOCX template file to use as base
+        compliance_items: List of ComplianceItem model instances (optional)
+        strategy: ProjectStrategy model instance with win themes, pricing, etc. (optional)
     
     Returns:
         BytesIO buffer containing the DOCX file
     """
-    doc = Document()
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # ========================================
-    # ENTERPRISE FORMATTING SETUP
-    # ========================================
+    # Track if we're using a template (affects style handling)
+    using_template = False
     
-    # Apply professional styles and margins
-    setup_document_styles(doc)
+    # Load template or create new document
+    if template_path and os.path.exists(template_path):
+        try:
+            doc = Document(template_path)
+            logger.info(f"Using DOCX template: {template_path}")
+            using_template = True
+            # Clear existing content from template but keep styles and section properties
+            # We must preserve sectPr elements for table width calculations
+            from docx.oxml.ns import qn
+            for element in doc.element.body[:]:
+                # Don't remove sectPr (section properties) - needed for page layout/table widths
+                if element.tag != qn('w:sectPr'):
+                    doc.element.body.remove(element)
+            # Ensure required styles exist (some templates may lack them)
+            try:
+                setup_document_styles(doc)
+            except Exception as style_err:
+                logger.warning(f"Could not setup styles on template: {style_err}")
+        except Exception as e:
+            logger.warning(f"Failed to load template {template_path}: {e}, using blank document")
+            doc = Document()
+            setup_document_styles(doc)
+    else:
+        doc = Document()
+        # ========================================
+        # ENTERPRISE FORMATTING SETUP
+        # ========================================
+        # Apply professional styles and margins
+        setup_document_styles(doc)
     
     # Get organization name for headers
     org_name = None
@@ -618,7 +860,7 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     doc.add_paragraph()
     
     # Main Title
-    title = doc.add_heading(project.name, 0)
+    title = safe_add_heading(doc, project.name, 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     # Subtitle
@@ -682,53 +924,22 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     doc.add_page_break()
     
     # ========================================
-    # TABLE OF CONTENTS
+    # TABLE OF CONTENTS (Real Word TOC)
     # ========================================
     
-    toc_heading = doc.add_heading('Table of Contents', level=1)
-    toc_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    # Add TOC with pre-populated section entries (no manual update needed)
+    add_real_toc(doc, 'Table of Contents', sections=sections)
     
-    doc.add_paragraph()
-    
-    # Add Vendor Profile to TOC first
-    toc_item = doc.add_paragraph()
-    toc_run = toc_item.add_run('Vendor Profile & Eligibility')
-    toc_run.font.size = Pt(11)
-    toc_run.bold = True
-    toc_run2 = toc_item.add_run('  ' + '.' * 60)
-    toc_run2.font.size = Pt(11)
-    toc_run2.font.color.rgb = RGBColor(200, 200, 200)
-    
-    doc.add_paragraph()
-    
-    # Count sections with content
+    # Count sections with content (used later for section numbering)
     sections_with_content = [(i, s) for i, s in enumerate(sections, 1) if s.content]
     
-    for idx, (num, section) in enumerate(sections_with_content):
-        toc_item = doc.add_paragraph()
-        toc_item.paragraph_format.tab_stops.add_tab_stop(Inches(5.5))
-        
-        # Section number and title
-        section_num = f'{idx + 1}.0'
-        toc_run = toc_item.add_run(f'{section_num}  {section.title}')
-        toc_run.font.size = Pt(11)
-        
-        # Add dotted leader (simulated with periods)
-        toc_run2 = toc_item.add_run('  ' + '.' * 60)
-        toc_run2.font.size = Pt(11)
-        toc_run2.font.color.rgb = RGBColor(200, 200, 200)
+    doc.add_page_break()
     
-    # Add Q&A to TOC
-    if include_qa and questions:
-        doc.add_paragraph()
-        toc_item = doc.add_paragraph()
-        qa_num = len(sections_with_content) + 1
-        toc_run = toc_item.add_run(f'{qa_num}.0  Questions & Answers')
-        toc_run.font.size = Pt(11)
-        
-        toc_run2 = toc_item.add_run('  ' + '.' * 60)
-        toc_run2.font.size = Pt(11)
-        toc_run2.font.color.rgb = RGBColor(200, 200, 200)
+    # ========================================
+    # REVISION HISTORY TABLE
+    # ========================================
+    
+    add_revision_history_table(doc, project, organization)
     
     doc.add_page_break()
     
@@ -737,6 +948,84 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     # ========================================
     
     add_vendor_visibility_section(doc, project, organization)
+
+    
+    # ========================================
+    # ARCHITECTURE DIAGRAM (Phase 2 Enhancement)
+    # ========================================
+    
+    try:
+        # Try to find or generate architecture diagram
+        diagram_code = None
+        
+        # Check if project has strategy with diagrams
+        from ..models import ProjectStrategy
+        strategy = ProjectStrategy.query.filter_by(project_id=project.id).first()
+        if strategy and strategy.diagrams:
+            diagrams_list = strategy.diagrams
+            if isinstance(diagrams_list, list) and len(diagrams_list) > 0:
+                first_diagram = diagrams_list[0]
+                if isinstance(first_diagram, dict) and first_diagram.get('mermaid_code'):
+                    diagram_code = first_diagram['mermaid_code']
+        
+        # Check sections for embedded mermaid diagrams
+        if not diagram_code:
+            import re
+            for section in sections:
+                if section.content and '```mermaid' in section.content:
+                    mermaid_match = re.search(r'```mermaid\n(.*?)\n```', section.content, re.DOTALL)
+                    if mermaid_match:
+                        diagram_code = mermaid_match.group(1)
+                        break
+        
+        # Auto-generate if no diagram found
+        if not diagram_code:
+            try:
+                from ..agents.diagram_generator_agent import get_diagram_generator_agent
+                
+                all_sections_text = "\n\n".join([
+                    f"## {s.title}\n{s.content or ''}" 
+                    for s in sections if s.content
+                ])
+                
+                if all_sections_text.strip():
+                    logger.info("Auto-generating architecture diagram for DOCX...")
+                    diagram_agent = get_diagram_generator_agent(org_id=organization.id if organization else None)
+                    diagram_result = diagram_agent.generate_diagram(
+                        document_text=all_sections_text[:15000],
+                        diagram_type='architecture'
+                    )
+                    if diagram_result.get('success') and diagram_result.get('diagram_code'):
+                        diagram_code = diagram_result['diagram_code']
+            except Exception as e:
+                logger.warning(f"Failed to auto-generate diagram: {e}")
+        
+        # Render and add diagram to document
+        if diagram_code:
+            from .mermaid_service import render_mermaid_to_bytes_io
+            diagram_buffer = render_mermaid_to_bytes_io(diagram_code)
+            
+            if diagram_buffer:
+                # Add architecture section
+                arch_heading = doc.add_heading('Solution Architecture', level=1)
+                
+                # Add the diagram image
+                from docx.shared import Inches
+                doc.add_picture(diagram_buffer, width=Inches(6))
+                
+                # Add caption
+                caption = doc.add_paragraph()
+                caption_run = caption.add_run('Figure 1: Proposed Solution Architecture')
+                caption_run.font.italic = True
+                caption_run.font.size = Pt(10)
+                caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                doc.add_paragraph()  # Spacing
+                logger.info("Added architecture diagram to DOCX")
+                
+    except Exception as e:
+        logger.warning(f"Failed to add architecture diagram to DOCX: {e}")
+        # Continue without diagram - not critical
     
     # ========================================
     # PROPOSAL SECTIONS
@@ -745,8 +1034,8 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     for idx, (num, section) in enumerate(sections_with_content):
         # Section number and heading
         section_num = f'{idx + 1}.0'
-        section_icon = section.section_type.icon if section.section_type else ''
-        section_title = f'{section_num}  {section_icon} {section.title}'.strip()
+        # Note: Section icons are omitted from Word export for professional formatting
+        section_title = f'{section_num}  {section.title}'.strip()
         
         heading = doc.add_heading(section_title, level=1)
         
@@ -763,6 +1052,234 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
             meta_run.font.color.rgb = RGBColor(128, 128, 128)
         
         doc.add_page_break()
+    
+    # ========================================
+    # COMPLIANCE MATRIX SECTION (If provided)
+    # ========================================
+    
+    if compliance_items and len(compliance_items) > 0:
+        doc.add_heading('Appendix A: Compliance Matrix', level=1)
+        
+        intro = doc.add_paragraph()
+        intro_run = intro.add_run('This section provides a comprehensive compliance matrix tracking all RFP requirements and our response status.')
+        intro_run.font.size = Pt(10)
+        intro_run.italic = True
+        intro_run.font.color.rgb = RGBColor(100, 100, 100)
+        
+        doc.add_paragraph()
+        
+        # Create compliance summary stats
+        compliant_count = sum(1 for c in compliance_items if c.compliance_status == 'compliant')
+        partial_count = sum(1 for c in compliance_items if c.compliance_status == 'partial')
+        non_compliant_count = sum(1 for c in compliance_items if c.compliance_status == 'non_compliant')
+        pending_count = sum(1 for c in compliance_items if c.compliance_status == 'pending')
+        
+        summary = doc.add_paragraph()
+        summary_run = summary.add_run(f'Summary: {len(compliance_items)} Requirements | ')
+        summary_run.font.size = Pt(10)
+        summary_run.bold = True
+        
+        summary_run2 = summary.add_run(f'Compliant: {compliant_count} | Partial: {partial_count} | Non-Compliant: {non_compliant_count} | Pending: {pending_count}')
+        summary_run2.font.size = Pt(10)
+        
+        doc.add_paragraph()
+        
+        # Create table for compliance items
+        table = doc.add_table(rows=1, cols=4)
+        table.style = 'Table Grid'
+        
+        # Header row
+        header_cells = table.rows[0].cells
+        headers = ['Requirement', 'Category', 'Status', 'Notes']
+        for i, header in enumerate(headers):
+            header_cells[i].paragraphs[0].add_run(header).bold = True
+            header_cells[i].paragraphs[0].runs[0].font.size = Pt(10)
+        
+        # Data rows
+        for item in compliance_items:
+            row = table.add_row()
+            row.cells[0].text = item.requirement_text or ''
+            row.cells[1].text = item.category or ''
+            status_text = {
+                'compliant': 'Compliant',
+                'partial': 'Partial',
+                'non_compliant': 'Non-Compliant',
+                'pending': 'Pending'
+            }.get(item.compliance_status, item.compliance_status or '')
+            row.cells[2].text = status_text
+            row.cells[3].text = item.notes or ''
+            
+            for cell in row.cells:
+                if cell.paragraphs[0].runs:
+                    cell.paragraphs[0].runs[0].font.size = Pt(9)
+        
+        style_table(table)
+        
+        doc.add_page_break()
+    
+    # ========================================
+    # STRATEGY SECTION (If provided)
+    # ========================================
+    
+    if strategy:
+        has_strategy_content = (
+            strategy.win_themes or 
+            strategy.pricing or 
+            strategy.legal_review or 
+            strategy.diagrams
+        )
+        
+        if has_strategy_content:
+            doc.add_heading('Appendix B: Strategic Analysis', level=1)
+            
+            intro = doc.add_paragraph()
+            intro_run = intro.add_run('This section contains AI-generated strategic insights for this proposal.')
+            intro_run.font.size = Pt(10)
+            intro_run.italic = True
+            intro_run.font.color.rgb = RGBColor(100, 100, 100)
+            
+            doc.add_paragraph()
+            
+            # Win Themes
+            if strategy.win_themes:
+                doc.add_heading('Win Themes', level=2)
+                
+                win_themes_data = strategy.win_themes
+                themes = win_themes_data.get('win_themes', [])
+                
+                for theme in themes:
+                    theme_para = doc.add_paragraph()
+                    theme_run = theme_para.add_run(theme.get('theme_title', 'Theme'))
+                    theme_run.bold = True
+                    theme_run.font.size = Pt(11)
+                    
+                    if theme.get('theme_statement'):
+                        statement = doc.add_paragraph()
+                        statement.add_run(theme['theme_statement']).font.size = Pt(10)
+                    
+                    if theme.get('customer_benefit'):
+                        benefit = doc.add_paragraph()
+                        benefit_run = benefit.add_run(f"Customer Benefit: {theme['customer_benefit']}")
+                        benefit_run.font.size = Pt(10)
+                        benefit_run.italic = True
+                    
+                    doc.add_paragraph()
+                
+                doc.add_paragraph()
+            
+            # Pricing Summary
+            if strategy.pricing:
+                doc.add_heading('Pricing Estimates', level=2)
+                
+                pricing_data = strategy.pricing
+                pricing_summary = pricing_data.get('pricing_summary', {})
+                
+                if pricing_summary:
+                    currency = pricing_summary.get('currency_symbol', '$')
+                    total = pricing_summary.get('total_cost', 0)
+                    
+                    total_para = doc.add_paragraph()
+                    total_run = total_para.add_run(f'Total Estimated Cost: {currency}{total:,.2f}')
+                    total_run.bold = True
+                    total_run.font.size = Pt(12)
+                    
+                    if pricing_summary.get('validity_period'):
+                        validity = doc.add_paragraph()
+                        validity_run = validity.add_run(f"Validity: {pricing_summary['validity_period']}")
+                        validity_run.font.size = Pt(10)
+                        validity_run.italic = True
+                    
+                    doc.add_paragraph()
+                    
+                    # Effort breakdown table
+                    effort_breakdown = pricing_data.get('effort_breakdown', [])
+                    if effort_breakdown:
+                        doc.add_heading('Effort Breakdown', level=3)
+                        
+                        table = doc.add_table(rows=1, cols=3)
+                        table.style = 'Table Grid'
+                        
+                        headers = ['Phase', 'Description', 'Cost']
+                        header_cells = table.rows[0].cells
+                        for i, header in enumerate(headers):
+                            header_cells[i].paragraphs[0].add_run(header).bold = True
+                        
+                        for phase in effort_breakdown:
+                            row = table.add_row()
+                            row.cells[0].text = phase.get('phase', '')
+                            row.cells[1].text = phase.get('description', '')
+                            phase_total = phase.get('phase_total', 0)
+                            row.cells[2].text = f"{currency}{phase_total:,.2f}"
+                        
+                        style_table(table)
+                
+                doc.add_paragraph()
+            
+            # Legal Risk Assessment
+            if strategy.legal_review:
+                doc.add_heading('Legal Risk Assessment', level=2)
+                
+                legal_data = strategy.legal_review
+                risk_level = legal_data.get('overall_risk_level', 'unknown')
+                
+                risk_para = doc.add_paragraph()
+                risk_run = risk_para.add_run(f'Overall Risk Level: {risk_level.upper()}')
+                risk_run.bold = True
+                risk_run.font.size = Pt(11)
+                
+                if risk_level in ['high', 'critical']:
+                    risk_run.font.color.rgb = RGBColor(192, 0, 0)
+                elif risk_level == 'medium':
+                    risk_run.font.color.rgb = RGBColor(192, 128, 0)
+                else:
+                    risk_run.font.color.rgb = RGBColor(0, 128, 0)
+                
+                if legal_data.get('review_summary'):
+                    summary_para = doc.add_paragraph()
+                    summary_para.add_run(legal_data['review_summary']).font.size = Pt(10)
+                
+                risk_items = legal_data.get('risk_items', [])
+                if risk_items:
+                    doc.add_heading('Risk Items', level=3)
+                    
+                    for risk in risk_items[:10]:  # Limit to 10 items
+                        risk_para = safe_add_paragraph(doc, style='List Bullet')
+                        severity = risk.get('severity', 'unknown')
+                        risk_run = risk_para.add_run(f"[{severity.upper()}] {risk.get('description', '')}")
+                        risk_run.font.size = Pt(10)
+                
+                doc.add_paragraph()
+            
+            # Diagrams
+            if strategy.diagrams:
+                doc.add_heading('Architecture Diagrams', level=2)
+                
+                diagrams = strategy.diagrams if isinstance(strategy.diagrams, list) else []
+                
+                for diagram in diagrams:
+                    if diagram.get('mermaid_code'):
+                        try:
+                            from .mermaid_service import render_mermaid_to_bytes_io
+                            diagram_buffer = render_mermaid_to_bytes_io(diagram['mermaid_code'])
+                            if diagram_buffer:
+                                doc.add_picture(diagram_buffer, width=Inches(5.5))
+                                
+                                caption_para = doc.add_paragraph()
+                                caption_run = caption_para.add_run(f"Figure: {diagram.get('title', 'Architecture Diagram')}")
+                                caption_run.italic = True
+                                caption_run.font.size = Pt(10)
+                                caption_run.font.color.rgb = RGBColor(100, 100, 100)
+                                caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                
+                                doc.add_paragraph()
+                        except Exception:
+                            # Fallback text if diagram rendering fails
+                            para = doc.add_paragraph()
+                            run = para.add_run(f"[Diagram: {diagram.get('title', 'Untitled')} - see web application]")
+                            run.italic = True
+                            run.font.size = Pt(10)
+            
+            doc.add_page_break()
     
     # ========================================
     # Q&A SECTION (Optional)

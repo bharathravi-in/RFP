@@ -19,12 +19,15 @@ class Question(db.Model):
     notes = db.Column(db.Text, nullable=True)  # Internal notes
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     document_id = db.Column(db.Integer, db.ForeignKey('documents.id'), nullable=True)
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    due_date = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     project = db.relationship('Project', back_populates='questions')
     document = db.relationship('Document', back_populates='questions')
+    assignee = db.relationship('User', foreign_keys=[assigned_to])
     answers = db.relationship('Answer', back_populates='question', cascade='all, delete-orphan', order_by='Answer.version.desc()')
     
     @property
@@ -47,6 +50,9 @@ class Question(db.Model):
             'notes': self.notes,
             'project_id': self.project_id,
             'document_id': self.document_id,
+            'assigned_to': self.assigned_to,
+            'assignee_name': self.assignee.name if self.assignee else None,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

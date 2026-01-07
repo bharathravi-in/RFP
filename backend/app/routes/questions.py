@@ -287,7 +287,7 @@ def generate_answer(question_id):
         from app.models import Answer
         
         # Initialize agent with org_id
-        agent = get_answer_generator_agent()
+        agent = get_answer_generator_agent(org_id=user.organization_id)
         
         # Generate answer using AI - use generate_answers method
         result = agent.generate_answers(

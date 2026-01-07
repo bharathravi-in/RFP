@@ -23,7 +23,80 @@ class AnswerValidatorAgent:
     - Calculates factual accuracy score
     - Flags unverified claims for review
     - Suggests revisions to remove hallucinations
+    - Validates numeric claims (percentages, SLAs, timelines)
+    - Checks consistency across multiple answers
     """
+    
+    # Configurable validation thresholds
+    # These can be overridden via org settings
+    VALIDATION_THRESHOLDS = {
+        'high_confidence': 0.85,      # Above this = auto-approve
+        'medium_confidence': 0.70,    # Above this = low-priority review
+        'low_confidence': 0.50,       # Below this = requires human review
+        'critical_threshold': 0.40    # Below this = block until reviewed
+    }
+    
+    # Flags for low-confidence answers
+    REVIEW_FLAGS = {
+        'needs_human_review': 'Answer confidence below threshold, human review required',
+        'critical_review': 'Critically low confidence, must not be submitted without review',
+        'auto_approved': 'High confidence, auto-approved for submission'
+    }
+    
+    # Patterns for detecting numeric claims that need verification
+    NUMERIC_CLAIM_PATTERNS = {
+        'percentage': {
+            'pattern': r'(\d+(?:\.\d+)?)\s*%',
+            'examples': ['99.9% uptime', '100% compliance'],
+            'risk': 'high'
+        },
+        'sla_time': {
+            'pattern': r'(\d+)\s*(?:minute|hour|day)s?\s+(?:response|resolution|SLA)',
+            'examples': ['4 hour response time', '24-hour resolution'],
+            'risk': 'high'
+        },
+        'quantity': {
+            'pattern': r'(?:over|more than|approximately|nearly|about)?\s*(\d+(?:,\d{3})*)\s+(?:customer|client|project|year|employee)',
+            'examples': ['over 500 customers', '1,000 projects delivered'],
+            'risk': 'medium'
+        },
+        'year_established': {
+            'pattern': r'(?:since|established|founded|operating).*?(\d{4})',
+            'examples': ['Since 1995', 'Established in 2005'],
+            'risk': 'medium'
+        },
+        'guarantee': {
+            'pattern': r'(?:guarantee|guaranteed|ensure|100%)',
+            'examples': ['guaranteed delivery', '100% satisfaction'],
+            'risk': 'critical'
+        },
+        'certification_date': {
+            'pattern': r'(?:certified|compliant).*?(\d{4})',
+            'examples': ['SOC 2 certified since 2020'],
+            'risk': 'high'
+        }
+    }
+    
+    # Claim severity levels
+    CLAIM_SEVERITY = {
+        'critical': ['guarantee', 'compliance', 'certification', '100%', 'zero'],
+        'high': ['uptime', 'sla', 'response time', 'security', 'encryption'],
+        'medium': ['experience', 'customers', 'projects', 'years'],
+        'low': ['approach', 'methodology', 'process']
+    }
+    
+    # Patterns for cross-answer consistency checks
+    CONSISTENCY_CHECK_PATTERNS = [
+        'company name',
+        'established',
+        'employees',
+        'customers',
+        'certifications',
+        'headquarters',
+        'response time',
+        'uptime'
+    ]
+
     
     CLAIM_EXTRACTION_PROMPT = """Analyze this RFP answer and extract all factual claims that can be verified.
 
@@ -413,6 +486,78 @@ Return ONLY the revised answer text, no JSON or formatting."""
             "claims": [],
             "revised_answer": answer,
             "flags": ["fallback_validation"]
+        }
+    
+    def _extract_numeric_claims(self, answer: str) -> List[Dict]:
+        """Extract numeric claims from answer for verification."""
+        import re
+        claims = []
+        
+        for claim_type, config in self.NUMERIC_CLAIM_PATTERNS.items():
+            pattern = config['pattern']
+            matches = re.findall(pattern, answer, re.IGNORECASE)
+            
+            for match in matches:
+                # Find the full context around the match
+                context_match = re.search(
+                    rf'.{{0,30}}{re.escape(str(match))}.{{0,30}}',
+                    answer, re.IGNORECASE
+                )
+                claims.append({
+                    'type': claim_type,
+                    'value': match,
+                    'context': context_match.group() if context_match else '',
+                    'risk_level': config['risk'],
+                    'needs_verification': config['risk'] in ['high', 'critical']
+                })
+        
+        return claims
+    
+    def _check_cross_answer_consistency(
+        self,
+        answers: List[Dict],
+        check_fields: List[str] = None
+    ) -> Dict:
+        """Check consistency of key facts across multiple answers."""
+        import re
+        
+        check_fields = check_fields or self.CONSISTENCY_CHECK_PATTERNS
+        inconsistencies = []
+        
+        # Extract values for each check field across all answers
+        field_values = {field: [] for field in check_fields}
+        
+        for answer in answers:
+            text = answer.get('answer', '').lower()
+            
+            for field in check_fields:
+                # Simple pattern to find mentions
+                pattern = rf'{field}[:\s]*([^\.\,\n]+)'
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                if matches:
+                    for match in matches:
+                        field_values[field].append({
+                            'value': match.strip(),
+                            'answer_id': answer.get('question_id')
+                        })
+        
+        # Check for inconsistencies
+        for field, values in field_values.items():
+            if len(values) > 1:
+                unique_values = set(v['value'] for v in values)
+                if len(unique_values) > 1:
+                    inconsistencies.append({
+                        'field': field,
+                        'values_found': list(unique_values),
+                        'answer_ids': [v['answer_id'] for v in values],
+                        'severity': 'high' if field in ['company name', 'uptime', 'response time'] else 'medium'
+                    })
+        
+        return {
+            'consistent': len(inconsistencies) == 0,
+            'inconsistencies': inconsistencies,
+            'fields_checked': len(check_fields),
+            'answers_checked': len(answers)
         }
 
 

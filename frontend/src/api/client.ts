@@ -51,6 +51,11 @@ api.interceptors.response.use(
                     window.location.href = '/login';
                     return Promise.reject(refreshError);
                 }
+            } else {
+                // No refresh token - logout immediately
+                localStorage.removeItem('access_token');
+                window.location.href = '/login';
+                return Promise.reject(error);
             }
         }
 
@@ -74,6 +79,12 @@ export const authApi = {
 
     me: () =>
         api.get('/auth/me'),
+
+    forgotPassword: (email: string) =>
+        api.post('/auth/forgot-password', { email }),
+
+    resetPassword: (token: string, password: string) =>
+        api.post('/auth/reset-password', { token, password }),
 };
 
 // ===============================
@@ -196,11 +207,11 @@ export const questionsApi = {
     create: (projectId: number, data: { text: string; section?: string }) =>
         api.post('/questions', { project_id: projectId, ...data }),
 
-    update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string }>) =>
+    update: (id: number, data: Partial<{ text: string; section: string; order: number; status: string; notes: string; assigned_to: number | null; due_date: string | null }>) =>
         api.put(`/questions/${id}`, data),
 
-    merge: (questionIds: number[]) =>
-        api.post('/questions/merge', { question_ids: questionIds }),
+    merge: (questionIds: number[], mergedText?: string) =>
+        api.post('/questions/merge', { question_ids: questionIds, merged_text: mergedText }),
 
     split: (questionId: number, texts: string[]) =>
         api.post('/questions/split', { question_id: questionId, texts }),
@@ -274,6 +285,9 @@ export const knowledgeApi = {
 
     reindex: () =>
         api.post('/knowledge/reindex'),
+
+    getProfiles: () =>
+        api.get('/knowledge/profiles'),
 };
 
 // ===============================
@@ -289,6 +303,9 @@ export const exportApi = {
 
     xlsx: (projectId: number) =>
         api.post('/export/xlsx', { project_id: projectId }, { responseType: 'blob' }),
+
+    pdf: (projectId: number) =>
+        api.post('/export/pdf', { project_id: projectId }, { responseType: 'blob' }),
 
     complete: (projectId: number) =>
         api.post('/export/complete', { project_id: projectId }),
@@ -412,8 +429,8 @@ export const sectionsApi = {
         api.post(`/section-templates/${templateId}/apply`, { section_id: sectionId, variables }),
 
     // Export
-    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', includeQA: boolean = true) =>
-        api.post(`/projects/${projectId}/export/proposal`, { format, include_qa: includeQA }, { responseType: 'blob' }),
+    exportProposal: (projectId: number, format: 'docx' | 'xlsx' = 'docx', templateId?: number, includeQA: boolean = true) =>
+        api.post(`/projects/${projectId}/export/proposal`, { format, template_id: templateId, include_qa: includeQA }, { responseType: 'blob' }),
 
     getExportPreview: (projectId: number) =>
         api.get(`/projects/${projectId}/export/preview`),
@@ -431,6 +448,22 @@ export const sectionsApi = {
 
     deleteComment: (sectionId: number, commentId: number) =>
         api.delete(`/sections/${sectionId}/comments/${commentId}`),
+
+    // Q&A to Section Bridge (NEW)
+    populateFromQA: (projectId: number, options?: {
+        create_qa_section?: boolean;
+        inject_into_sections?: boolean;
+        use_ai_mapping?: boolean;
+    }) => api.post(`/projects/${projectId}/sections/populate-from-qa`, options || {}),
+
+    getQAMappingPreview: (projectId: number) =>
+        api.get(`/projects/${projectId}/sections/qa-mapping-preview`),
+
+    injectQAIntoSection: (sectionId: number, questionIds?: number[]) =>
+        api.post(`/sections/${sectionId}/inject-qa`, questionIds ? { question_ids: questionIds } : {}),
+
+    populateQASection: (projectId: number) =>
+        api.post(`/projects/${projectId}/sections/populate-qa-section`),
 };
 
 // ===============================
@@ -444,7 +477,7 @@ export const usersApi = {
     getProfile: () =>
         api.get('/users/profile'),
 
-    updateProfile: (data: { name?: string; email?: string }) =>
+    updateProfile: (data: { name?: string; email?: string; expertise_tags?: string[] }) =>
         api.put('/users/profile', data),
 
     uploadPhoto: (file: File) => {
@@ -479,9 +512,10 @@ export const organizationsApi = {
     delete: (id: number, confirm: boolean = false) =>
         api.delete(`/organizations/${id}`, { data: { confirm } }),
 
-    extractVendorProfile: (file: File) => {
+    extractVendorProfile: (file: File, apiKey?: string) => {
         const formData = new FormData();
         formData.append('file', file);
+        if (apiKey) formData.append('api_key', apiKey);
         return api.post('/organizations/extract-vendor-profile', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -643,6 +677,12 @@ export const answerLibraryApi = {
     recordUsage: (id: number, helpful: boolean = true) =>
         api.post(`/answer-library/${id}/use`, { helpful }),
 
+    approve: (id: number) =>
+        api.post(`/answer-library/${id}/approve`),
+
+    archive: (id: number) =>
+        api.post(`/answer-library/${id}/archive`),
+
     getCategories: () =>
         api.get('/answer-library/categories'),
 
@@ -693,6 +733,9 @@ export const analyticsApi = {
     getProjectStats: (projectId: number) =>
         api.get(`/analytics/project/${projectId}`),
 
+    getProjectHealth: (projectId: number) =>
+        api.get(`/analytics/project-health/${projectId}`),
+
     getOverview: () =>
         api.get('/analytics/overview'),
 
@@ -707,6 +750,12 @@ export const analyticsApi = {
 
     getLossReasons: () =>
         api.get('/analytics/loss-reasons'),
+
+    getContentPerformance: () =>
+        api.get('/analytics/content-performance'),
+
+    getWinLossDeepDive: () =>
+        api.get('/analytics/win-loss-deep-dive'),
 };
 
 // ===============================
@@ -810,7 +859,7 @@ export const diagramsApi = {
 // ===============================
 
 export const pptApi = {
-    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string> }) =>
+    generate: (projectId: number, options?: { style?: string; branding?: Record<string, string>; template_id?: number }) =>
         api.post(`/ppt/generate/${projectId}`, options, { responseType: 'blob' }),
 
     preview: (projectId: number) =>
@@ -893,7 +942,195 @@ export const agentsApi = {
 
     cancelJob: (jobId: string) =>
         api.post(`/agents/cancel-job/${jobId}`),
+
+    // ========================================
+    // PRICING CALCULATOR (NEW)
+    // ========================================
+    calculatePricing: (projectId: number, options?: { complexity?: string; duration_weeks?: number }) =>
+        api.post('/agents/calculate-pricing', { project_id: projectId, ...options }),
+
+    estimateEffort: (requirements: string[], complexity: string = 'medium') =>
+        api.post('/agents/estimate-effort', { requirements, complexity }),
+
+    // ========================================
+    // LEGAL REVIEW (NEW)
+    // ========================================
+    legalReview: (projectId: number, checkMode: string = 'full') =>
+        api.post('/agents/legal-review', { project_id: projectId, check_mode: checkMode }),
+
+    legalQuickCheck: (content: string) =>
+        api.post('/agents/legal-quick-check', { content }),
+
+    // ========================================
+    // WIN THEMES (NEW)
+    // ========================================
+    generateWinThemes: (projectId: number, options?: {
+        rfp_requirements?: string[];
+        evaluation_criteria?: string[];
+    }) =>
+        api.post('/agents/generate-win-themes', { project_id: projectId, ...options }),
+
+    applyThemesToSection: (sectionContent: string, sectionName: string, winThemes: Array<{ theme_title: string; sections_to_apply: string[] }>) =>
+        api.post('/agents/apply-themes-to-section', { section_content: sectionContent, section_name: sectionName, win_themes: winThemes }),
+
+    // ========================================
+    // COMPETITIVE ANALYSIS (NEW)
+    // ========================================
+    competitiveAnalysis: (projectId: number, options?: {
+        known_competitors?: string[];
+        industry?: string;
+    }) =>
+        api.post('/agents/competitive-analysis', { project_id: projectId, ...options }),
+
+    generateCounterObjections: (objections: string[], vendorProfile?: Record<string, unknown>) =>
+        api.post('/agents/counter-objections', { objections, vendor_profile: vendorProfile }),
+
+    // ========================================
+    // STRATEGY PERSISTENCE (NEW)
+    // ========================================
+    getProjectStrategy: (projectId: number) =>
+        api.get(`/agents/strategy/${projectId}`),
+
+    saveWinThemes: (projectId: number, themesData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/win-themes`, themesData),
+
+    saveCompetitiveAnalysis: (projectId: number, analysisData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/competitive-analysis`, analysisData),
+
+    savePricing: (projectId: number, pricingData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/pricing`, pricingData),
+
+    saveLegalReview: (projectId: number, reviewData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/legal-review`, reviewData),
+
+    saveDiagrams: (projectId: number, diagramsData: any[]) =>
+        api.post(`/agents/strategy/${projectId}/diagrams`, diagramsData),
+
+    // ========================================
+    // EXPERT ROUTING & CONTENT FRESHNESS (NEW)
+    // ========================================
+    suggestOwners: (projectId: number, questionIds?: number[]) =>
+        api.post('/agents/suggest-owners', { project_id: projectId, question_ids: questionIds }),
+
+    checkFreshness: (data: { project_id: number; library_item_ids?: number[] }) =>
+        api.post('/agents/check-freshness', data),
+
+    // ========================================
+    // A/B EXPERIMENTS (NEW)
+    // ========================================
+    getExperiments: () =>
+        api.get('/agents/experiments'),
 };
+
+// ===============================
+// Webhooks API (NEW)
+// ===============================
+
+export const webhooksApi = {
+    list: () =>
+        api.get('/webhooks'),
+
+    create: (data: {
+        name: string;
+        url: string;
+        secret?: string;
+        events: string[];
+    }) =>
+        api.post('/webhooks', data),
+
+    update: (id: number, data: Partial<{
+        name: string;
+        url: string;
+        secret: string;
+        events: string[];
+        is_active: boolean;
+    }>) =>
+        api.put(`/webhooks/${id}`, data),
+
+    delete: (id: number) =>
+        api.delete(`/webhooks/${id}`),
+
+    test: (id: number) =>
+        api.post(`/webhooks/${id}/test`),
+
+    getDeliveries: (webhookId: number) =>
+        api.get(`/webhooks/${webhookId}/deliveries`),
+};
+
+
+
+// Co-Pilot AI Chat API
+export const copilotApi = {
+    // Sessions CRUD
+    getSessions: () => api.get('/copilot/sessions'),
+
+    createSession: (data?: { title?: string; mode?: string }) =>
+        api.post('/copilot/sessions', data),
+
+    getSession: (sessionId: number) =>
+        api.get(`/copilot/sessions/${sessionId}`),
+
+    updateSession: (sessionId: number, data: { title?: string }) =>
+        api.put(`/copilot/sessions/${sessionId}`, data),
+
+    deleteSession: (sessionId: number) =>
+        api.delete(`/copilot/sessions/${sessionId}`),
+
+    // Chat (send message within session)
+    chat: (sessionId: number, data: {
+        content: string;
+        mode?: 'general' | 'agents';
+        agent_id?: string;
+        use_web_search?: boolean;
+    }) => api.post(`/copilot/sessions/${sessionId}/chat`, data),
+
+    // Get available agents
+    getAgents: () => api.get('/copilot/agents'),
+
+    // Health check
+    health: () => api.get('/copilot/health'),
+};
+
+// ===============================
+// Export Templates API
+// ===============================
+
+export const exportTemplatesApi = {
+    // List all export templates
+    list: (type?: 'docx' | 'pptx') =>
+        api.get('/export-templates', { params: type ? { type } : {} }),
+
+    // Upload new template
+    upload: (file: File, name: string, description?: string, isDefault?: boolean) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', name);
+        if (description) formData.append('description', description);
+        if (isDefault) formData.append('is_default', 'true');
+        return api.post('/export-templates/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    // Delete template
+    delete: (templateId: number) =>
+        api.delete(`/export-templates/${templateId}`),
+
+    // Set as default
+    setDefault: (templateId: number) =>
+        api.put(`/export-templates/${templateId}/set-default`),
+
+    // Download template
+    download: (templateId: number) =>
+        api.get(`/export-templates/${templateId}/download`, { responseType: 'blob' }),
+
+    // Get default template for type
+    getDefault: (type: 'docx' | 'pptx') =>
+        api.get(`/export-templates/default/${type}`),
+};
+
+// Alias for backwards compatibility
+export const templatesApi = exportTemplatesApi;
 
 export default api;
 

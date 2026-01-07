@@ -198,13 +198,70 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         fallback_models=['gemini-1.5-pro']
     )
     def _extract_with_ai(self, text: str, doc_structure: Dict) -> Dict:
-        """Use AI to extract questions."""
+        """Use AI to extract questions with chunked processing for large documents."""
         client = self.config.client
         if not client:
             return self._fallback_extraction(text)
         
+        # Chunk size and overlap for processing large documents
+        CHUNK_SIZE = 20000  # 20K characters per chunk
+        CHUNK_OVERLAP = 2000  # 2K overlap to preserve context
+        
+        # If document fits in single chunk, process directly
+        if len(text) <= CHUNK_SIZE:
+            return self._extract_single_chunk(text)
+        
+        # Process large documents in chunks
+        logger.info(f"Processing large document ({len(text)} chars) for question extraction in chunks")
+        chunks = self._split_into_chunks(text, CHUNK_SIZE, CHUNK_OVERLAP)
+        logger.info(f"Split into {len(chunks)} chunks")
+        
+        # Extract from each chunk
+        chunk_results = []
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Extracting questions from chunk {i+1}/{len(chunks)}")
+            try:
+                chunk_result = self._extract_single_chunk(chunk)
+                chunk_results.append(chunk_result)
+            except Exception as e:
+                logger.warning(f"Chunk {i+1} extraction failed: {e}")
+        
+        # Merge chunk results
+        if not chunk_results:
+            return self._fallback_extraction(text)
+        
+        return self._merge_chunk_extractions(chunk_results)
+    
+    def _split_into_chunks(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+        """Split text into overlapping chunks, preferring to break at paragraph boundaries."""
+        chunks = []
+        start = 0
+        
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            
+            # If not at the end, try to find a good break point
+            if end < len(text):
+                search_start = max(end - 1000, start)
+                search_text = text[search_start:end]
+                para_break = search_text.rfind('\n\n')
+                if para_break != -1:
+                    end = search_start + para_break + 2
+                else:
+                    line_break = search_text.rfind('\n')
+                    if line_break != -1:
+                        end = search_start + line_break + 1
+            
+            chunks.append(text[start:end])
+            start = end - overlap if end < len(text) else len(text)
+        
+        return chunks
+    
+    def _extract_single_chunk(self, text: str) -> Dict:
+        """Extract questions from a single text chunk with AI."""
+        client = self.config.client
         prompt = self.EXTRACTION_PROMPT.format(
-            text=text[:25000],
+            text=text,
             few_shot_examples=self.FEW_SHOT_EXAMPLES
         )
         
@@ -219,7 +276,6 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
                 response = client.generate_content(prompt)
                 response_text = response.text
             
-            # Clean and parse JSON
             response_text = response_text.strip()
             if response_text.startswith('```'):
                 response_text = re.sub(r'^```(?:json)?\n?', '', response_text)
@@ -230,6 +286,47 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         except Exception as e:
             logger.error(f"AI extraction error: {e}")
             return self._fallback_extraction(text)
+    
+    def _merge_chunk_extractions(self, results: List[Dict]) -> Dict:
+        """Merge multiple chunk extraction results with deduplication."""
+        merged = {
+            "questions": [],
+            "total_count": 0,
+            "category_breakdown": {},
+            "mandatory_count": 0,
+            "optional_count": 0,
+            "table_questions_count": 0,
+            "_processing_info": {"chunks_processed": len(results), "chunked_processing": True}
+        }
+        
+        seen_questions = set()
+        question_id = 1
+        
+        for result in results:
+            for q in result.get("questions", []):
+                # Deduplicate by question text (first 100 chars)
+                q_text = q.get("text", "").lower().strip()[:100]
+                if q_text and q_text not in seen_questions:
+                    seen_questions.add(q_text)
+                    q["id"] = question_id
+                    question_id += 1
+                    merged["questions"].append(q)
+                    
+                    # Update counts
+                    cat = q.get("category", "general")
+                    merged["category_breakdown"][cat] = merged["category_breakdown"].get(cat, 0) + 1
+                    
+                    if q.get("mandatory", False):
+                        merged["mandatory_count"] += 1
+                    else:
+                        merged["optional_count"] += 1
+                    
+                    if q.get("requires_table_response", False):
+                        merged["table_questions_count"] += 1
+        
+        merged["total_count"] = len(merged["questions"])
+        logger.info(f"Merged extraction: {merged['total_count']} questions from {len(results)} chunks")
+        return merged
     
     def _fallback_extraction(self, text: str) -> Dict:
         """Pattern-based question extraction fallback."""
@@ -320,38 +417,85 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         
         # Patterns that indicate the text is likely an answer, not a question
         answer_patterns = [
-            r'^(?:we|our company|the vendor)\s+(?:provide|offer|support|ensure)',
-            r'^(?:yes|no)[,\.]',
-            r'^(?:our solution|the system|this platform)',
-            r'(?:is implemented|has been deployed|we have implemented)',
-            r'(?:compliant with|certified for|meets the requirements)',
-            r'^(?:as described|per our)',
+            # Company statements
+            r'^(?:we|our company|the vendor|our team|our organization)\s+(?:provide|offer|support|ensure|have|are|will|can|do)',
+            r'^(?:yes|no)[,\.\s]',
+            r'^(?:absolutely|certainly|indeed|affirmative)',
+            # Solution statements  
+            r'^(?:our solution|the system|this platform|the proposed|our approach)',
+            r'(?:is implemented|has been deployed|we have implemented|we currently)',
+            r'(?:compliant with|certified for|meets the requirements|satisfies)',
+            r'^(?:as described|per our|in accordance)',
+            # Response indicators
+            r'^(?:response:|answer:|solution:)',
+            r'^(?:vendor response|service provider answer)',
+            # Past tense delivery statements
+            r'we have successfully (?:implemented|delivered|completed)',
+            r'our (?:experience|track record|portfolio) includes',
+            # List of features (common in answers)
+            r'^(?:features include|benefits include|capabilities include)',
+            r'^(?:key benefits|key features|advantages)',
+        ]
+        
+        # Patterns that indicate it IS a question (positive patterns)
+        question_patterns = [
+            r'\?$',  # Ends with question mark
+            r'^(?:please|kindly)\s+(?:describe|explain|provide|list|detail)',
+            r'^(?:what|how|when|where|why|which|who|whose|whom)',
+            r'^(?:does|do|is|are|can|will|would|should|could|have|has)\s+',
+            r'^(?:describe|explain|provide|list|detail|outline|specify)',
+            r'(?:required|mandatory|must|shall)\s+(?:be|provide|have)',
         ]
         
         for q in questions:
-            text = q.get("text", "").strip().lower()
+            text = q.get("text", "").strip()
+            text_lower = text.lower()
             
             # Skip empty or very short
             if len(text) < 15:
                 continue
             
-            # Check if looks like an answer
+            # Check if explicitly looks like a question (positive match)
+            is_question = False
+            for pattern in question_patterns:
+                if re.search(pattern, text_lower):
+                    is_question = True
+                    break
+            
+            # Check if looks like an answer (negative match)
             is_answer = False
             for pattern in answer_patterns:
-                if re.search(pattern, text, re.IGNORECASE):
+                if re.search(pattern, text_lower, re.IGNORECASE):
                     is_answer = True
                     logger.debug(f"Filtered potential answer: {text[:50]}...")
                     break
             
             # Skip if too detailed (likely an answer with lots of explanation)
-            if text.count('.') > 4 and '?' not in text:
+            # But allow if it has a question mark
+            sentence_count = text.count('.') + text.count('!') + text.count(';')
+            if sentence_count > 4 and '?' not in text:
+                is_answer = True
+                logger.debug(f"Filtered due to sentence count: {text[:50]}...")
+            
+            # Check for service provider's answer section markers
+            if 'service provider' in text_lower and ('answer' in text_lower or 'response' in text_lower):
                 is_answer = True
             
-            if not is_answer:
+            # If it has explicit question markers, include it even if it matches answer patterns
+            if '?' in text:
+                is_answer = False
+                is_question = True
+            
+            # Include if it's a question and not an answer
+            if is_question and not is_answer:
+                validated.append(q)
+            elif not is_answer:
+                # Include if it doesn't match answer patterns, even without explicit question markers
                 validated.append(q)
         
         logger.info(f"Validation: kept {len(validated)}/{len(questions)} questions")
         return validated
+
     
     def _guess_category(self, text: str) -> str:
         """Guess question category based on keywords."""
@@ -373,6 +517,6 @@ Return ONLY valid JSON, no markdown formatting or code blocks."""
         return 'general'
 
 
-def get_question_extractor_agent() -> QuestionExtractorAgent:
+def get_question_extractor_agent(org_id: int = None) -> QuestionExtractorAgent:
     """Factory function to get Question Extractor Agent."""
-    return QuestionExtractorAgent()
+    return QuestionExtractorAgent(org_id=org_id)

@@ -417,7 +417,7 @@ Return ONLY valid JSON."""
         }
 
 
-def get_clarification_agent() -> ClarificationAgent:
+def get_clarification_agent(org_id: int = None) -> ClarificationAgent:
     """Factory function to get Clarification Agent."""
-    return ClarificationAgent()
+    return ClarificationAgent(org_id=org_id)
 

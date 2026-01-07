@@ -22,7 +22,36 @@ class SectionMapperAgent:
     - Learns organization's naming conventions
     - Handles custom section templates
     - Suggests section organization
+    - Tracks section completeness percentage
+    - Intelligent question grouping by theme
     """
+    
+    # Section completeness tracking configuration
+    SECTION_COMPLETENESS_TARGETS = {
+        'executive_summary': {'min_questions': 0, 'min_content_words': 200, 'required': True},
+        'company_background': {'min_questions': 2, 'min_content_words': 150, 'required': True},
+        'technical_approach': {'min_questions': 3, 'min_content_words': 300, 'required': True},
+        'security_compliance': {'min_questions': 3, 'min_content_words': 250, 'required': True},
+        'implementation': {'min_questions': 2, 'min_content_words': 200, 'required': True},
+        'support_maintenance': {'min_questions': 2, 'min_content_words': 150, 'required': False},
+        'pricing': {'min_questions': 1, 'min_content_words': 100, 'required': True},
+        'references': {'min_questions': 1, 'min_content_words': 100, 'required': False},
+        'appendix': {'min_questions': 0, 'min_content_words': 0, 'required': False}
+    }
+    
+    # Intelligent grouping - related question themes
+    QUESTION_GROUPING = {
+        'security_auth': ['authentication', 'authorization', 'sso', 'mfa', 'identity'],
+        'security_data': ['encryption', 'data protection', 'privacy', 'gdpr', 'pii'],
+        'security_audit': ['audit', 'logging', 'monitoring', 'soc', 'penetration'],
+        'technical_arch': ['architecture', 'infrastructure', 'scalability', 'cloud'],
+        'technical_int': ['integration', 'api', 'migration', 'data transfer'],
+        'support_sla': ['sla', 'uptime', 'availability', 'response time'],
+        'support_process': ['support process', 'escalation', 'ticketing', 'help desk'],
+        'commercial_pricing': ['pricing', 'cost', 'license', 'subscription'],
+        'commercial_terms': ['payment', 'contract', 'terms', 'renewal']
+    }
+
     
     # Default proposal structure
     DEFAULT_SECTIONS = {

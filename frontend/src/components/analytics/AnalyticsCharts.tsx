@@ -160,11 +160,26 @@ export function WinRateChart() {
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-bold text-text-primary">{total}</span>
-                        <span className="text-xs text-text-muted">Total</span>
+                        {total > 0 ? (
+                            <>
+                                <span className="text-3xl font-bold text-text-primary">{total}</span>
+                                <span className="text-xs text-text-muted">Total</span>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <ChartBarIcon className="h-8 w-8 text-gray-200 mb-1" />
+                                <span className="text-[10px] text-gray-400 font-medium">No Data</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {total === 0 && (
+                <div className="text-center pb-2">
+                    <p className="text-xs text-text-muted mb-3">Create your first project to see win/loss analytics</p>
+                </div>
+            )}
 
             {/* Legend */}
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -283,7 +298,13 @@ export function TeamLeaderboard() {
             </div>
 
             {team.length === 0 ? (
-                <p className="text-center text-text-muted py-4">No team data available</p>
+                <div className="text-center py-8">
+                    <div className="h-12 w-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                        <TrophyIcon className="h-6 w-6 text-gray-300" />
+                    </div>
+                    <p className="text-sm font-medium text-text-primary mb-1">No Leaderboard Yet</p>
+                    <p className="text-xs text-text-muted">Complete sections to earn points</p>
+                </div>
             ) : (
                 <div className="space-y-3">
                     {team.slice(0, 5).map((member, index) => (
@@ -351,7 +372,13 @@ export function LossReasonsChart() {
             </div>
 
             {reasons.length === 0 ? (
-                <p className="text-center text-text-muted py-4">No loss data yet</p>
+                <div className="text-center py-8">
+                    <div className="h-12 w-12 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                        <XCircleIcon className="h-6 w-6 text-gray-300" />
+                    </div>
+                    <p className="text-sm font-medium text-text-primary mb-1">No Loss Data</p>
+                    <p className="text-xs text-text-muted">Tracking reasons for lost biddings</p>
+                </div>
             ) : (
                 <div className="space-y-3">
                     {reasons.map((reason) => {

@@ -104,6 +104,36 @@ def delete_notification(notification_id):
     return jsonify({'message': 'Notification deleted'}), 200
 
 
+@bp.route('/test', methods=['POST'])
+@jwt_required()
+def create_test_notification():
+    """Create a test notification for the current user (for testing purposes)."""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    notification = Notification(
+        user_id=user_id,
+        actor_id=user_id,
+        type='test',
+        entity_type='system',
+        entity_id=0,
+        title='🎉 Test Notification',
+        message='This is a test notification to verify the notification system is working!',
+        link='/dashboard'
+    )
+    
+    db.session.add(notification)
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Test notification created',
+        'notification': notification.to_dict()
+    }), 201
+
+
 def create_mention_notification(mentioned_user_id: int, actor_id: int, entity_type: str, entity_id: int, project_id: int = None):
     """Helper function to create a mention notification."""
     # Don't notify yourself

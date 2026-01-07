@@ -1,14 +1,127 @@
 """
 Analytics and Statistics API routes.
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from ..extensions import db
-from ..models import User, Project, Question, Answer, Document, KnowledgeItem
+from ..models import User, Project, Question, Answer, Document, KnowledgeItem, RFPSection, Organization
+from ..models.feedback import AgentPerformance
 
 bp = Blueprint('analytics', __name__)
+
+
+@bp.route('/usage', methods=['GET'])
+@jwt_required()
+def get_usage_stats():
+    """
+    Get organization usage statistics with plan limits.
+    
+    Returns current consumption vs. plan limits for:
+    - Users
+    - Projects
+    - Documents
+    - Knowledge items
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if not user.organization_id:
+        return jsonify({'error': 'No organization found'}), 404
+    
+    org = Organization.query.get(user.organization_id)
+    if not org:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    # Get current usage counts
+    user_count = User.query.filter_by(organization_id=org.id).count()
+    project_count = Project.query.filter_by(organization_id=org.id).count()
+    document_count = db.session.query(Document).join(Project).filter(
+        Project.organization_id == org.id
+    ).count()
+    knowledge_count = KnowledgeItem.query.filter_by(
+        organization_id=org.id,
+        is_active=True
+    ).count()
+    
+    # Calculate usage percentages (-1 means unlimited)
+    def calc_percentage(current, max_val):
+        if max_val == -1:
+            return 0  # Unlimited
+        return round(current / max(max_val, 1) * 100, 1)
+    
+    # Get additional stats
+    total_questions = db.session.query(Question).join(Project).filter(
+        Project.organization_id == org.id
+    ).count()
+    
+    answered_questions = db.session.query(Question).join(Project).filter(
+        Project.organization_id == org.id,
+        Question.status.in_(['answered', 'approved'])
+    ).count()
+    
+    approved_answers = db.session.query(Answer).join(Question).join(Project).filter(
+        Project.organization_id == org.id,
+        Answer.status == 'approved'
+    ).count()
+    
+    # AI generations this month
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+    ai_generations = db.session.query(Answer).join(Question).join(Project).filter(
+        Project.organization_id == org.id,
+        Answer.is_ai_generated == True,
+        Answer.created_at >= month_start
+    ).count()
+    
+    return jsonify({
+        'organization': {
+            'id': org.id,
+            'name': org.name,
+            'subscription_plan': org.subscription_plan,
+            'subscription_status': org.subscription_status,
+            'is_trial_active': org.is_trial_active,
+            'trial_days_remaining': org.trial_days_remaining if org.is_trial_active else None,
+            'trial_ends_at': org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+        },
+        'usage': {
+            'users': {
+                'current': user_count,
+                'limit': org.max_users,
+                'percentage': calc_percentage(user_count, org.max_users),
+                'unlimited': org.max_users == -1
+            },
+            'projects': {
+                'current': project_count,
+                'limit': org.max_projects,
+                'percentage': calc_percentage(project_count, org.max_projects),
+                'unlimited': org.max_projects == -1
+            },
+            'documents': {
+                'current': document_count,
+                'limit': org.max_documents,
+                'percentage': calc_percentage(document_count, org.max_documents),
+                'unlimited': org.max_documents == -1
+            },
+            'knowledge_items': {
+                'current': knowledge_count,
+                'limit': -1,  # No limit on knowledge items
+                'percentage': 0,
+                'unlimited': True
+            }
+        },
+        'activity': {
+            'total_questions': total_questions,
+            'answered_questions': answered_questions,
+            'approved_answers': approved_answers,
+            'answer_rate': round(answered_questions / max(total_questions, 1) * 100, 1),
+            'approval_rate': round(approved_answers / max(answered_questions, 1) * 100, 1),
+            'ai_generations_this_month': ai_generations
+        }
+    }), 200
 
 
 @bp.route('/dashboard', methods=['GET'])
@@ -103,6 +216,110 @@ def get_dashboard_stats():
         },
         'recent_projects': [p.to_dict() for p in recent_projects],
         'activity': activity
+    }), 200
+
+
+@bp.route('/project-health/<int:project_id>', methods=['GET'])
+@jwt_required()
+def get_project_health(project_id):
+    """
+    Get detailed health metrics for a specific project.
+    
+    Returns:
+    - Completion %
+    - Owners breakdown
+    - SME bottlenecks
+    - Verification score average
+    - Due date status
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+        
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+        
+    # Check if user belongs to the same org
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    questions = Question.query.filter_by(project_id=project_id).all()
+    total_questions = len(questions)
+    
+    # Also get sections for proposal-based completion
+    sections = RFPSection.query.filter_by(project_id=project_id).all()
+    total_sections = len(sections)
+    approved_sections = sum(1 for s in sections if s.status == 'approved')
+    
+    # Use sections if no questions, otherwise use questions
+    if total_sections > 0 and total_questions == 0:
+        # Proposal-based workflow
+        completion_percentage = (approved_sections / total_sections) * 100
+        answered_count = approved_sections
+        total_items = total_sections
+        item_type = 'sections'
+    elif total_questions > 0:
+        # Q&A-based workflow
+        answered_count = sum(1 for q in questions if q.status in ['answered', 'approved'])
+        completion_percentage = (answered_count / total_questions) * 100
+        total_items = total_questions
+        item_type = 'questions'
+    else:
+        return jsonify({
+            'completion_percentage': 0,
+            'owners_breakdown': [],
+            'bottlenecks': [],
+            'verification_health': 0,
+            'project_name': project.name,
+            'status': project.status,
+            'due_date': project.due_date.isoformat() if project.due_date else None
+        }), 200
+
+    # Owners breakdown
+    owners_stats = {}
+    for q in questions:
+        owner_name = q.assignee.name if q.assignee else 'Unassigned'
+        owner_id = q.assigned_to or 0
+        
+        if owner_id not in owners_stats:
+            owners_stats[owner_id] = {
+                'name': owner_name,
+                'total': 0,
+                'answered': 0,
+                'pending': 0
+            }
+        
+        owners_stats[owner_id]['total'] += 1
+        if q.status in ['answered', 'approved']:
+            owners_stats[owner_id]['answered'] += 1
+        else:
+            owners_stats[owner_id]['pending'] += 1
+
+    owners_list = list(owners_stats.values())
+    
+    # Bottlenecks (more than 5 pending questions or 50% of project pending)
+    bottlenecks = [o for o in owners_list if o['pending'] > 5 and o['name'] != 'Unassigned']
+
+    # Verification Health
+    answers = db.session.query(Answer).join(Question).filter(Question.project_id == project_id).all()
+    verification_scores = [a.verification_score for a in answers if a.verification_score is not None]
+    avg_verification = sum(verification_scores) / len(verification_scores) if verification_scores else 0
+
+    return jsonify({
+        'project_id': project_id,
+        'project_name': project.name,
+        'completion_percentage': round(completion_percentage, 2),
+        'total_questions': total_items,
+        'answered_count': answered_count,
+        'item_type': item_type if 'item_type' in dir() else 'questions',
+        'owners_breakdown': owners_list,
+        'bottlenecks': bottlenecks,
+        'verification_health': round(avg_verification, 4),
+        'status': project.status,
+        'due_date': project.due_date.isoformat() if project.due_date else None
     }), 200
 
 
@@ -419,3 +636,251 @@ def get_loss_reasons():
     
     return jsonify({'loss_reasons': reasons}), 200
 
+
+@bp.route('/content-performance', methods=['GET'])
+@jwt_required()
+def get_content_performance():
+    """Get performance metrics for library content."""
+    from ..models import AnswerLibraryItem
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+        
+    org_id = user.organization_id
+    
+    # Top used items
+    top_used = AnswerLibraryItem.query.filter_by(
+        organization_id=org_id,
+        is_active=True
+    ).order_by(AnswerLibraryItem.times_used.desc()).limit(10).all()
+    
+    # Highest helpfulness items
+    best_rated = AnswerLibraryItem.query.filter(
+        AnswerLibraryItem.organization_id == org_id,
+        AnswerLibraryItem.is_active == True,
+        AnswerLibraryItem.times_used > 0
+    ).order_by(
+        (AnswerLibraryItem.times_helpful / AnswerLibraryItem.times_used).desc()
+    ).limit(10).all()
+    
+    # Category performance
+    category_stats = db.session.query(
+        AnswerLibraryItem.category,
+        func.count(AnswerLibraryItem.id),
+        func.sum(AnswerLibraryItem.times_used),
+        func.sum(AnswerLibraryItem.times_helpful)
+    ).filter(
+        AnswerLibraryItem.organization_id == org_id,
+        AnswerLibraryItem.is_active == True
+    ).group_by(AnswerLibraryItem.category).all()
+    
+    categories = []
+    for cat, count, used, helpful in category_stats:
+        if cat:
+            categories.append({
+                'category': cat,
+                'count': count,
+                'total_usage': used or 0,
+                'total_helpful': helpful or 0,
+                'helpfulness_rate': round((helpful or 0) / max(used or 1, 1) * 100, 1)
+            })
+    
+    return jsonify({
+        'top_used': [item.to_dict() for item in top_used],
+        'best_rated': [item.to_dict() for item in best_rated],
+        'category_performance': categories
+    }), 200
+
+
+@bp.route('/advanced', methods=['GET'])
+@jwt_required()
+def get_advanced_analytics():
+    """
+    Get advanced win/loss analytics including multidimensional breakdown and trends.
+    
+    Query params:
+        dimension: Grouping dimension (industry, client_type, geography)
+        months: Number of months for trend analysis (default 12)
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    from ..services.win_loss_analytics_service import get_win_loss_analytics_service
+    
+    dimension = request.args.get('dimension', 'industry')
+    months = request.args.get('months', 12, type=int)
+    
+    service = get_win_loss_analytics_service(user.organization_id)
+    
+    # Get win rate analysis by dimension
+    win_rate_analysis = service.get_win_rate_analysis(dimension=dimension)
+    
+    # Get revenue trends
+    revenue_trends = service.get_revenue_trends(months=months)
+    
+    # Get top loss reasons (using service for consistency)
+    loss_reasons = service.get_loss_reason_analysis()
+    
+    return jsonify({
+        'win_rate_analysis': win_rate_analysis,
+        'revenue_trends': revenue_trends,
+        'loss_reasons': loss_reasons
+    }), 200
+
+
+@bp.route('/win-loss-deep-dive', methods=['GET'])
+@jwt_required()
+def win_loss_deep_dive():
+    """Deep dive into win/loss factors (Legacy endpoint, kept for compatibility)."""
+    # ... logic kept or redirected to new service if needed ...
+    # For now, we can redirect to advanced or keep as is. 
+    # Let's keep the existing logic but maybe enhance it later.
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+        
+    org_id = user.organization_id
+    
+    def get_dimension_stats(column):
+        results = db.session.query(
+            column,
+            func.count(Project.id).label('total'),
+            func.sum(db.case((Project.outcome == 'won', 1), else_=0)).label('won'),
+            func.sum(db.case((Project.outcome == 'lost', 1), else_=0)).label('lost')
+        ).filter(
+            Project.organization_id == org_id,
+            column.isnot(None)
+        ).group_by(column).all()
+        
+        return [
+            {
+                'name': name,
+                'total': total,
+                'won': won,
+                'lost': lost,
+                'win_rate': round(won / max(won + lost, 1) * 100, 1) if (won + lost) > 0 else None
+            }
+            for name, total, won, lost in results
+        ]
+
+    return jsonify({
+        'by_client_type': get_dimension_stats(Project.client_type),
+        'by_industry': get_dimension_stats(Project.industry),
+        'by_geography': get_dimension_stats(Project.geography)
+    }), 200
+
+
+@bp.route('/agent-performance', methods=['GET'])
+@jwt_required()
+def get_agent_performance():
+    """
+    Get agent performance metrics for the organization.
+    
+    Query params:
+        days: Number of days to look back (default 30)
+        agent: Filter by agent name
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Check for super admin or org access
+    org_id = user.organization_id
+    is_super_admin = getattr(user, 'is_super_admin', False)
+    
+    # Parse query params
+    days = request.args.get('days', 30, type=int)
+    agent_filter = request.args.get('agent')
+    
+    # Date range
+    start_date = datetime.utcnow() - timedelta(days=days)
+    
+    # Base query
+    query = AgentPerformance.query.filter(
+        AgentPerformance.created_at >= start_date
+    )
+    
+    # Filter by organization (via project) unless super admin
+    if not is_super_admin and org_id:
+        query = query.join(Project).filter(Project.organization_id == org_id)
+    
+    # Filter by agent name if specified
+    if agent_filter:
+        query = query.filter(AgentPerformance.agent_name == agent_filter)
+    
+    # Get metrics
+    metrics = query.order_by(AgentPerformance.created_at.desc()).limit(500).all()
+    
+    # Calculate aggregates by agent
+    agent_stats = {}
+    for m in metrics:
+        name = m.agent_name
+        if name not in agent_stats:
+            agent_stats[name] = {
+                'agent_name': name,
+                'total_executions': 0,
+                'successful': 0,
+                'failed': 0,
+                'total_time_ms': 0,
+                'errors': []
+            }
+        
+        agent_stats[name]['total_executions'] += 1
+        if m.success:
+            agent_stats[name]['successful'] += 1
+        else:
+            agent_stats[name]['failed'] += 1
+            if m.error_message:
+                agent_stats[name]['errors'].append({
+                    'time': m.created_at.isoformat() if m.created_at else None,
+                    'message': m.error_message[:200]  # Truncate
+                })
+        
+        if m.execution_time_ms:
+            agent_stats[name]['total_time_ms'] += m.execution_time_ms
+    
+    # Calculate averages and success rates
+    for name, stats in agent_stats.items():
+        total = stats['total_executions']
+        stats['success_rate'] = round(stats['successful'] / max(total, 1) * 100, 1)
+        stats['avg_execution_time_ms'] = round(stats['total_time_ms'] / max(total, 1), 0)
+        stats['errors'] = stats['errors'][:5]  # Keep only last 5 errors
+    
+    # Overall stats
+    total_executions = sum(s['total_executions'] for s in agent_stats.values())
+    total_successful = sum(s['successful'] for s in agent_stats.values())
+    total_time = sum(s['total_time_ms'] for s in agent_stats.values())
+    
+    # Recent executions for table
+    recent = [{
+        'id': m.id,
+        'agent_name': m.agent_name,
+        'step_name': m.step_name,
+        'execution_time_ms': m.execution_time_ms,
+        'success': m.success,
+        'error_message': m.error_message[:100] if m.error_message else None,
+        'context': m.context_data,
+        'created_at': m.created_at.isoformat() if m.created_at else None
+    } for m in metrics[:50]]
+    
+    return jsonify({
+        'summary': {
+            'total_executions': total_executions,
+            'successful': total_successful,
+            'failed': total_executions - total_successful,
+            'overall_success_rate': round(total_successful / max(total_executions, 1) * 100, 1),
+            'avg_execution_time_ms': round(total_time / max(total_executions, 1), 0),
+            'period_days': days
+        },
+        'by_agent': list(agent_stats.values()),
+        'recent_executions': recent
+    }), 200

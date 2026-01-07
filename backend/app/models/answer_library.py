@@ -21,6 +21,16 @@ class AnswerLibraryItem(db.Model):
     category = db.Column(db.String(100), nullable=True)   # security, technical, pricing, etc.
     tags = db.Column(db.JSON, default=list)               # Additional tags for search
     
+    # Workflow & Versioning
+    status = db.Column(db.String(50), default='approved')  # draft, under_review, approved, archived
+    version_number = db.Column(db.Integer, default=1)
+    item_metadata = db.Column(db.JSON, default=dict)       # Flexible metadata for additional info
+    
+    # Review management
+    last_reviewed_at = db.Column(db.DateTime, nullable=True)
+    next_review_due = db.Column(db.DateTime, nullable=True)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
     # Source tracking
     source_project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
     source_question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=True)
@@ -41,6 +51,7 @@ class AnswerLibraryItem(db.Model):
     organization = db.relationship('Organization', backref='library_items')
     creator = db.relationship('User', foreign_keys=[created_by])
     updater = db.relationship('User', foreign_keys=[updated_by])
+    reviewer_user = db.relationship('User', foreign_keys=[reviewed_by])
     source_project = db.relationship('Project', backref='library_items')
     
     def to_dict(self):
@@ -52,6 +63,13 @@ class AnswerLibraryItem(db.Model):
             'answer_text': self.answer_text,
             'category': self.category,
             'tags': self.tags or [],
+            'status': self.status,
+            'version_number': self.version_number,
+            'item_metadata': self.item_metadata or {},
+            'last_reviewed_at': self.last_reviewed_at.isoformat() if self.last_reviewed_at else None,
+            'next_review_due': self.next_review_due.isoformat() if self.next_review_due else None,
+            'reviewed_by': self.reviewed_by,
+            'reviewed_by_name': self.reviewer_user.name if self.reviewer_user else None,
             'source_project_id': self.source_project_id,
             'source_project_name': self.source_project.name if self.source_project else None,
             'source_question_id': self.source_question_id,

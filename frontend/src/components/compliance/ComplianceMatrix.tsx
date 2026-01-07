@@ -12,6 +12,7 @@ import {
     FunnelIcon,
     SparklesIcon,
     ArrowPathIcon,
+    ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { complianceApi } from '@/api/client';
 import { ComplianceItem, ComplianceStats, ComplianceStatus, RFPSection } from '@/types';
@@ -254,31 +255,34 @@ export default function ComplianceMatrix({ projectId, sections }: ComplianceMatr
 
     return (
         <div className="space-y-6">
-            {/* Header with Stats */}
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-lg font-semibold text-text-primary">Compliance Matrix</h2>
-                    <p className="text-sm text-text-secondary mt-1">
-                        Track RFP requirements and compliance status
+                    <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+                        <ShieldCheckIcon className="h-7 w-7 text-primary" />
+                        Compliance Matrix
+                    </h2>
+                    <p className="text-text-secondary mt-1">
+                        Track RFP requirements and automated compliance validation
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleExtractRequirements}
                         disabled={isExtracting}
-                        className="btn-secondary flex items-center gap-2"
+                        className="btn-secondary flex items-center gap-2 bg-white"
                         title="Extract requirements from RFP documents using AI"
                     >
                         {isExtracting ? (
                             <ArrowPathIcon className="h-4 w-4 animate-spin" />
                         ) : (
-                            <SparklesIcon className="h-4 w-4" />
+                            <SparklesIcon className="h-4 w-4 text-primary" />
                         )}
                         {isExtracting ? 'Extracting...' : 'AI Extract'}
                     </button>
                     <button
                         onClick={handleExport}
-                        className="btn-secondary flex items-center gap-2"
+                        className="btn-secondary flex items-center gap-2 bg-white"
                         disabled={items.length === 0}
                     >
                         <ArrowDownTrayIcon className="h-4 w-4" />
@@ -290,7 +294,7 @@ export default function ComplianceMatrix({ projectId, sections }: ComplianceMatr
                             setEditingId(null);
                             resetForm();
                         }}
-                        className="btn-primary flex items-center gap-2"
+                        className="btn-primary flex items-center gap-2 shadow-sm shadow-primary/20"
                     >
                         <PlusIcon className="h-4 w-4" />
                         Add Requirement
@@ -298,27 +302,35 @@ export default function ComplianceMatrix({ projectId, sections }: ComplianceMatr
                 </div>
             </div>
 
-            {/* Stats Bar */}
+            {/* Stats Dashboard */}
             {stats && stats.total > 0 && (
-                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <span className="text-sm text-gray-600">
-                        <strong>{stats.total}</strong> total
-                    </span>
-                    <span className="text-sm text-emerald-600">
-                        <strong>{stats.compliant}</strong> compliant
-                    </span>
-                    <span className="text-sm text-amber-600">
-                        <strong>{stats.partial}</strong> partial
-                    </span>
-                    <span className="text-sm text-red-600">
-                        <strong>{stats.non_compliant}</strong> non-compliant
-                    </span>
-                    <span className="text-sm text-gray-500">
-                        <strong>{stats.not_applicable}</strong> N/A
-                    </span>
-                    <span className="text-sm text-blue-600">
-                        <strong>{stats.pending}</strong> pending
-                    </span>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="p-4 rounded-xl border border-border bg-white shadow-sm flex flex-col items-center text-center">
+                        <span className="text-2xl font-bold text-text-primary">{stats.total}</span>
+                        <span className="text-xs text-text-muted uppercase font-semibold tracking-wider">Total</span>
+                    </div>
+                    <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/30 shadow-sm flex flex-col items-center text-center">
+                        <span className="text-2xl font-bold text-emerald-600">{stats.compliant}</span>
+                        <span className="text-xs text-emerald-700 uppercase font-semibold tracking-wider">Compliant</span>
+                    </div>
+                    <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/30 shadow-sm flex flex-col items-center text-center">
+                        <span className="text-2xl font-bold text-amber-600">{stats.partial}</span>
+                        <span className="text-xs text-amber-700 uppercase font-semibold tracking-wider">Partial</span>
+                    </div>
+                    <div className="p-4 rounded-xl border border-red-100 bg-red-50/30 shadow-sm flex flex-col items-center text-center">
+                        <span className="text-2xl font-bold text-red-600">{stats.non_compliant}</span>
+                        <span className="text-xs text-red-700 uppercase font-semibold tracking-wider">Missing</span>
+                    </div>
+                    <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/30 shadow-sm flex flex-col items-center text-center">
+                        <span className="text-2xl font-bold text-blue-600">{stats.pending}</span>
+                        <span className="text-xs text-blue-700 uppercase font-semibold tracking-wider">Pending</span>
+                    </div>
+                    <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 shadow-sm flex flex-col items-center justify-center text-center">
+                        <div className="text-2xl font-extrabold text-primary">
+                            {Math.round(((stats.compliant + stats.partial * 0.5) / (stats.total - stats.not_applicable)) * 100)}%
+                        </div>
+                        <span className="text-xs text-primary uppercase font-bold tracking-wider">Score</span>
+                    </div>
                 </div>
             )}
 

@@ -22,7 +22,45 @@ class DocumentAnalyzerAgent:
     - Key themes and focus areas
     - Requirements and evaluation criteria
     - Multi-document analysis with cross-references
+    - RFP type classification
+    - Submission format requirements detection
     """
+    
+    # RFP type classification
+    RFP_TYPE_CLASSIFICATION = {
+        'services': {
+            'keywords': ['consulting', 'professional services', 'advisory', 'managed services', 'outsourcing'],
+            'response_focus': 'methodology, team, experience, SLAs'
+        },
+        'product': {
+            'keywords': ['software', 'hardware', 'platform', 'solution', 'license', 'saas'],
+            'response_focus': 'features, roadmap, integration, support'
+        },
+        'construction': {
+            'keywords': ['construction', 'building', 'infrastructure', 'civil', 'facilities'],
+            'response_focus': 'qualifications, safety, schedule, bonding'
+        },
+        'it_infrastructure': {
+            'keywords': ['infrastructure', 'network', 'data center', 'cloud', 'hosting'],
+            'response_focus': 'architecture, security, scalability, uptime'
+        },
+        'staffing': {
+            'keywords': ['staffing', 'resources', 'augmentation', 'contingent', 'contractors'],
+            'response_focus': 'rates, availability, qualifications, screening'
+        }
+    }
+    
+    # Submission format requirements patterns
+    SUBMISSION_FORMAT_PATTERNS = {
+        'page_limit': r'(?:not exceed|maximum of|limit of|up to)\s+(\d+)\s+pages?',
+        'font_requirement': r'(?:font|typeface).*?(\d+)\s*(?:point|pt)',
+        'margin_requirement': r'margins?\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:inch|in|")',
+        'file_format': r'(?:submit|provide|format).*?(?:as\s+)?(\bpdf\b|\bdocx?\b|\bword\b)',
+        'copy_count': r'(\d+)\s+(?:copies|copy|hard copies)',
+        'electronic_submission': r'(?:electronic|email|portal|online)\s+submission',
+        'deadline_time': r'(?:by|before|no later than)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?)'
+    }
+
     
     ANALYSIS_PROMPT = """You are an expert RFP analyst. Carefully analyze this RFP (Request for Proposal) document and extract comprehensive information.
 
@@ -32,6 +70,9 @@ class DocumentAnalyzerAgent:
 3. Look for implicit requirements stated as expectations or preferences
 4. Note any specific formatting or response requirements
 5. Identify key stakeholders and their concerns
+6. EXTRACT ALL TABLES - look for tabular data with rows and columns
+7. EXTRACT ALL DATES - deadlines, milestones, submission dates
+8. DETECT ATTACHMENTS - look for references to appendices, exhibits, attachments
 
 **EXTRACT THE FOLLOWING:**
 
@@ -55,9 +96,13 @@ class DocumentAnalyzerAgent:
 
 5. **Deliverables**: What the vendor must provide
 
-6. **Timeline**: ALL dates and deadlines
+6. **Timeline**: ALL dates and deadlines with specific dates
 
 7. **Questions to Answer**: Explicit questions requiring vendor response
+
+8. **Tables Detected**: Any tabular data found (requirements tables, pricing tables, etc.)
+
+9. **Attachments/Appendices**: Referenced external documents
 
 **RESPOND WITH VALID JSON ONLY:**
 {{
@@ -74,6 +119,15 @@ class DocumentAnalyzerAgent:
   "questions_identified": [
     {{"text": "Question text", "section": "Section name", "requires_response": true}}
   ],
+  "tables_detected": [
+    {{"name": "Table name/purpose", "columns": ["col1", "col2"], "row_count": 0, "data_type": "requirements/pricing/compliance/other"}}
+  ],
+  "attachments": [
+    {{"name": "Attachment name", "type": "appendix/exhibit/schedule/form", "reference": "Where it was mentioned"}}
+  ],
+  "key_dates": [
+    {{"description": "What the date is for", "date": "YYYY-MM-DD or as stated", "is_deadline": true/false, "is_mandatory": true/false}}
+  ],
   "document_type": "rfp/rfq/rfi/questionnaire",
   "complexity_score": 0.0-1.0,
   "estimated_response_time_hours": 0,
@@ -84,6 +138,7 @@ class DocumentAnalyzerAgent:
 {text}
 
 Return ONLY valid JSON, no markdown formatting or code blocks."""
+
 
     MULTI_DOC_PROMPT = """Analyze multiple RFP documents and identify relationships between them.
 
@@ -344,12 +399,70 @@ Return ONLY valid JSON."""
         fallback_models=['gemini-1.5-pro']
     )
     def _analyze_with_ai(self, text: str) -> Dict:
-        """Use AI to analyze document structure."""
+        """Use AI to analyze document structure with chunked processing for large documents."""
         client = self.config.client
         if not client:
             return self._fallback_analysis(text)
         
-        prompt = self.ANALYSIS_PROMPT.format(text=text[:25000])
+        # Chunk size and overlap for processing large documents
+        CHUNK_SIZE = 20000  # 20K characters per chunk
+        CHUNK_OVERLAP = 2000  # 2K overlap to preserve context
+        
+        # If document fits in single chunk, process directly
+        if len(text) <= CHUNK_SIZE:
+            return self._analyze_single_chunk(text)
+        
+        # Process large documents in chunks
+        logger.info(f"Processing large document ({len(text)} chars) in chunks")
+        chunks = self._split_into_chunks(text, CHUNK_SIZE, CHUNK_OVERLAP)
+        logger.info(f"Split into {len(chunks)} chunks")
+        
+        # Analyze each chunk
+        chunk_analyses = []
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Analyzing chunk {i+1}/{len(chunks)}")
+            try:
+                chunk_result = self._analyze_single_chunk(chunk)
+                chunk_result['_chunk_index'] = i
+                chunk_analyses.append(chunk_result)
+            except Exception as e:
+                logger.warning(f"Chunk {i+1} analysis failed: {e}")
+        
+        # Merge chunk results
+        if not chunk_analyses:
+            return self._fallback_analysis(text)
+        
+        return self._merge_chunk_analyses(chunk_analyses)
+    
+    def _split_into_chunks(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+        """Split text into overlapping chunks, preferring to break at paragraph boundaries."""
+        chunks = []
+        start = 0
+        
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            
+            # If not at the end, try to find a good break point
+            if end < len(text):
+                search_start = max(end - 1000, start)
+                search_text = text[search_start:end]
+                para_break = search_text.rfind('\n\n')
+                if para_break != -1:
+                    end = search_start + para_break + 2
+                else:
+                    line_break = search_text.rfind('\n')
+                    if line_break != -1:
+                        end = search_start + line_break + 1
+            
+            chunks.append(text[start:end])
+            start = end - overlap if end < len(text) else len(text)
+        
+        return chunks
+    
+    def _analyze_single_chunk(self, text: str) -> Dict:
+        """Analyze a single text chunk with AI."""
+        client = self.config.client
+        prompt = self.ANALYSIS_PROMPT.format(text=text)
         
         try:
             if self.config.is_adk_enabled:
@@ -363,7 +476,6 @@ Return ONLY valid JSON."""
                 response = client.generate_content(prompt)
                 response_text = response.text
             
-            # Clean and parse JSON
             response_text = response_text.strip()
             if response_text.startswith('```'):
                 response_text = re.sub(r'^```(?:json)?\n?', '', response_text)
@@ -377,6 +489,62 @@ Return ONLY valid JSON."""
         except Exception as e:
             logger.error(f"AI analysis error: {e}")
             return self._fallback_analysis(text)
+    
+    def _merge_chunk_analyses(self, analyses: List[Dict]) -> Dict:
+        """Merge multiple chunk analyses into a single coherent result."""
+        merged = {
+            "sections": [], "themes": set(), "requirements": [],
+            "evaluation_criteria": [], "deliverables": [], "timeline": [],
+            "questions_identified": [], "tables_detected": [], "attachments": [],
+            "key_dates": [], "document_type": "rfp", "complexity_score": 0.0,
+            "estimated_response_time_hours": 0, "issuing_organization": None,
+            "_processing_info": {"chunks_processed": len(analyses), "chunked_processing": True}
+        }
+        
+        seen_sections, seen_requirements, seen_questions = set(), set(), set()
+        
+        for analysis in analyses:
+            for section in analysis.get("sections", []):
+                section_key = section.get("name", "").lower().strip()
+                if section_key and section_key not in seen_sections:
+                    seen_sections.add(section_key)
+                    merged["sections"].append(section)
+            
+            for theme in analysis.get("themes", []):
+                merged["themes"].add(theme.lower().strip() if isinstance(theme, str) else theme)
+            
+            for req in analysis.get("requirements", []):
+                req_text = req.get("text", "").lower().strip()[:100]
+                if req_text and req_text not in seen_requirements:
+                    seen_requirements.add(req_text)
+                    merged["requirements"].append(req)
+            
+            for q in analysis.get("questions_identified", []):
+                q_text = q.get("text", "").lower().strip()[:100]
+                if q_text and q_text not in seen_questions:
+                    seen_questions.add(q_text)
+                    merged["questions_identified"].append(q)
+            
+            merged["evaluation_criteria"].extend(analysis.get("evaluation_criteria", []))
+            merged["deliverables"].extend(analysis.get("deliverables", []))
+            merged["timeline"].extend(analysis.get("timeline", []))
+            merged["tables_detected"].extend(analysis.get("tables_detected", []))
+            merged["attachments"].extend(analysis.get("attachments", []))
+            merged["key_dates"].extend(analysis.get("key_dates", []))
+            merged["complexity_score"] += analysis.get("complexity_score", 0.5)
+            merged["estimated_response_time_hours"] += analysis.get("estimated_response_time_hours", 0)
+            
+            if not merged["issuing_organization"]:
+                merged["issuing_organization"] = analysis.get("issuing_organization")
+        
+        merged["themes"] = list(merged["themes"])
+        if analyses:
+            merged["complexity_score"] /= len(analyses)
+        merged["evaluation_criteria"] = list(set(merged["evaluation_criteria"]))
+        merged["deliverables"] = list(set(merged["deliverables"]))
+        
+        logger.info(f"Merged analysis: {len(merged['sections'])} sections, {len(merged['requirements'])} requirements")
+        return merged
     
     def _fallback_analysis(self, text: str) -> Dict:
         """Pattern-based analysis fallback."""
@@ -413,6 +581,15 @@ Return ONLY valid JSON."""
             if any(kw in text_lower for kw in keywords):
                 themes.append(theme)
         
+        # Extract dates using fallback method
+        key_dates = self._extract_dates_fallback(text)
+        
+        # Detect attachments using fallback method  
+        attachments = self._detect_attachments_fallback(text)
+        
+        # Detect tables using fallback method
+        tables = self._detect_tables_fallback(text)
+        
         return {
             "sections": sections,
             "themes": themes,
@@ -420,9 +597,134 @@ Return ONLY valid JSON."""
             "evaluation_criteria": [],
             "deliverables": [],
             "timeline": [],
+            "key_dates": key_dates,
+            "attachments": attachments,
+            "tables_detected": tables,
             "document_type": "rfp",
             "complexity_score": 0.5
         }
+    
+    def _extract_dates_fallback(self, text: str) -> List[Dict]:
+        """Extract dates and deadlines from text using patterns."""
+        dates = []
+        
+        # Common date patterns
+        date_patterns = [
+            # YYYY-MM-DD format
+            r'(\d{4}-\d{2}-\d{2})',
+            # MM/DD/YYYY or DD/MM/YYYY
+            r'(\d{1,2}/\d{1,2}/\d{4})',
+            # Month DD, YYYY
+            r'((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})',
+            # DD Month YYYY  
+            r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})',
+        ]
+        
+        # Deadline keywords to detect context
+        deadline_keywords = ['deadline', 'due', 'submit', 'submission', 'by', 'before', 'no later than', 'must be received']
+        
+        for pattern in date_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                date_str = match.group(1)
+                # Get surrounding context (100 chars before and after)
+                start = max(0, match.start() - 100)
+                end = min(len(text), match.end() + 50)
+                context = text[start:end].lower()
+                
+                is_deadline = any(kw in context for kw in deadline_keywords)
+                
+                dates.append({
+                    "date": date_str,
+                    "description": "Date found in document",
+                    "is_deadline": is_deadline,
+                    "is_mandatory": is_deadline
+                })
+        
+        # Deduplicate by date
+        seen = set()
+        unique_dates = []
+        for d in dates:
+            if d['date'] not in seen:
+                seen.add(d['date'])
+                unique_dates.append(d)
+        
+        return unique_dates[:20]  # Limit to 20 dates
+    
+    def _detect_attachments_fallback(self, text: str) -> List[Dict]:
+        """Detect references to attachments and appendices."""
+        attachments = []
+        
+        # Patterns for attachment references
+        attachment_patterns = [
+            (r'[Aa]ppendix\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'appendix'),
+            (r'[Ee]xhibit\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'exhibit'),
+            (r'[Aa]ttachment\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'attachment'),
+            (r'[Ss]chedule\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'schedule'),
+            (r'[Ff]orm\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'form'),
+            (r'[Aa]nnex\s+([A-Z0-9]+)(?:\s*[-:]\s*([^\n]+))?', 'annex'),
+        ]
+        
+        for pattern, att_type in attachment_patterns:
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                name = f"{att_type.title()} {match.group(1)}"
+                description = match.group(2).strip() if match.group(2) else ""
+                
+                attachments.append({
+                    "name": name,
+                    "type": att_type,
+                    "reference": description or f"Referenced in document",
+                    "description": description
+                })
+        
+        # Deduplicate by name
+        seen = set()
+        unique = []
+        for a in attachments:
+            if a['name'] not in seen:
+                seen.add(a['name'])
+                unique.append(a)
+        
+        return unique
+    
+    def _detect_tables_fallback(self, text: str) -> List[Dict]:
+        """Detect table-like structures in text."""
+        tables = []
+        
+        # Look for patterns that suggest tables
+        table_indicators = [
+            (r'[Tt]able\s+(\d+)[:\s]*([^\n]+)?', 'numbered'),
+            (r'[Rr]equirements?\s+[Tt]able', 'requirements'),
+            (r'[Pp]ricing\s+[Tt]able', 'pricing'),
+            (r'[Cc]ompliance\s+[Mm]atrix', 'compliance'),
+            (r'[Ee]valuation\s+[Cc]riteria', 'evaluation'),
+            (r'[Ss]coring\s+[Mm]atrix', 'scoring'),
+        ]
+        
+        for pattern, table_type in table_indicators:
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                name = match.group(0).strip()
+                tables.append({
+                    "name": name,
+                    "columns": [],  # Can't extract without actual parsing
+                    "row_count": 0,
+                    "data_type": table_type
+                })
+        
+        # Look for pipe-delimited content (markdown tables)
+        pipe_table_pattern = r'(\|[^\n]+\|)\n(\|[-:\s|]+\|)'
+        pipe_matches = re.findall(pipe_table_pattern, text)
+        for _ in pipe_matches:
+            tables.append({
+                "name": "Markdown Table",
+                "columns": [],
+                "row_count": 0,
+                "data_type": "other"
+            })
+        
+        return tables[:10]  # Limit to 10 tables
 
 
 def get_document_analyzer_agent(org_id: int = None) -> DocumentAnalyzerAgent:
