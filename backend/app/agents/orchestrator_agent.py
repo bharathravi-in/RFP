@@ -31,6 +31,9 @@ from .similarity_validator_agent import get_similarity_validator_agent
 from .proposal_narrative_architect_agent import get_proposal_narrative_architect
 from .proposal_depth_scoring_agent import get_proposal_depth_scoring_agent
 from .executive_confidence_gate_agent import get_executive_confidence_gate
+# Client Context & Isolation Agents (CRITICAL - P0)
+from .client_context_synthesis_agent import get_client_context_synthesis_agent
+from .context_isolation_agent import get_context_isolation_agent
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,10 @@ class OrchestratorAgent:
         self.name = "OrchestratorAgent"
         self.org_id = org_id
         
+        # Initialize Client Context & Isolation Agents (CRITICAL - P0, run before all)
+        self.client_context_agent = get_client_context_synthesis_agent(org_id=org_id)
+        self.context_isolation_agent = get_context_isolation_agent(org_id=org_id)
+        
         # Initialize Narrative Control Layer agents (P0 - run first)
         self.narrative_architect = get_proposal_narrative_architect(org_id=org_id)
         self.depth_scorer = get_proposal_depth_scoring_agent(org_id=org_id)
@@ -114,8 +121,9 @@ class OrchestratorAgent:
         self.clarification_agent = get_clarification_agent(org_id=org_id)
         self.quality_reviewer = get_quality_reviewer_agent(org_id=org_id)
         
-        # Cached narrative context for use across all agents
+        # Cached context for use across all agents
         self._narrative_context = None
+        self._client_context = None  # NEW: Client context (domain, forbidden refs)
     
     def analyze_rfp(
         self,
@@ -152,6 +160,7 @@ class OrchestratorAgent:
             "steps_completed": [],
             "document_analysis": None,
             "narrative_context": None,
+            "client_context": None,  # NEW: Domain, forbidden refs, success definition
             "questions": [],
             "answers": [],
             "depth_scores": {},
@@ -161,16 +170,38 @@ class OrchestratorAgent:
         }
         
         try:
-            # Step 0: Build Narrative Context (P0 - RUNS FIRST)
-            session_state[SessionKeys.CURRENT_STEP] = "building_narrative"
-            logger.info("Step 0: Building narrative context (Narrative Architect)...")
-            
             # Extract project data from options or build from document
             project_data = options.get('project_data', {
                 'name': options.get('project_name', 'RFP Response'),
                 'client_name': options.get('client_name', 'Client'),
                 'description': document_text[:2000]  # First 2000 chars as description
             })
+            
+            # Step 0: Synthesize Client Context (CRITICAL - RUNS BEFORE ALL)
+            session_state[SessionKeys.CURRENT_STEP] = "synthesizing_client_context"
+            logger.info("Step 0: Synthesizing client context (CRITICAL)...")
+            
+            context_result = self.client_context_agent.synthesize_context(
+                rfp_title=project_data.get('name', ''),
+                client_name=project_data.get('client_name', ''),
+                industry=options.get('industry', ''),
+                description=project_data.get('description', document_text[:2000])
+            )
+            
+            if context_result.get('success'):
+                self._client_context = context_result.get('context', {})
+                result["client_context"] = self._client_context
+                result["steps_completed"].append("client_context_synthesis")
+                session_state['client_context'] = self._client_context
+                logger.info(f"Client context synthesized: domain={self._client_context.get('domain')}, forbidden_refs={len(self._client_context.get('forbidden_references', []))}")
+            else:
+                logger.warning("Client context synthesis failed - using defaults")
+                self._client_context = {'domain': 'enterprise', 'forbidden_references': []}
+                session_state['client_context'] = self._client_context
+            
+            # Step 0.5: Build Narrative Context (P0 - Uses client context)
+            session_state[SessionKeys.CURRENT_STEP] = "building_narrative"
+            logger.info("Step 0.5: Building narrative context (Narrative Architect)...")
             
             narrative_result = self.narrative_architect.build_narrative_context(
                 project_data=project_data,
@@ -189,6 +220,7 @@ class OrchestratorAgent:
                 logger.warning("Narrative architecture skipped - using defaults")
                 self._narrative_context = self.narrative_architect.DEFAULT_NARRATIVE
                 session_state['narrative_context'] = self._narrative_context
+
             
             # Step 1: Analyze Document
             session_state[SessionKeys.CURRENT_STEP] = "analyzing_document"
@@ -332,6 +364,40 @@ class OrchestratorAgent:
             
             session_state = review_result.get("session_state", session_state)
             
+            # Step 6.5: Content Isolation Validation (CRITICAL - Prevent contamination)
+            session_state[SessionKeys.CURRENT_STEP] = "validating_content_isolation"
+            logger.info("Step 6.5: Validating content isolation (checking for cross-contamination)...")
+            
+            isolation_violations = []
+            try:
+                if self._client_context:
+                    for i, answer in enumerate(result.get("answers", [])):
+                        content = answer.get('content', answer.get('answer', ''))
+                        if content:
+                            validation = self.context_isolation_agent.validate_content(
+                                content=content,
+                                client_context=self._client_context
+                            )
+                            
+                            if not validation.get('valid'):
+                                isolation_violations.append({
+                                    'index': i,
+                                    'violations': validation.get('violations', []),
+                                    'requires_regeneration': validation.get('requires_regeneration', False)
+                                })
+                    
+                    result["isolation_violations"] = isolation_violations
+                    result["steps_completed"].append("content_isolation_validation")
+                    
+                    if isolation_violations:
+                        logger.warning(f"Found {len(isolation_violations)} sections with contamination issues")
+                else:
+                    result["steps_completed"].append("content_isolation_validation_skipped")
+                    
+            except Exception as isolation_err:
+                logger.warning(f"Content isolation validation skipped: {isolation_err}")
+                result["steps_completed"].append("content_isolation_validation_skipped")
+            
             # Step 7: Score Content Depth (P0 - Quality Enforcement)
             session_state[SessionKeys.CURRENT_STEP] = "scoring_depth"
             logger.info("Step 7: Scoring content depth (Depth Scoring Agent)...")
@@ -369,10 +435,60 @@ class OrchestratorAgent:
                 result["low_scoring_sections"] = low_scoring_sections
                 result["steps_completed"].append("depth_scoring")
                 
+                # Step 7.5: Auto-Regeneration Loop for Low-Scoring Sections
                 if low_scoring_sections:
-                    logger.warning(f"Found {len(low_scoring_sections)} sections below quality threshold")
-                    # TODO: Implement regeneration loop for low-scoring sections
+                    logger.warning(f"Found {len(low_scoring_sections)} sections below quality threshold - starting regeneration")
                     result["regeneration_needed"] = True
+                    
+                    regeneration_results = []
+                    for low_section in low_scoring_sections[:self.MAX_REGENERATION_ATTEMPTS]:
+                        try:
+                            idx = low_section['index']
+                            original_answer = result["answers"][idx]
+                            question = original_answer.get('question', {})
+                            
+                            # Add improvement hints based on issues
+                            improvement_hints = []
+                            for issue in low_section.get('issues', []):
+                                improvement_hints.append(f"- {issue}")
+                            
+                            # Regenerate with context
+                            logger.info(f"Regenerating section {idx}: {low_section['title'][:50]}...")
+                            
+                            regen_result = self.answer_generator.regenerate_answer(
+                                question=question,
+                                original_answer=original_answer.get('content', ''),
+                                improvement_hints=improvement_hints,
+                                narrative_context=self._narrative_context,
+                                session_state=session_state
+                            )
+                            
+                            if regen_result.get('success'):
+                                new_content = regen_result.get('answer', original_answer.get('content', ''))
+                                result["answers"][idx]['content'] = new_content
+                                result["answers"][idx]['regenerated'] = True
+                                regeneration_results.append({
+                                    'index': idx,
+                                    'success': True,
+                                    'previous_score': low_section['score']
+                                })
+                            else:
+                                regeneration_results.append({
+                                    'index': idx,
+                                    'success': False,
+                                    'reason': 'regeneration_failed'
+                                })
+                                
+                        except Exception as regen_err:
+                            logger.warning(f"Regeneration failed for section {idx}: {regen_err}")
+                            regeneration_results.append({
+                                'index': idx,
+                                'success': False,
+                                'reason': str(regen_err)
+                            })
+                    
+                    result["regeneration_results"] = regeneration_results
+                    result["steps_completed"].append("auto_regeneration")
                 else:
                     result["regeneration_needed"] = False
                     

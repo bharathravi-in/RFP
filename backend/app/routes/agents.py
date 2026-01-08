@@ -1575,6 +1575,82 @@ def detect_ai_patterns():
         return jsonify({"error": str(e)}), 500
 
 
+@agents_bp.route('/synthesize-client-context', methods=['POST'])
+def synthesize_client_context():
+    """
+    Synthesize client context from RFP data.
+    
+    CRITICAL: This must be called BEFORE any proposal generation.
+    
+    Request body:
+    {
+        "rfp_title": "Project Title",
+        "client_name": "Client Name",
+        "industry": "Healthcare",
+        "description": "RFP description"
+    }
+    """
+    from app.agents import get_client_context_synthesis_agent
+    
+    data = request.get_json() or {}
+    
+    rfp_title = data.get('rfp_title', '')
+    client_name = data.get('client_name', '')
+    industry = data.get('industry', '')
+    description = data.get('description', '')
+    rfp_analysis = data.get('rfp_analysis', {})
+    
+    try:
+        agent = get_client_context_synthesis_agent()
+        result = agent.synthesize_context(
+            rfp_title=rfp_title,
+            client_name=client_name,
+            industry=industry,
+            description=description,
+            rfp_analysis=rfp_analysis
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Client context synthesis failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/validate-isolation', methods=['POST'])
+def validate_isolation():
+    """
+    Validate content against client context for cross-contamination.
+    
+    Request body:
+    {
+        "content": "The content to validate",
+        "client_context": {"client_name": "...", "domain": "...", "forbidden_references": [...]}
+    }
+    """
+    from app.agents import get_context_isolation_agent
+    
+    data = request.get_json() or {}
+    
+    content = data.get('content', '')
+    client_context = data.get('client_context', {})
+    
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    
+    if not client_context:
+        return jsonify({"error": "client_context is required"}), 400
+    
+    try:
+        agent = get_context_isolation_agent()
+        result = agent.validate_content(content, client_context)
+        return jsonify({
+            'success': True,
+            'validation': result
+        })
+    except Exception as e:
+        logger.error(f"Isolation validation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ===============================
 # Competitive Analysis Routes (NEW)
 # ===============================

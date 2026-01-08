@@ -92,6 +92,9 @@ from .case_study_agent import CaseStudyGeneratorAgent, get_case_study_agent
 from .proposal_narrative_architect_agent import ProposalNarrativeArchitectAgent, get_proposal_narrative_architect
 from .proposal_depth_scoring_agent import ProposalDepthScoringAgent, get_proposal_depth_scoring_agent
 from .executive_confidence_gate_agent import ExecutiveConfidenceGateAgent, get_executive_confidence_gate
+# Client Context & Isolation Agents (CRITICAL)
+from .client_context_synthesis_agent import ClientContextSynthesisAgent, get_client_context_synthesis_agent
+from .context_isolation_agent import ContextIsolationAgent, get_context_isolation_agent
 from .metrics_service import (
     AgentMetricsService,
     get_metrics_service,
@@ -167,6 +170,11 @@ __all__ = [
     'get_proposal_depth_scoring_agent',
     'ExecutiveConfidenceGateAgent',
     'get_executive_confidence_gate',
+    # Client Context & Isolation Agents (CRITICAL)
+    'ClientContextSynthesisAgent',
+    'get_client_context_synthesis_agent',
+    'ContextIsolationAgent',
+    'get_context_isolation_agent',
     # Metrics & Observability
     'AgentMetricsService',
     'get_metrics_service',

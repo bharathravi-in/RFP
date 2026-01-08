@@ -97,6 +97,147 @@ class ProposalWriterAgent:
         }
     }
     
+    # CRITICAL: Inference Rules - How to handle missing data
+    # OLD: "If data is missing, say nothing"
+    # NEW: "If domain is known, infer responsibly and state assumptions"
+    INFERENCE_RULES = {
+        'philosophy': 'State assumptions explicitly. Infer from domain knowledge. Own your recommendations.',
+        
+        'when_to_infer': [
+            'Domain/sector is known (healthcare, government, enterprise)',
+            'Client type is identifiable (NGO, startup, enterprise)',
+            'Standard practices exist for this type of engagement'
+        ],
+        
+        'when_not_to_infer': [
+            'Specific pricing or commercial terms',
+            'Client-specific technical details not in RFP',
+            'Named personnel or resources',
+            'Legal commitments'
+        ],
+        
+        'inference_templates': {
+            'team': "Based on typical {domain} engagements of this scope, we recommend a team comprising...",
+            'timeline': "For projects of this nature in the {domain} sector, we typically allocate...",
+            'methodology': "Drawing on our experience with {sector} clients, our approach would...",
+            'risks': "Common risks in {domain} implementations include...",
+            'quality': "For {sector} engagements, we apply our standard quality framework including..."
+        },
+        
+        'assumption_format': "**Assumption:** {assumption_text}",
+        
+        'forbidden_responses': [
+            "We cannot generate",
+            "Information not available",
+            "Unable to provide",
+            "No information provided",
+            "Cannot be determined"
+        ]
+    }
+    
+    # Consulting Narrative Pattern - Every section MUST answer these
+    CONSULTING_NARRATIVE_PATTERN = {
+        'required_elements': [
+            {
+                'name': 'why_problem_exists',
+                'question': 'Why does this problem exist for THIS client?',
+                'weight': 0.25
+            },
+            {
+                'name': 'why_generic_fails',
+                'question': 'Why do generic solutions fail in this context?',
+                'weight': 0.20
+            },
+            {
+                'name': 'why_our_approach',
+                'question': 'Why does OUR approach fit THIS specific context?',
+                'weight': 0.25
+            },
+            {
+                'name': 'risks_we_own',
+                'question': 'What risks do we acknowledge and take ownership of?',
+                'weight': 0.15
+            },
+            {
+                'name': 'success_measurement',
+                'question': 'How will success be measured for THIS client?',
+                'weight': 0.15
+            }
+        ],
+        'validation_rule': 'If section can be reused for another client without changes → FAIL'
+    }
+    
+    # Default templates for when sections cannot be fully generated
+    DEFAULT_SECTION_TEMPLATES = {
+        'team': """
+## Proposed Team Structure
+
+Based on typical engagements of this scope and nature, we recommend the following team composition:
+
+### Core Team
+| Role | Responsibility | Allocation |
+|------|---------------|------------|
+| Engagement Lead | Overall delivery ownership, client relationship | 25% |
+| Solution Architect | Technical design, architecture decisions | 50% |
+| Technical Lead | Implementation oversight, code quality | 100% |
+| Developers | Feature development, testing | 100% x 2-3 |
+| QA Lead | Test strategy, quality assurance | 50% |
+
+### Governance
+- **Weekly Status Meetings**: Progress review, risk mitigation
+- **Bi-weekly Steering Committee**: Executive alignment, escalations
+- **Monthly Business Reviews**: Strategic alignment, roadmap planning
+
+**Assumption:** Final team composition will be confirmed during the Discovery phase based on detailed requirements analysis.
+""",
+        'quality': """
+## Quality Assurance Approach
+
+Our quality framework ensures delivery excellence through:
+
+### Testing Strategy
+1. **Unit Testing**: Automated tests for all components (>80% coverage target)
+2. **Integration Testing**: End-to-end workflow validation
+3. **User Acceptance Testing**: Client-driven validation with defined acceptance criteria
+4. **Performance Testing**: Load and stress testing for production readiness
+
+### Quality Gates
+- Code review before merge (2+ approvers)
+- Automated CI/CD pipeline with quality checks
+- Sprint demo and retrospective cycles
+- Defect tracking with SLA-based resolution
+
+### Acceptance Criteria
+- All critical and high-priority defects resolved
+- Performance benchmarks met
+- User acceptance sign-off obtained
+- Documentation complete and reviewed
+
+**Assumption:** Specific quality metrics will be defined collaboratively during the project initiation phase.
+""",
+        'risks': """
+## Risk Management
+
+### Identified Risks
+
+| Risk | Impact | Probability | Mitigation | Owner |
+|------|--------|-------------|------------|-------|
+| Scope Creep | Schedule and budget overrun | Medium | Change control process, clear CR mechanism | PM |
+| Resource Availability | Delivery delays | Low | Cross-training, backup resources identified | Delivery Lead |
+| Technical Complexity | Extended development time | Medium | Proof of concept for complex features, early prototyping | Tech Lead |
+| Integration Challenges | System compatibility issues | Medium | Early integration testing, API documentation review | Architect |
+| Change Resistance | Low adoption | Low | Stakeholder engagement, training program | Change Lead |
+
+### Risk Response Strategy
+- **Avoid**: Eliminate risks through design decisions
+- **Mitigate**: Reduce probability or impact through proactive measures
+- **Transfer**: Share risk through partnership agreements
+- **Accept**: Monitor and respond if risk materializes
+
+**Note:** Risk register will be actively maintained throughout the engagement.
+"""
+    }
+    
     MASTER_PROMPT = """# SYSTEM PROMPT — ENTERPRISE RFP / PROPOSAL DOCUMENT GENERATOR (STRICT MODE)
 
 You are an **Enterprise Proposal Authoring Agent** working on behalf of **{organization_name}**.

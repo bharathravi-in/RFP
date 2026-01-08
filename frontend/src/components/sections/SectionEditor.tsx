@@ -27,6 +27,7 @@ import SectionHistory from '@/components/sections/SectionHistory';
 import SectionDetailsSidebar from '@/components/sections/SectionDetailsSidebar';
 import RelatedQASidebar from '@/components/sections/RelatedQASidebar';
 import { ConfidenceIndicator } from '@/components/ai';
+import { QualityScoreIndicator, QualityScoreBadge } from '@/components/common/QualityScoreIndicator';
 import {
     NarrativeEditor,
     TableEditor,

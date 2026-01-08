@@ -884,3 +884,94 @@ def get_agent_performance():
         'by_agent': list(agent_stats.values()),
         'recent_executions': recent
     }), 200
+
+
+@bp.route('/time-savings', methods=['GET'])
+@jwt_required()
+def get_time_savings():
+    """
+    Get time savings metrics for the current user.
+    
+    Query params:
+        period: 'week', 'month', 'quarter', 'year', 'all' (default: month)
+    """
+    from ..services.time_savings_tracker import get_time_savings_tracker
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    period = request.args.get('period', 'month')
+    
+    tracker = get_time_savings_tracker(
+        org_id=user.organization_id,
+        user_id=user_id
+    )
+    
+    savings = tracker.get_user_savings(period=period)
+    
+    return jsonify(savings), 200
+
+
+@bp.route('/time-savings/org', methods=['GET'])
+@jwt_required()
+def get_org_time_savings():
+    """
+    Get time savings metrics for the organization.
+    Requires admin role.
+    """
+    from ..services.time_savings_tracker import get_time_savings_tracker
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization not found'}), 404
+    
+    period = request.args.get('period', 'month')
+    
+    tracker = get_time_savings_tracker(org_id=user.organization_id)
+    savings = tracker.get_org_savings(period=period)
+    
+    return jsonify(savings), 200
+
+
+@bp.route('/time-savings/record', methods=['POST'])
+@jwt_required()
+def record_time_saving():
+    """
+    Record a time-saving action.
+    Called automatically by agents after AI operations.
+    """
+    from ..services.time_savings_tracker import get_time_savings_tracker
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json()
+    action_type = data.get('action_type')
+    item_count = data.get('item_count', 1)
+    project_id = data.get('project_id')
+    
+    if not action_type:
+        return jsonify({'error': 'action_type required'}), 400
+    
+    tracker = get_time_savings_tracker(
+        org_id=user.organization_id,
+        user_id=user_id
+    )
+    
+    result = tracker.record_action(
+        action_type=action_type,
+        project_id=project_id,
+        item_count=item_count,
+        metadata=data.get('metadata', {})
+    )
+    
+    return jsonify(result), 200 if result.get('success') else 400
+

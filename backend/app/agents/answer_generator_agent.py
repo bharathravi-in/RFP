@@ -598,8 +598,101 @@ Sources Used:
             recommendations.append('Answer meets quality standards')
         
         return recommendations
+    
+    def regenerate_answer(
+        self,
+        question: Dict,
+        original_answer: str,
+        improvement_hints: List[str] = None,
+        narrative_context: Dict = None,
+        session_state: Dict = None
+    ) -> Dict:
+        """
+        Regenerate an answer with specific improvement hints.
+        
+        Used by auto-regeneration loop for low-scoring sections.
+        
+        Args:
+            question: Original question dict
+            original_answer: The original answer that needs improvement
+            improvement_hints: List of specific issues to address
+            narrative_context: Narrative context for coherence
+            session_state: Current session state
+            
+        Returns:
+            Dict with regenerated answer
+        """
+        try:
+            question_text = question.get('text', str(question))
+            category = question.get('category', 'general')
+            
+            # Build improvement prompt
+            hints_text = "\n".join(improvement_hints or [])
+            default_hints = "- Make content more specific\n- Add evidence and examples\n- Remove generic language"
+            issues_to_fix = hints_text if hints_text else default_hints
+            narrative_text = self._format_narrative_context(narrative_context) if narrative_context else "Focus on client value and specificity"
+            
+            regeneration_prompt = f"""You are a Senior Proposal Expert. Your previous answer scored LOW and needs improvement.
+
+## Original Question
+{question_text}
+
+## Previous Answer (NEEDS IMPROVEMENT)
+{original_answer[:1500]}...
+
+## Issues to Fix
+{issues_to_fix}
+
+## Narrative Context
+{narrative_text}
+
+## Your Task
+Rewrite the answer to address ALL the issues above.
+
+Requirements:
+- Add specific evidence, metrics, or examples
+- Remove generic phrases like "leveraging", "state-of-the-art", "robust solution"
+- Reference the client context where appropriate
+- Be concrete and actionable
+
+Generate the improved answer (NO explanation, just the content):"""
+
+            client = self.config.client
+            
+            if self.config.is_adk_enabled:
+                response = client.models.generate_content(
+                    model=self.config.model_name,
+                    contents=regeneration_prompt
+                )
+                answer = response.text.strip()
+            elif client:
+                response = client.generate_content(regeneration_prompt)
+                answer = response.text.strip()
+            else:
+                # Fallback
+                return {
+                    'success': False,
+                    'answer': original_answer,
+                    'reason': 'No AI client available'
+                }
+            
+            return {
+                'success': True,
+                'answer': answer,
+                'regenerated': True,
+                'hints_applied': improvement_hints or []
+            }
+            
+        except Exception as e:
+            logger.error(f"Answer regeneration failed: {e}")
+            return {
+                'success': False,
+                'answer': original_answer,
+                'error': str(e)
+            }
 
 
 def get_answer_generator_agent(org_id: int = None) -> AnswerGeneratorAgent:
     """Factory function to get Answer Generator Agent."""
     return AnswerGeneratorAgent(org_id=org_id)
+

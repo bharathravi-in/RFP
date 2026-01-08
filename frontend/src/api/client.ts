@@ -1088,6 +1088,28 @@ export const agentsApi = {
     // Quality Review Enhancement
     detectAIPatterns: (content: string) =>
         api.post('/agents/detect-ai-patterns', { content }),
+
+    // ========================================
+    // CLIENT CONTEXT & ISOLATION (CRITICAL)
+    // ========================================
+
+    // Synthesize client context - MUST be called before proposal generation
+    synthesizeClientContext: (data: {
+        rfp_title?: string;
+        client_name?: string;
+        industry?: string;
+        description?: string;
+        rfp_analysis?: Record<string, unknown>;
+    }) =>
+        api.post('/agents/synthesize-client-context', data),
+
+    // Validate content isolation - Check for cross-contamination
+    validateIsolation: (content: string, clientContext: {
+        client_name: string;
+        domain: string;
+        forbidden_references?: string[];
+    }) =>
+        api.post('/agents/validate-isolation', { content, client_context: clientContext }),
 };
 
 // ===============================
