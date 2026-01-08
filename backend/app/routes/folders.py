@@ -11,7 +11,7 @@ from ..models import KnowledgeItem, KnowledgeFolder, User
 
 bp = Blueprint('folders', __name__)
 
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'txt', 'xlsx', 'xls', 'csv', 'md'}
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'txt', 'xlsx', 'xls', 'csv', 'md', 'ppt', 'pptx'}
 
 
 def allowed_file(filename):

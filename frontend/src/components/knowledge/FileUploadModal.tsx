@@ -256,7 +256,7 @@ export default function FileUploadModal({
                                             Drop files here or click to browse
                                         </p>
                                         <p className="text-xs text-text-muted mt-1">
-                                            PDF, DOCX, XLSX, TXT, CSV up to 50MB
+                                            PDF, DOCX, XLSX, PPT, PPTX, TXT, CSV up to 50MB
                                         </p>
                                         <input
                                             ref={inputRef}
@@ -264,7 +264,7 @@ export default function FileUploadModal({
                                             multiple
                                             onChange={(e) => handleFiles(e.target.files)}
                                             className="hidden"
-                                            accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.csv,.md"
+                                            accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.csv,.md,.ppt,.pptx"
                                         />
                                     </div>
 

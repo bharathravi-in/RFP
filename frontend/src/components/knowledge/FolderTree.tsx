@@ -40,6 +40,7 @@ interface FolderTreeProps {
     onSelectFolder: (folder: Folder | null) => void;
     onCreateFolder: (parentId: number | null) => void;
     onUploadFiles: (folderId: number) => void;
+    onDeleteFolder?: (folder: Folder) => void;
 }
 
 export default function FolderTree({
@@ -48,6 +49,7 @@ export default function FolderTree({
     onSelectFolder,
     onCreateFolder,
     onUploadFiles,
+    onDeleteFolder,
 }: FolderTreeProps) {
     return (
         <div className="h-full flex flex-col">
@@ -86,6 +88,7 @@ export default function FolderTree({
                         onSelect={onSelectFolder}
                         onCreateSubfolder={onCreateFolder}
                         onUpload={onUploadFiles}
+                        onDelete={onDeleteFolder}
                     />
                 ))}
             </div>
@@ -100,6 +103,7 @@ interface FolderNodeProps {
     onSelect: (folder: Folder) => void;
     onCreateSubfolder: (parentId: number) => void;
     onUpload: (folderId: number) => void;
+    onDelete?: (folder: Folder) => void;
 }
 
 function FolderNode({
@@ -109,6 +113,7 @@ function FolderNode({
     onSelect,
     onCreateSubfolder,
     onUpload,
+    onDelete,
 }: FolderNodeProps) {
     const [isExpanded, setIsExpanded] = useState(depth < 1);
     const hasChildren = folder.children && folder.children.length > 0;
@@ -184,6 +189,18 @@ function FolderNode({
                     >
                         <PlusIcon className="h-3.5 w-3.5 text-text-muted" />
                     </button>
+                    {onDelete && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(folder);
+                            }}
+                            className="p-1 hover:bg-red-100 rounded"
+                            title="Delete folder"
+                        >
+                            <TrashIcon className="h-3.5 w-3.5 text-red-500" />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -199,6 +216,7 @@ function FolderNode({
                             onSelect={onSelect}
                             onCreateSubfolder={onCreateSubfolder}
                             onUpload={onUpload}
+                            onDelete={onDelete}
                         />
                     ))}
                 </div>

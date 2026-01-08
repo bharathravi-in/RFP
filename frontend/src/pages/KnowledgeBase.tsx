@@ -153,6 +153,10 @@ export default function KnowledgeBasePage() {
     const [isReindexing, setIsReindexing] = useState(false);
     const [totalItemCount, setTotalItemCount] = useState(0);
 
+    // Delete folder confirmation state
+    const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
+    const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
+
     const loadFolders = useCallback(async () => {
         try {
             const response = await api.get('/folders');
@@ -266,6 +270,30 @@ export default function KnowledgeBasePage() {
         }
     };
 
+    // Handle folder deletion with confirmation
+    const handleDeleteFolderClick = (folder: Folder) => {
+        setFolderToDelete(folder);
+        setIsDeleteFolderModalOpen(true);
+    };
+
+    const handleConfirmDeleteFolder = async () => {
+        if (!folderToDelete) return;
+        try {
+            await api.delete(`/folders/${folderToDelete.id}`);
+            if (selectedFolder?.id === folderToDelete.id) {
+                setSelectedFolder(null);
+            }
+            await loadFolders();
+            await loadItems();
+            toast.success(`Folder "${folderToDelete.name}" deleted`);
+        } catch {
+            toast.error('Failed to delete folder');
+        } finally {
+            setIsDeleteFolderModalOpen(false);
+            setFolderToDelete(null);
+        }
+    };
+
     const filteredItems = items.filter(item =>
         item.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -298,6 +326,7 @@ export default function KnowledgeBasePage() {
                     onSelectFolder={setSelectedFolder}
                     onCreateFolder={handleCreateFolder}
                     onUploadFiles={handleUploadFiles}
+                    onDeleteFolder={handleDeleteFolderClick}
                 />
 
                 {/* Storage Info */}
@@ -338,17 +367,19 @@ export default function KnowledgeBasePage() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Global Upload Button */}
-                        <button
-                            onClick={() => {
-                                setUploadFolderId(selectedFolder?.id || folders[0]?.id || 0);
-                                setIsUploadOpen(true);
-                            }}
-                            className="btn-primary py-1.5 px-3 text-sm flex items-center gap-2"
-                        >
-                            <CloudArrowUpIcon className="h-4 w-4" />
-                            <span className="hidden sm:inline">Upload</span>
-                        </button>
+                        {/* Global Upload Button - only show if folders exist AND a folder is selected */}
+                        {folders.length > 0 && selectedFolder && (
+                            <button
+                                onClick={() => {
+                                    setUploadFolderId(selectedFolder.id);
+                                    setIsUploadOpen(true);
+                                }}
+                                className="btn-primary py-1.5 px-3 text-sm flex items-center gap-2"
+                            >
+                                <CloudArrowUpIcon className="h-4 w-4" />
+                                <span className="hidden sm:inline">Upload</span>
+                            </button>
+                        )}
 
                         {/* Search */}
                         <div className="relative">
@@ -402,25 +433,61 @@ export default function KnowledgeBasePage() {
                             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
                                 <FolderIcon className="h-12 w-12 text-gray-400" />
                             </div>
-                            <h3 className="text-xl font-medium text-gray-900 mb-2">
-                                {searchQuery ? 'No files found' : 'Drop files here'}
-                            </h3>
-                            <p className="text-gray-500 mb-6 max-w-sm">
-                                {searchQuery
-                                    ? 'Try a different search term'
-                                    : 'Upload files to your knowledge base to get started'}
-                            </p>
-                            {(!searchQuery) && (
-                                <button
-                                    onClick={() => {
-                                        setUploadFolderId(selectedFolder?.id || folders[0]?.id || 0);
-                                        setIsUploadOpen(true);
-                                    }}
-                                    className="btn-primary"
-                                >
-                                    <CloudArrowUpIcon className="h-5 w-5" />
-                                    Upload Files
-                                </button>
+
+                            {/* Different message based on whether folders exist */}
+                            {searchQuery ? (
+                                <>
+                                    <h3 className="text-xl font-medium text-gray-900 mb-2">
+                                        No files found
+                                    </h3>
+                                    <p className="text-gray-500 mb-6 max-w-sm">
+                                        Try a different search term
+                                    </p>
+                                </>
+                            ) : folders.length === 0 ? (
+                                <>
+                                    <h3 className="text-xl font-medium text-gray-900 mb-2">
+                                        Get started with your Knowledge Base
+                                    </h3>
+                                    <p className="text-gray-500 mb-6 max-w-sm">
+                                        Create a folder first to organize your documents, then you can upload files to it.
+                                    </p>
+                                    <button
+                                        onClick={() => handleCreateFolder(null)}
+                                        className="btn-primary flex items-center gap-2"
+                                    >
+                                        <FolderIcon className="h-5 w-5" />
+                                        Create Your First Folder
+                                    </button>
+                                </>
+                            ) : selectedFolder ? (
+                                <>
+                                    <h3 className="text-xl font-medium text-gray-900 mb-2">
+                                        This folder is empty
+                                    </h3>
+                                    <p className="text-gray-500 mb-6 max-w-sm">
+                                        Upload files to this folder to get started
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            setUploadFolderId(selectedFolder.id);
+                                            setIsUploadOpen(true);
+                                        }}
+                                        className="btn-primary flex items-center gap-2"
+                                    >
+                                        <CloudArrowUpIcon className="h-5 w-5" />
+                                        Upload Files
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-xl font-medium text-gray-900 mb-2">
+                                        Select a folder to upload files
+                                    </h3>
+                                    <p className="text-gray-500 mb-6 max-w-sm">
+                                        Choose a folder from the sidebar to start uploading documents to your knowledge base.
+                                    </p>
+                                </>
                             )}
                         </div>
                     ) : (
@@ -599,17 +666,64 @@ export default function KnowledgeBasePage() {
                 onUpload={handleUpload}
             />
 
-            {previewItem && (
-                <KnowledgePreviewModal
-                    isOpen={isPreviewOpen}
-                    onClose={handleClosePreview}
-                    itemId={previewItem.id}
-                    itemTitle={previewItem.title}
-                    fileType={previewItem.file_type}
-                    onDownload={() => handleDownload(previewItem)}
-                    onDelete={() => handleDeleteItem(previewItem)}
-                />
-            )}
-        </div>
+            {
+                previewItem && (
+                    <KnowledgePreviewModal
+                        isOpen={isPreviewOpen}
+                        onClose={handleClosePreview}
+                        itemId={previewItem.id}
+                        itemTitle={previewItem.title}
+                        fileType={previewItem.file_type}
+                        onDownload={() => handleDownload(previewItem)}
+                        onDelete={() => handleDeleteItem(previewItem)}
+                    />
+                )
+            }
+
+            {/* Delete Folder Confirmation Modal */}
+            {
+                isDeleteFolderModalOpen && folderToDelete && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div
+                            className="absolute inset-0 bg-black/50"
+                            onClick={() => setIsDeleteFolderModalOpen(false)}
+                        />
+                        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                    <TrashIcon className="h-6 w-6 text-red-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Delete Folder</h3>
+                                    <p className="text-sm text-gray-500">This action cannot be undone</p>
+                                </div>
+                            </div>
+                            <p className="text-gray-700 mb-6">
+                                Are you sure you want to delete the folder <strong>"{folderToDelete.name}"</strong>?
+                                {folderToDelete.item_count > 0 && (
+                                    <span className="block mt-2 text-red-600">
+                                        ⚠️ This folder contains {folderToDelete.item_count} file(s) that will also be deleted.
+                                    </span>
+                                )}
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => setIsDeleteFolderModalOpen(false)}
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmDeleteFolder}
+                                    className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors"
+                                >
+                                    Delete Folder
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }

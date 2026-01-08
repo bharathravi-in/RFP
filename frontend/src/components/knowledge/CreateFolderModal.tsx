@@ -124,24 +124,6 @@ export default function CreateFolderModal({
                                                 className="input w-full resize-none"
                                             />
                                         </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-text-primary mb-2">
-                                                Color
-                                            </label>
-                                            <div className="flex gap-2 flex-wrap">
-                                                {FOLDER_COLORS.map((c) => (
-                                                    <button
-                                                        key={c}
-                                                        type="button"
-                                                        onClick={() => setColor(c)}
-                                                        className={`w-7 h-7 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-primary scale-110' : ''
-                                                            }`}
-                                                        style={{ backgroundColor: c }}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
                                     </div>
 
                                     {/* Footer */}

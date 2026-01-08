@@ -41,6 +41,10 @@ def extract_text_from_file(file_path: str, file_type: str = None) -> str:
         if file_ext in ['.xlsx', '.xls']:
             return extract_excel(file_path)
         
+        # PowerPoint files
+        if file_ext in ['.ppt', '.pptx']:
+            return extract_pptx(file_path)
+        
         # Default: try to read as text
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -124,3 +128,28 @@ def extract_excel(file_path: str) -> str:
         return "[Excel extraction requires pandas and openpyxl]"
     except Exception as e:
         return f"[Excel extraction failed: {str(e)}]"
+
+
+def extract_pptx(file_path: str) -> str:
+    """Extract text from PowerPoint files."""
+    try:
+        from pptx import Presentation
+        prs = Presentation(file_path)
+        text_parts = []
+        
+        for slide_num, slide in enumerate(prs.slides, 1):
+            slide_text = []
+            slide_text.append(f"## Slide {slide_num}")
+            
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text.strip():
+                    slide_text.append(shape.text.strip())
+            
+            if len(slide_text) > 1:  # Has content beyond just the header
+                text_parts.append("\n".join(slide_text))
+        
+        return "\n\n".join(text_parts)
+    except ImportError:
+        return "[PowerPoint extraction requires python-pptx]"
+    except Exception as e:
+        return f"[PowerPoint extraction failed: {str(e)}]"
