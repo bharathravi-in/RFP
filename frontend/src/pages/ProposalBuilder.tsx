@@ -300,7 +300,8 @@ export default function ProposalBuilder() {
             const response = await sectionsApi.addSection(projectId, {
                 section_type_id: sectionType.id,
                 title: inputs.title || sectionType.name,
-                inputs: { ...inputs, content: initialContent || '' },
+                inputs: inputs,
+                content: initialContent,  // Pass content at top level for the API
             });
             setSections([...sections, response.data.section]);
             setSelectedSection(response.data.section);

@@ -193,7 +193,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h2 className="text-lg font-bold text-gray-900">Setup Checklist</h2>
-                                <p className="text-sm text-gray-500">Complete these steps to get the most out of RFP Pro</p>
+                                <p className="text-sm text-gray-500">Incomplete setup may lead to incorrect or generic content. Please complete all required checklist items.</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="h-2 w-32 bg-gray-100 rounded-full overflow-hidden">

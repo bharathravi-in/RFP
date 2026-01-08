@@ -187,6 +187,171 @@ def upload_document():
     }), 201
 
 
+@bp.route('/from-text', methods=['POST'])
+@jwt_required()
+def create_document_from_text():
+    """Create a document from free text RFP input."""
+    from datetime import datetime
+    
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    project_id = data.get('project_id')
+    rfp_text = data.get('text', '').strip()
+    title = data.get('title', 'Manual RFP Input')
+    
+    if not project_id:
+        return jsonify({'error': 'Project ID required'}), 400
+    
+    if not rfp_text:
+        return jsonify({'error': 'RFP text is required'}), 400
+    
+    if len(rfp_text) < 50:
+        return jsonify({'error': 'RFP text must be at least 50 characters'}), 400
+    
+    project = Project.query.get(project_id)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Create a virtual document from the text
+    document = Document(
+        file_id=str(uuid.uuid4()),
+        filename=f"manual_rfp_{uuid.uuid4().hex[:8]}.txt",
+        original_filename=f"{title}.txt",
+        storage_type='text_input',
+        file_type='txt',
+        file_size=len(rfp_text.encode('utf-8')),
+        content_type='text/plain',
+        status='completed',
+        embedding_status='pending',
+        project_id=int(project_id),
+        uploaded_by=user_id,
+        extracted_text=rfp_text,  # Store the text directly
+        processed_at=datetime.utcnow(),
+        file_metadata={
+            'source': 'manual_input',
+            'title': title,
+            'word_count': len(rfp_text.split()),
+            'char_count': len(rfp_text),
+        }
+    )
+    
+    db.session.add(document)
+    db.session.commit()
+    
+    # Run the same analysis pipeline as for uploaded documents
+    parse_result = None
+    try:
+        # Use internal parsing function that handles question extraction and section creation
+        from ..services.extraction_service import QuestionExtractor
+        from ..models import Question
+        
+        # Extract questions
+        extractor = QuestionExtractor()
+        questions_data = extractor.extract_questions(rfp_text, use_ai=True)
+        
+        # Question category classification keywords
+        category_keywords = {
+            'security': ['security', 'encryption', 'authentication', 'password', 'access control'],
+            'technical': ['technical', 'architecture', 'infrastructure', 'api', 'integration'],
+            'pricing': ['pricing', 'cost', 'fee', 'budget', 'payment', 'license'],
+            'implementation': ['implementation', 'timeline', 'schedule', 'phase', 'milestone'],
+            'support': ['support', 'maintenance', 'sla', 'service level'],
+            'team': ['team', 'staff', 'resource', 'personnel', 'experience'],
+        }
+        
+        # Create Question records
+        for q_data in questions_data:
+            q_text_lower = q_data['text'].lower()
+            detected_category = 'general'
+            detected_section = q_data.get('section', 'Q&A / Questionnaire')
+            
+            for category, keywords in category_keywords.items():
+                if any(kw in q_text_lower for kw in keywords):
+                    detected_category = category
+                    break
+            
+            question = Question(
+                text=q_data['text'],
+                section=detected_section,
+                category=detected_category,
+                order=q_data.get('order', 0),
+                status='pending',
+                project_id=document.project_id,
+                document_id=document.id
+            )
+            db.session.add(question)
+        
+        db.session.commit()
+        
+        parse_result = {
+            'message': 'Text processed successfully',
+            'questions_extracted': len(questions_data)
+        }
+        
+        # Run RFP analysis and auto-create sections
+        try:
+            from ..services.rfp_analysis_agent import RFPAnalysisAgent
+            from ..models import RFPSectionType
+            
+            agent = RFPAnalysisAgent()
+            analysis_result = agent.analyze_rfp(document.id)
+            
+            if analysis_result and not analysis_result.get('error'):
+                recommended_sections = analysis_result.get('recommended_sections', [])
+                
+                if recommended_sections:
+                    section_type_ids = []
+                    for slug in recommended_sections:
+                        section_type = RFPSectionType.query.filter_by(slug=slug, is_active=True).first()
+                        if section_type:
+                            section_type_ids.append(section_type.id)
+                    
+                    if section_type_ids:
+                        created_sections = agent.auto_create_sections(
+                            project_id=document.project_id,
+                            section_type_ids=section_type_ids,
+                            with_generation=True,
+                            document_id=document.id
+                        )
+                        parse_result['sections_created'] = len(created_sections) if created_sections else 0
+        except Exception as analysis_error:
+            parse_result['analysis_warning'] = str(analysis_error)
+        
+        # Update project status
+        if project.status == 'draft':
+            project.status = 'in_progress'
+        project.completion_percent = project.calculate_completion()
+        db.session.commit()
+        
+    except Exception as e:
+        parse_result = {'error': str(e)}
+    
+    # Trigger background embedding task
+    embedding_triggered = False
+    try:
+        from app.tasks import process_document_embeddings_task
+        process_document_embeddings_task.delay(document.id, user.organization_id)
+        embedding_triggered = True
+    except Exception as e:
+        current_app.logger.warning(f"Failed to trigger embedding task: {e}")
+    
+    return jsonify({
+        'message': 'RFP text processed successfully',
+        'document': document.to_dict(),
+        'parse_result': parse_result,
+        'embedding_triggered': embedding_triggered
+    }), 201
+
+
 @bp.route('/<int:document_id>', methods=['GET'])
 @jwt_required()
 def get_document(document_id):
@@ -703,6 +868,40 @@ def preview_document(document_id):
     
     if document.project.organization_id != user.organization_id:
         return jsonify({'error': 'Access denied'}), 403
+    
+    # Handle text_input documents (free text RFP input)
+    if document.storage_type == 'text_input':
+        # Return the extracted text as styled HTML
+        text_content = document.extracted_text or ''
+        title = document.file_metadata.get('title', 'Manual RFP Input') if document.file_metadata else 'Manual RFP Input'
+        
+        # Format the text content with line breaks preserved
+        formatted_text = text_content.replace('\n', '<br>')
+        
+        styled_html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.6; background: #f9fafb; }}
+        .header {{ background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 16px 20px; border-radius: 8px; margin-bottom: 20px; }}
+        .header h1 {{ margin: 0; font-size: 1.25rem; }}
+        .header p {{ margin: 4px 0 0 0; opacity: 0.9; font-size: 0.875rem; }}
+        .content {{ background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        .badge {{ display: inline-block; background: #ddd6fe; color: #6d28d9; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <span class="badge">✏️ Text Input</span>
+        <h1>{title}</h1>
+        <p>{document.file_metadata.get('word_count', 0) if document.file_metadata else 0} words</p>
+    </div>
+    <div class="content">{formatted_text}</div>
+</body>
+</html>'''
+        
+        return Response(styled_html, mimetype='text/html')
     
     # Get file data from database or storage service
     file_data = document.file_data

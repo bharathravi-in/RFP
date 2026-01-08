@@ -120,6 +120,18 @@ export default function DiagramRenderer({
                 continue;
             }
 
+            // Check for incomplete connection lines (e.g., "A -- Accesses" without target)
+            // Pattern: NodeID followed by -- or --> but no valid target node after
+            const incompleteMatch = stripped.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(--|-->|<--|---)\s*([A-Za-z][A-Za-z0-9\s]*)?$/);
+            if (incompleteMatch) {
+                const rest = incompleteMatch[3];
+                // If 'rest' has spaces or isn't a valid node ID, it's likely a label without target
+                if (rest && (rest.includes(' ') || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(rest))) {
+                    console.warn('Removing incomplete connection:', stripped);
+                    continue; // Skip this line
+                }
+            }
+
             // Count arrows in the line
             const arrowCount = (stripped.match(/-->/g) || []).length +
                 (stripped.match(/<--/g) || []).length +

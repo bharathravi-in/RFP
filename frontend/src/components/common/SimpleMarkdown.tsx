@@ -17,21 +17,54 @@ export default function SimpleMarkdown({ content, className = '', renderMermaid 
     if (!content) return null;
 
     // Check for mermaid code blocks and extract them
+    // Multiple patterns to handle various formatting variations
     const parts: { type: 'markdown' | 'mermaid'; content: string }[] = [];
-    let remaining = content;
-    const mermaidPattern = /```mermaid\n([\s\S]*?)```/g;
     let lastIndex = 0;
-    let match;
+
+    // More flexible pattern: handles ``` mermaid, ```mermaid, with/without newlines
+    // Also matches just ``` followed by flowchart/graph/sequenceDiagram/etc.
+    const mermaidPatterns = [
+        /```\s*mermaid\s*\n?([\s\S]*?)```/gi,  // Standard mermaid block (case insensitive)
+        /```\n?(flowchart[\s\S]*?)```/gi,       // Raw flowchart in code block
+        /```\n?(graph\s+(?:TB|TD|LR|RL|BT)[\s\S]*?)```/gi,  // Raw graph in code block
+        /```\n?(sequenceDiagram[\s\S]*?)```/gi, // Raw sequence diagram
+        /```\n?(gantt[\s\S]*?)```/gi,           // Raw gantt chart
+        /```\n?(erDiagram[\s\S]*?)```/gi,       // Raw ER diagram
+        /```\n?(mindmap[\s\S]*?)```/gi,         // Raw mindmap
+    ];
 
     if (renderMermaid) {
-        while ((match = mermaidPattern.exec(content)) !== null) {
-            // Add markdown content before this mermaid block
-            if (match.index > lastIndex) {
-                parts.push({ type: 'markdown', content: content.slice(lastIndex, match.index) });
+        // Find all mermaid-like blocks
+        const mermaidBlocks: { start: number; end: number; code: string }[] = [];
+
+        for (const pattern of mermaidPatterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+                // Check if this block overlaps with any existing block
+                const overlaps = mermaidBlocks.some(
+                    b => (match!.index >= b.start && match!.index < b.end) ||
+                        (b.start >= match!.index && b.start < match!.index + match![0].length)
+                );
+                if (!overlaps) {
+                    mermaidBlocks.push({
+                        start: match.index,
+                        end: match.index + match[0].length,
+                        code: match[1].trim()
+                    });
+                }
             }
-            // Add mermaid block
-            parts.push({ type: 'mermaid', content: match[1] });
-            lastIndex = match.index + match[0].length;
+        }
+
+        // Sort blocks by position
+        mermaidBlocks.sort((a, b) => a.start - b.start);
+
+        // Build parts array
+        for (const block of mermaidBlocks) {
+            if (block.start > lastIndex) {
+                parts.push({ type: 'markdown', content: content.slice(lastIndex, block.start) });
+            }
+            parts.push({ type: 'mermaid', content: block.code });
+            lastIndex = block.end;
         }
     }
 
@@ -117,6 +150,14 @@ export default function SimpleMarkdown({ content, className = '', renderMermaid 
                                 >
                                     {children}
                                 </a>
+                            ),
+                            img: ({ src, alt }) => (
+                                <img
+                                    src={src}
+                                    alt={alt || 'Image'}
+                                    className="max-w-full h-auto rounded-lg border border-gray-200 my-4 shadow-sm"
+                                    style={{ maxHeight: '500px', objectFit: 'contain' }}
+                                />
                             ),
                             hr: () => <hr className="my-4 border-gray-200" />,
                             // Table components for proper markdown table rendering

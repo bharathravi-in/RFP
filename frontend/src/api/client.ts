@@ -187,6 +187,14 @@ export const documentsApi = {
             generate_content: generateContent
         }),
 
+    // Create document from free text input
+    fromText: (projectId: number, text: string, title?: string) =>
+        api.post('/documents/from-text', {
+            project_id: projectId,
+            text,
+            title: title || 'Manual RFP Input'
+        }),
+
     // Preview and Download
     getPreviewUrl: (id: number) => `/api/documents/${id}/preview`,
 
@@ -358,6 +366,7 @@ export const sectionsApi = {
         title?: string;
         inputs?: Record<string, string>;
         ai_generation_params?: Record<string, string>;
+        content?: string;  // Initial content (e.g., uploaded image)
     }) => api.post(`/projects/${projectId}/sections`, data),
 
     updateSection: (projectId: number, sectionId: number, data: Partial<{

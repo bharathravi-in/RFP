@@ -165,7 +165,7 @@ const KnowledgeChatPage: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="h-screen flex items-center justify-center bg-background">
+            <div className="h-[calc(100vh-120px)] flex items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
         );
@@ -173,7 +173,7 @@ const KnowledgeChatPage: React.FC = () => {
 
     if (error) {
         return (
-            <div className="h-screen flex flex-col items-center justify-center bg-background text-text-primary">
+            <div className="h-[calc(100vh-120px)] flex flex-col items-center justify-center bg-background text-text-primary">
                 <p className="text-red-500 mb-4">{error}</p>
                 <button onClick={() => navigate(-1)} className="btn-secondary">Go Back</button>
             </div>
@@ -181,9 +181,9 @@ const KnowledgeChatPage: React.FC = () => {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-background text-text-primary">
+        <div className="h-[calc(100vh-120px)] flex flex-col bg-background text-text-primary">
             {/* Header */}
-            <header className="flex items-center gap-4 px-6 py-4 border-b border-border bg-surface shrink-0">
+            <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-surface shrink-0">
                 <button
                     onClick={() => navigate('/knowledge')}
                     className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors"

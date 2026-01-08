@@ -223,6 +223,8 @@ def add_section_to_project(project_id):
         order=max_order + 1,
         inputs=data.get('inputs', {}),
         ai_generation_params=data.get('ai_generation_params', {}),
+        content=data.get('content'),  # Allow initial content to be set
+        status='generated' if data.get('content') else 'draft',  # Mark as generated if content provided
     )
     
     db.session.add(section)
@@ -969,8 +971,45 @@ def generate_diagram_section(section, project, user):
     
     # Extract values to avoid backslash in f-string
     description = diagram.get('description', 'System architecture for the proposed solution.')
-    mermaid_code = diagram.get('mermaid_code', 'flowchart TB\n    A[System] --> B[Component]')
+    mermaid_code = diagram.get('mermaid_code', '')
     notes = diagram.get('notes', 'The architecture diagram above shows the key components of the proposed solution and how they interact with each other.')
+    
+    # Validate that mermaid_code contains actual Mermaid syntax
+    # If AI returned descriptive text instead of diagram code, use default
+    mermaid_keywords = ['flowchart', 'graph', 'sequencediagram', 'gantt', 'erdiagram', 'mindmap', 'subgraph', '-->']
+    is_valid_mermaid = any(keyword in mermaid_code.lower() for keyword in mermaid_keywords)
+    
+    if not mermaid_code.strip() or not is_valid_mermaid:
+        # Use a comprehensive default architecture diagram
+        mermaid_code = '''flowchart TB
+    subgraph Frontend["Frontend Layer"]
+        A[Web Application]
+        B[Mobile App]
+    end
+    subgraph Backend["Backend Services"]
+        C[API Gateway]
+        D[Application Server]
+        E[Business Logic]
+    end
+    subgraph Data["Data Layer"]
+        F[Database]
+        G[Cache]
+        H[File Storage]
+    end
+    subgraph External["External Systems"]
+        I[Third Party APIs]
+        J[Auth Provider]
+    end
+    A --> C
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    E --> G
+    D --> H
+    D --> I
+    C --> J'''
+        notes = "This is a system architecture diagram based on the project requirements. Click 'Regenerate' to create a more tailored diagram."
     
     # Build section content with mermaid diagram and explanation
     content = f"""## Architecture Overview

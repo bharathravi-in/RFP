@@ -170,25 +170,35 @@ Provide a helpful, detailed answer based on the document content.
             return self._fallback_summary(session.document_id)
     
     def _parse_summary_response(self, response: str) -> Tuple[str, List[str]]:
-        """Parse the summary response into overview and key points."""
+        """Parse the summary response into overview and key points while preserving markdown."""
         lines = response.strip().split('\n')
         
-        summary = ""
+        # Keep the full response as summary with markdown preserved
+        summary_lines = []
         key_points = []
         in_key_points = False
         
         for line in lines:
-            line = line.strip()
-            if line.lower().startswith('- overview:') or line.lower().startswith('overview:'):
-                summary = line.split(':', 1)[1].strip() if ':' in line else line
-            elif 'key points' in line.lower():
+            stripped_line = line.strip()
+            
+            # Check if we're entering key points section
+            if 'key points' in stripped_line.lower() and ':' in stripped_line:
                 in_key_points = True
-            elif in_key_points and (line.startswith('•') or line.startswith('-') or line.startswith('*')):
-                point = line.lstrip('•-* ').strip()
-                if point:
-                    key_points.append(point)
-            elif not summary and line and not in_key_points:
-                summary = line
+                continue  # Skip the "Key Points:" header
+            
+            if in_key_points:
+                # Extract key points
+                if stripped_line.startswith('•') or stripped_line.startswith('-') or stripped_line.startswith('*'):
+                    point = stripped_line.lstrip('•-* ').strip()
+                    if point:
+                        key_points.append(point)
+            else:
+                # Keep all summary lines with formatting preserved
+                if stripped_line:
+                    summary_lines.append(line)
+        
+        # Join summary lines - this preserves **bold** and other markdown
+        summary = '\n'.join(summary_lines)
         
         return summary, key_points[:8]  # Limit to 8 key points
     

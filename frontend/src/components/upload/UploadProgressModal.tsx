@@ -26,6 +26,7 @@ interface UploadProgressModalProps {
     fileName?: string;
     onClose?: () => void;
     error?: string;
+    inputMode?: 'upload' | 'text';  // Mode determines which steps to show
 }
 
 // State configuration with messages
@@ -110,8 +111,8 @@ const STATE_CONFIG: Record<UploadState, { title: string; message: string; minPer
     },
 };
 
-// Step indicators - now showing full orchestrator pipeline
-const STEPS = [
+// Step indicators - for file upload flow
+const UPLOAD_STEPS = [
     { id: 'uploading', label: 'Upload' },
     { id: 'parsing', label: 'Parse' },
     { id: 'document_analysis', label: 'Analyze' },
@@ -120,6 +121,16 @@ const STEPS = [
     { id: 'answer_generation', label: 'Generate' },
     { id: 'quality_review', label: 'Review' },
     { id: 'building_sections', label: 'Build' },
+];
+
+// Step indicators - for text input flow (no upload/parse needed)
+const TEXT_STEPS = [
+    { id: 'document_analysis', label: 'Analyze' },
+    { id: 'question_extraction', label: 'Extract' },
+    { id: 'knowledge_retrieval', label: 'Knowledge' },
+    { id: 'building_sections', label: 'Build' },
+    { id: 'answer_generation', label: 'Generate' },
+    { id: 'quality_review', label: 'Review' },
 ];
 
 /**
@@ -132,10 +143,14 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
     fileName,
     onClose,
     error,
+    inputMode = 'upload',
 }) => {
     const config = STATE_CONFIG[state];
     const isComplete = state === 'complete';
     const isError = state === 'error';
+
+    // Choose steps based on input mode
+    const STEPS = inputMode === 'text' ? TEXT_STEPS : UPLOAD_STEPS;
 
     // Get current step index for step indicators
     const currentStepIndex = STEPS.findIndex(s => s.id === state);

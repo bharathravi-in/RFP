@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { sectionsApi, questionsApi, usersApi } from '@/api/client';
 import { RFPSection, Question } from '@/types';
 import { useAuthStore } from '@/store/authStore';
@@ -18,6 +18,7 @@ import {
     PlusIcon,
     ClockIcon,
     Cog8ToothIcon,
+    PhotoIcon,
 } from '@heroicons/react/24/outline';
 import QuestionAnswerModal from '@/components/QuestionAnswerModal';
 import ClarificationQuestions from '@/components/sections/ClarificationQuestions';
@@ -78,6 +79,13 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
 
     // Users for assignee dropdown
     const [orgUsers, setOrgUsers] = useState<{ id: number; name: string; email: string }[]>([]);
+
+    // File input ref for image upload (diagram sections)
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Check if this is a diagram section
+    const isDiagramSection = section.section_type?.template_type === 'diagram' ||
+        section.section_type?.slug?.includes('diagram');
 
     // Category-to-section mapping - EXCLUSIVE matching
     // Backend AI categories: security, compliance, technical, pricing, legal, product, support, integration, general
@@ -276,6 +284,59 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
             toast.success(`Section ${action}d`);
         } catch {
             toast.error(`Failed to ${action} section`);
+        }
+    };
+
+    // Handler for uploading image to diagram section
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
+        if (!validTypes.includes(file.type)) {
+            toast.error('Please upload a valid image file (PNG, JPG, GIF, or SVG)');
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image size must be less than 5MB');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64Data = e.target?.result as string;
+            if (!base64Data) return;
+
+            // Create markdown content with embedded image
+            const imageContent = `## ${section.title}\n\n![${section.title}](${base64Data})\n\n*Uploaded diagram*`;
+
+            // Save to section
+            setIsSaving(true);
+            try {
+                const response = await sectionsApi.updateSection(projectId, section.id, {
+                    content: imageContent,
+                    status: 'generated',
+                });
+                setContent(imageContent);
+                onUpdate(response.data.section);
+                toast.success('Image uploaded successfully');
+            } catch {
+                toast.error('Failed to save image');
+            } finally {
+                setIsSaving(false);
+            }
+        };
+        reader.onerror = () => {
+            toast.error('Failed to read image file');
+        };
+        reader.readAsDataURL(file);
+
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
         }
     };
 
@@ -545,6 +606,17 @@ ${answer}
 
     return (
         <div className="h-full flex flex-col">
+            {/* Hidden file input for image upload (diagram sections) */}
+            {isDiagramSection && (
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml"
+                    className="hidden"
+                />
+            )}
+
             {/* Section Header */}
             <div className="px-6 py-4 border-b border-border bg-surface">
                 <div className="flex items-center justify-between mb-2">
@@ -610,6 +682,18 @@ ${answer}
                                     <ChatBubbleLeftRightIcon className="h-4 w-4" />
                                     AI Assistant
                                 </button>
+                                {/* Upload Image button for diagram sections (empty state) */}
+                                {isDiagramSection && (
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isSaving}
+                                        className="btn-secondary flex items-center gap-2"
+                                        title="Upload an image for this diagram"
+                                    >
+                                        <PhotoIcon className="h-4 w-4" />
+                                        Upload Image
+                                    </button>
+                                )}
                             </>
                         ) : (
                             <>
@@ -676,6 +760,19 @@ ${answer}
                                     <ClockIcon className="h-4 w-4" />
                                     History
                                 </button>
+
+                                {/* Upload Image button for diagram sections */}
+                                {isDiagramSection && (
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isSaving}
+                                        className="btn-secondary flex items-center gap-2"
+                                        title="Upload an image for this diagram"
+                                    >
+                                        <PhotoIcon className="h-4 w-4" />
+                                        Upload Image
+                                    </button>
+                                )}
 
                                 {canApprove && section.status !== 'approved' && (
                                     <button
@@ -1075,6 +1172,33 @@ ${answer}
                                                 return <SimpleMarkdown content={content} />;
                                             }
                                         }
+
+                                        // Special handling for base64 images (uploaded diagrams)
+                                        if (content.includes('data:image/') && content.includes('![')) {
+                                            // Extract base64 image from markdown image syntax
+                                            const imgMatch = content.match(/!\[([^\]]*)\]\((data:image\/[^)]+)\)/);
+                                            if (imgMatch) {
+                                                const altText = imgMatch[1];
+                                                const base64Src = imgMatch[2];
+                                                // Get other content (before/after image)
+                                                const beforeImg = content.substring(0, content.indexOf('!['));
+                                                const afterImg = content.substring(content.indexOf(imgMatch[0]) + imgMatch[0].length);
+
+                                                return (
+                                                    <div>
+                                                        {beforeImg && <SimpleMarkdown content={beforeImg} />}
+                                                        <img
+                                                            src={base64Src}
+                                                            alt={altText || 'Uploaded diagram'}
+                                                            className="max-w-full h-auto rounded-lg border border-gray-200 my-4 shadow-sm"
+                                                            style={{ maxHeight: '600px', objectFit: 'contain' }}
+                                                        />
+                                                        {afterImg && <SimpleMarkdown content={afterImg} />}
+                                                    </div>
+                                                );
+                                            }
+                                        }
+
                                         // Default narrative display - render as markdown
                                         return <SimpleMarkdown content={content} />;
                                     })()}

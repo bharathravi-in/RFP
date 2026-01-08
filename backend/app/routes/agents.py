@@ -389,21 +389,54 @@ def job_status(job_id):
         
         task = AsyncResult(job_id, app=celery)
         
+        # Safely get task state - can throw errors due to serialization issues
+        try:
+            task_state = task.state
+        except Exception as state_err:
+            logger.warning(f"Could not get task state for {job_id}: {state_err}")
+            # Return FAILURE when we can't determine state
+            return jsonify({
+                "job_id": job_id,
+                "status": "FAILURE",
+                "error": f"Task result unavailable: {str(state_err)}"
+            })
+        
         response = {
             "job_id": job_id,
-            "status": task.state
+            "status": task_state
         }
         
-        if task.state == 'PENDING':
+        if task_state == 'PENDING':
             response['message'] = 'Task is queued'
-        elif task.state == 'PROGRESS':
-            response['progress'] = task.info
-        elif task.state == 'SUCCESS':
-            response['result'] = task.result
-        elif task.state == 'FAILURE':
-            response['error'] = str(task.info)
+        elif task_state == 'PROGRESS':
+            try:
+                response['progress'] = task.info
+            except Exception:
+                response['progress'] = {'status': 'In progress'}
+        elif task_state == 'SUCCESS':
+            try:
+                response['result'] = task.result
+            except Exception as e:
+                response['result'] = {'message': 'Task completed successfully'}
+                response['warning'] = f'Could not retrieve full result: {str(e)}'
+        elif task_state == 'FAILURE':
+            try:
+                # task.info for failed tasks can be the exception itself
+                error_info = task.info
+                if isinstance(error_info, Exception):
+                    response['error'] = str(error_info)
+                elif hasattr(error_info, '__str__'):
+                    response['error'] = str(error_info)
+                else:
+                    response['error'] = 'Task failed'
+            except Exception as e:
+                # Fallback if we can't access task.info
+                response['error'] = f'Task failed (error details unavailable: {str(e)})'
         else:
-            response['info'] = str(task.info)
+            try:
+                response['info'] = str(task.info) if task.info else task_state
+            except Exception:
+                response['info'] = task_state
         
         return jsonify(response)
         

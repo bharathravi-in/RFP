@@ -65,6 +65,11 @@ export default function ProjectDetail() {
     const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
     const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
+    // Input method state (file upload or free text)
+    const [inputMethod, setInputMethod] = useState<'upload' | 'text'>('upload');
+    const [rfpText, setRfpText] = useState('');
+    const [isSubmittingText, setIsSubmittingText] = useState(false);
+
     const loadProject = useCallback(async () => {
         if (!id) return;
 
@@ -511,25 +516,153 @@ export default function ProjectDetail() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Left Column - Documents (2/3 width) */}
                     <div className="lg:col-span-2 space-y-4">
-                        {/* Upload Zone */}
-                        <div
-                            {...getRootProps()}
-                            className={clsx(
-                                'card border-2 border-dashed cursor-pointer transition-all text-center py-6',
-                                isDragActive
-                                    ? 'border-primary bg-primary-light'
-                                    : 'border-border hover:border-primary',
-                                isUploading && 'opacity-50 pointer-events-none'
+                        {/* Input Method Tabs */}
+                        <div className="card">
+                            {/* Tab Headers */}
+                            <div className="flex border-b border-border mb-4">
+                                <button
+                                    onClick={() => setInputMethod('upload')}
+                                    className={clsx(
+                                        'px-4 py-2 text-sm font-medium transition-colors',
+                                        inputMethod === 'upload'
+                                            ? 'text-primary border-b-2 border-primary'
+                                            : 'text-text-muted hover:text-text-primary'
+                                    )}
+                                >
+                                    📄 Upload File
+                                </button>
+                                <button
+                                    onClick={() => setInputMethod('text')}
+                                    className={clsx(
+                                        'px-4 py-2 text-sm font-medium transition-colors',
+                                        inputMethod === 'text'
+                                            ? 'text-primary border-b-2 border-primary'
+                                            : 'text-text-muted hover:text-text-primary'
+                                    )}
+                                >
+                                    ✏️ Enter Text
+                                </button>
+                            </div>
+
+                            {/* Upload Tab Content */}
+                            {inputMethod === 'upload' && (
+                                <div
+                                    {...getRootProps()}
+                                    className={clsx(
+                                        'border-2 border-dashed cursor-pointer transition-all text-center py-6 rounded-lg',
+                                        isDragActive
+                                            ? 'border-primary bg-primary-light'
+                                            : 'border-border hover:border-primary',
+                                        isUploading && 'opacity-50 pointer-events-none'
+                                    )}
+                                >
+                                    <input {...getInputProps()} />
+                                    <DocumentArrowUpIcon className="h-8 w-8 text-primary mx-auto mb-2" />
+                                    <p className="text-text-primary font-medium">
+                                        {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
+                                    </p>
+                                    <p className="text-xs text-text-muted mt-1">
+                                        PDF, DOCX, XLSX, PPTX up to 50MB
+                                    </p>
+                                </div>
                             )}
-                        >
-                            <input {...getInputProps()} />
-                            <DocumentArrowUpIcon className="h-8 w-8 text-primary mx-auto mb-2" />
-                            <p className="text-text-primary font-medium">
-                                {isDragActive ? 'Drop files here' : 'Drag & drop RFP documents'}
-                            </p>
-                            <p className="text-xs text-text-muted mt-1">
-                                PDF, DOCX, XLSX, PPTX up to 50MB
-                            </p>
+
+                            {/* Text Input Tab Content */}
+                            {inputMethod === 'text' && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-text-primary mb-2">
+                                            Enter RFP Requirements
+                                        </label>
+                                        <textarea
+                                            value={rfpText}
+                                            onChange={(e) => setRfpText(e.target.value)}
+                                            placeholder="Paste or type the RFP requirements here...
+
+Example:
+- Executive summary describing your company and approach
+- Technical architecture and system requirements  
+- Implementation timeline and milestones
+- Pricing and payment terms
+- Team qualifications and experience
+- Security and compliance certifications"
+                                            className="w-full h-48 px-3 py-2 border border-border rounded-lg resize-none focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                                        />
+                                        <p className="text-xs text-text-muted mt-1">
+                                            Minimum 50 characters. The AI will analyze the text and create proposal sections.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (rfpText.trim().length < 50) {
+                                                toast.error('Please enter at least 50 characters');
+                                                return;
+                                            }
+                                            setIsSubmittingText(true);
+                                            setShowProgressModal(true);
+                                            setUploadState('document_analysis');
+                                            setUploadPercent(10);
+                                            setCurrentFileName('Processing text input...');
+
+                                            try {
+                                                const result = await documentsApi.fromText(Number(id), rfpText);
+                                                setUploadPercent(80);
+
+                                                // Auto-build sections if enabled
+                                                const doc = result.data.document;
+                                                if (doc) {
+                                                    setUploadState('building_sections');
+                                                    setUploadPercent(90);
+
+                                                    const analysisResult = await documentsApi.analyze(doc.id);
+                                                    if (analysisResult.data.suggested_sections?.length > 0) {
+                                                        const sectionIds = analysisResult.data.suggested_sections
+                                                            .filter((s: any) => s.selected !== false)
+                                                            .map((s: any) => s.section_type_id);
+
+                                                        if (sectionIds.length > 0) {
+                                                            await documentsApi.autoBuildProposal(doc.id, sectionIds, true);
+                                                        }
+                                                    }
+                                                }
+
+                                                setUploadState('complete');
+                                                setUploadPercent(100);
+                                                setRfpText('');
+                                                await loadProject();
+
+                                                setTimeout(() => {
+                                                    setShowProgressModal(false);
+                                                    toast.success('RFP text processed successfully!');
+                                                    navigate(`/projects/${id}/proposal`);
+                                                }, 1500);
+                                            } catch (error: any) {
+                                                setShowProgressModal(false);
+                                                toast.error(error.response?.data?.error || 'Failed to process text');
+                                            } finally {
+                                                setIsSubmittingText(false);
+                                            }
+                                        }}
+                                        disabled={isSubmittingText || rfpText.trim().length < 50}
+                                        className={clsx(
+                                            'w-full btn-primary flex items-center justify-center gap-2',
+                                            (isSubmittingText || rfpText.trim().length < 50) && 'opacity-50 cursor-not-allowed'
+                                        )}
+                                    >
+                                        {isSubmittingText ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <SparklesIcon className="h-4 w-4" />
+                                                Analyze & Build Proposal
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Document List */}
@@ -812,6 +945,7 @@ export default function ProjectDetail() {
                 state={uploadState}
                 percentage={uploadPercent}
                 fileName={currentFileName}
+                inputMode={inputMethod}
                 onClose={() => {
                     setShowProgressModal(false);
                     if (uploadState === 'complete') {

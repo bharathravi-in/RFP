@@ -38,14 +38,14 @@ def get_knowledge_chat_session(item_id):
     
     # Get or create session (reuse document chat models)
     session = DocumentChatSession.query.filter_by(
-        document_id=item_id,  # We repurpose document_id for knowledge item
+        knowledge_item_id=item_id,  # Use the proper knowledge item field
         user_id=user_id
     ).first()
     
     is_new = False
     if not session:
         session = DocumentChatSession(
-            document_id=item_id,  # Stores knowledge item id
+            knowledge_item_id=item_id,  # Stores knowledge item id
             user_id=user_id
         )
         db.session.add(session)
@@ -113,13 +113,13 @@ def send_knowledge_message(item_id):
     
     # Get session
     session = DocumentChatSession.query.filter_by(
-        document_id=item_id,
+        knowledge_item_id=item_id,
         user_id=user_id
     ).first()
     
     if not session:
         session = DocumentChatSession(
-            document_id=item_id,
+            knowledge_item_id=item_id,
             user_id=user_id
         )
         db.session.add(session)

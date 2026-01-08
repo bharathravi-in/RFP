@@ -68,20 +68,8 @@ export default function PageLayout() {
                 return;
             }
 
-            // 2. Vendor Profile Check
-            const vendorProfile = (organization?.settings as any)?.vendor_profile;
-            if (!vendorProfile?.registration_country) {
-                navigate('/onboarding');
-                return;
-            }
-
-            // 3. Knowledge Profile Check (Async)
-            // We use a specific header/check to avoid loop if possible, or just check once per session?
-            // To be safe and performant, we only check if we are NOT already aware of profiles.
-            // But we don't have profile count in store.
-            // We will fetch it. If 0 profiles, redirect.
+            // 2. Knowledge Profile Check (Async)
             try {
-                // Dynamically import client to avoid circular deps if any
                 const module = await import('@/api/client');
                 const api = module.default;
                 const res = await api.get('/knowledge/profiles');
@@ -89,10 +77,6 @@ export default function PageLayout() {
                     navigate('/onboarding');
                 }
             } catch (error) {
-                // If call fails, we assume they might need onboarding or just let them pass to avoid lockout during outage
-                // Safest for "Strict" is to let them pass but Dashboard will block creation.
-                // But to strictly hide menus, we should audit. 
-                // Let's log warning.
                 console.warn("Could not verify knowledge profiles for onboarding enforcement.");
             }
         };

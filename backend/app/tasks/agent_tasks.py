@@ -123,21 +123,33 @@ def create_celery_tasks(celery_app):
             session_state = kb_result.get("session_state", session_state)
             
             # Step 4: Answer Generation
-            self.update_progress('PROGRESS', {
-                'current_step': 4,
-                'total_steps': 5,
-                'status': f'Generating answers to {len(questions)} questions...',
-                'progress_percent': 80
-            })
-            
-            answer_result = orchestrator.answer_generator.generate_answers(
-                tone=options.get("tone", "professional"),
-                length=options.get("length", "medium"),
-                session_state=session_state
-            )
-            
-            if not answer_result.get("success"):
-                raise Exception("Answer generation failed")
+            # Handle case where no questions were extracted
+            if not questions:
+                logger.warning("No questions extracted from document, skipping answer generation")
+                answer_result = {
+                    "success": True,
+                    "session_state": session_state,
+                    "answers": [],
+                    "message": "No questions extracted - document may not contain RFP requirements"
+                }
+            else:
+                self.update_progress('PROGRESS', {
+                    'current_step': 4,
+                    'total_steps': 5,
+                    'status': f'Generating answers to {len(questions)} questions...',
+                    'progress_percent': 80
+                })
+                
+                answer_result = orchestrator.answer_generator.generate_answers(
+                    tone=options.get("tone", "professional"),
+                    length=options.get("length", "medium"),
+                    session_state=session_state
+                )
+                
+                if not answer_result.get("success"):
+                    # Log warning but don't fail the entire task
+                    logger.warning("Answer generation returned unsuccessful, continuing with empty answers")
+                    answer_result["answers"] = []
             
             session_state = answer_result.get("session_state", session_state)
             

@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { sectionsApi } from '@/api/client';
 import { RFPSectionType } from '@/types';
 import toast from 'react-hot-toast';
-import { XMarkIcon, MagnifyingGlassIcon, CheckCircleIcon, SparklesIcon, DocumentPlusIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, MagnifyingGlassIcon, CheckCircleIcon, SparklesIcon, DocumentPlusIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import SectionChatAssistant from './SectionChatAssistant';
 
@@ -23,6 +23,14 @@ export default function SectionTypeSelector({ projectId, onSelect, onClose, exis
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [showChatAssistant, setShowChatAssistant] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Check if section type is a diagram type
+    const isDiagramSection = (type: RFPSectionType | null) => {
+        if (!type) return false;
+        return type.slug?.toLowerCase().includes('diagram') ||
+            (type as any).template_type === 'diagram';
+    };
 
     const loadData = useCallback(async () => {
         try {
@@ -107,6 +115,40 @@ export default function SectionTypeSelector({ projectId, onSelect, onClose, exis
         if (!selectedType) return;
         // Create section with pre-generated content
         onSelect(selectedType, inputs, content);
+    };
+
+    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
+        if (!validTypes.includes(file.type)) {
+            toast.error('Please upload a valid image file (PNG, JPG, GIF, or SVG)');
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image size must be less than 5MB');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64Data = e.target?.result as string;
+            if (!selectedType) return;
+
+            // Create markdown content with embedded image
+            const imageContent = `## ${selectedType.name}\n\n![${selectedType.name}](${base64Data})\n\n*Uploaded diagram*`;
+
+            onSelect(selectedType, inputs, imageContent);
+            toast.success('Image uploaded successfully');
+        };
+        reader.onerror = () => {
+            toast.error('Failed to read image file');
+        };
+        reader.readAsDataURL(file);
     };
 
     const filteredTypes = sectionTypes.filter(type =>
@@ -388,6 +430,24 @@ export default function SectionTypeSelector({ projectId, onSelect, onClose, exis
                                             <DocumentPlusIcon className="h-4 w-4" />
                                             Create Empty
                                         </button>
+                                        {isDiagramSection(selectedType) && (
+                                            <>
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    onChange={handleImageUpload}
+                                                    accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml"
+                                                    className="hidden"
+                                                />
+                                                <button
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="btn-secondary flex items-center gap-2"
+                                                >
+                                                    <PhotoIcon className="h-4 w-4" />
+                                                    Upload Image
+                                                </button>
+                                            </>
+                                        )}
                                         <button
                                             onClick={handleCreateWithAI}
                                             className="btn-primary flex items-center gap-2"

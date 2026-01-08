@@ -8,11 +8,13 @@ from app.extensions import db
 
 
 class DocumentChatSession(db.Model):
-    """Chat session linked to a specific document."""
+    """Chat session linked to a specific document or knowledge item."""
     __tablename__ = 'document_chat_sessions'
 
     id = db.Column(db.Integer, primary_key=True)
-    document_id = db.Column(db.Integer, db.ForeignKey('documents.id'), nullable=False, index=True)
+    # Either document_id or knowledge_item_id should be set (not both)
+    document_id = db.Column(db.Integer, db.ForeignKey('documents.id'), nullable=True, index=True)
+    knowledge_item_id = db.Column(db.Integer, db.ForeignKey('knowledge_items.id'), nullable=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     # AI-generated content
@@ -26,6 +28,7 @@ class DocumentChatSession(db.Model):
 
     # Relationships
     document = db.relationship('Document', backref=db.backref('chat_sessions', lazy='dynamic'))
+    knowledge_item = db.relationship('KnowledgeItem', backref=db.backref('chat_sessions', lazy='dynamic'))
     user = db.relationship('User', backref=db.backref('document_chats', lazy='dynamic'))
     messages = db.relationship('DocumentChatMessage', backref='session', lazy='dynamic',
                                cascade='all, delete-orphan', order_by='DocumentChatMessage.created_at')

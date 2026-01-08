@@ -124,17 +124,7 @@ function App() {
                     }
                 />
 
-                {/* Knowledge Chat - Full screen experience */}
-                <Route
-                    path="/knowledge/:itemId/chat"
-                    element={
-                        <ProtectedRoute>
-                            <ErrorBoundary>
-                                <KnowledgeChatPage />
-                            </ErrorBoundary>
-                        </ProtectedRoute>
-                    }
-                />
+
 
                 {/* Proposal Chat - Full screen experience */}
                 <Route
@@ -167,6 +157,7 @@ function App() {
                     <Route path="projects/:id/proposal" element={<ProposalBuilder />} />
                     <Route path="projects/:id/versions" element={<DocumentVersioning />} />
                     <Route path="knowledge" element={<KnowledgeBase />} />
+                    <Route path="knowledge/:itemId/chat" element={<KnowledgeChatPage />} />
                     <Route path="templates" element={<TemplatesManager />} />
                     <Route path="library" element={<AnswerLibrary />} />
                     <Route path="analytics" element={<AnalyticsDeepDive />} />

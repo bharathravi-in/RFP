@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeftIcon, PaperAirplaneIcon, SparklesIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import SimpleMarkdown from '@/components/common/SimpleMarkdown';
 
 interface Message {
     id: number;
@@ -201,21 +202,20 @@ const DocumentChatPage: React.FC = () => {
                                 <div className="mb-4">
                                     <div className="flex items-start gap-2">
                                         <SparklesIcon className="w-4 h-4 text-yellow-500 mt-1 shrink-0" />
-                                        <div>
-                                            <p className="text-sm font-medium text-text-primary">- Overview:</p>
-                                            <p className="text-sm text-text-secondary mt-1">{session.summary}</p>
+                                        <div className="text-sm text-text-secondary prose prose-sm max-w-none">
+                                            <SimpleMarkdown content={session.summary} />
                                         </div>
                                     </div>
                                 </div>
 
                                 {session.keyPoints && session.keyPoints.length > 0 && (
                                     <div>
-                                        <p className="text-sm font-medium text-text-primary mb-2">- Key Points:</p>
+                                        <p className="text-sm font-medium text-text-primary mb-2">Key Points:</p>
                                         <ul className="space-y-2 text-sm text-text-secondary">
                                             {session.keyPoints.map((point, index) => (
                                                 <li key={index} className="flex items-start gap-2">
-                                                    <span className="text-text-muted">-</span>
-                                                    <span>{point}</span>
+                                                    <span className="text-text-muted">•</span>
+                                                    <SimpleMarkdown content={point} />
                                                 </li>
                                             ))}
                                         </ul>

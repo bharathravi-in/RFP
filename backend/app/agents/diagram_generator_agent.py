@@ -118,32 +118,48 @@ class DiagramGeneratorAgent:
     
     ARCHITECTURE_PROMPT = """You are an expert system architect. Analyze this RFP document and create a Mermaid.js architecture diagram.
 
-**CRITICAL MERMAID SYNTAX RULES:**
-- Keep node labels SHORT (max 15 characters)
-- Use ONLY alphanumeric characters and spaces in labels
-- NO parentheses, colons, or special characters in labels
-- Each node on its own line
-- Example good: A[Web App] B[API Server]
-- Example BAD: A[Web Application (Frontend)] <- parentheses cause errors
+**CRITICAL MERMAID SYNTAX RULES - MUST FOLLOW:**
+1. Use flowchart TB (top to bottom) format
+2. Keep ALL node labels SHORT (max 12 characters, no spaces preferred)
+3. Use ONLY letters, numbers, underscores in node IDs (e.g. A, B, WebApp, DB1)
+4. NO parentheses (), colons :, quotes " ' in labels
+5. NO special characters or unicode arrows
+6. Each connection on its own line: A --> B
+7. Use simple subgraph names without spaces
 
-**INSTRUCTIONS:**
-1. Identify key systems and components
-2. Use simple, short labels (e.g., "Web App" not "Web Application Frontend")
-3. Create clear data flows
+**VALID EXAMPLE:**
+flowchart TB
+    subgraph Frontend
+        A[Web App]
+        B[Mobile]
+    end
+    subgraph Backend
+        C[API Server]
+        D[Auth]
+    end
+    subgraph Data
+        E[Database]
+        F[Cache]
+    end
+    A --> C
+    B --> C
+    C --> D
+    C --> E
+    C --> F
 
 **DOCUMENT TEXT:**
 {text}
 
 **RESPOND WITH VALID JSON ONLY:**
 {{
-  "title": "Architecture diagram title",
-  "description": "Brief description",
-  "mermaid_code": "flowchart TB\\n    subgraph Frontend\\n        A[Web App]\\n        B[Mobile App]\\n    end\\n    subgraph Backend\\n        C[API Gateway]\\n        D[Auth Service]\\n    end\\n    A --> C\\n    B --> C",
-  "components": ["Component 1", "Component 2"],
-  "notes": "Notes about the architecture"
+  "title": "System Architecture",
+  "description": "Brief architecture overview",
+  "mermaid_code": "flowchart TB\\n    subgraph Frontend\\n        A[Web App]\\n        B[Mobile]\\n    end\\n    subgraph Backend\\n        C[API Server]\\n        D[Services]\\n    end\\n    subgraph Data\\n        E[Database]\\n    end\\n    A --> C\\n    B --> C\\n    C --> D\\n    D --> E",
+  "components": ["Frontend", "Backend", "Database"],
+  "notes": "Architecture notes"
 }}
 
-Return ONLY valid JSON. Use \\n for newlines in mermaid_code."""
+IMPORTANT: Return ONLY the JSON object. Use \\n for newlines in mermaid_code. Keep it simple."""
 
     FLOWCHART_PROMPT = """You are an expert business analyst. Create a Mermaid.js flowchart for this RFP document.
 
@@ -506,28 +522,90 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
             raise
     
     def _fallback_parse(self, text: str, diagram_type: str) -> Dict:
-        """Try to extract diagram from malformed response."""
-        # Look for mermaid code block
+        """Try to extract diagram from malformed response with multiple patterns."""
+        diagram_info = DIAGRAM_TYPE_INFO.get(diagram_type, DIAGRAM_TYPE_INFO['architecture'])
+        
+        def make_result(mermaid_code: str, note: str) -> Dict:
+            return {
+                "title": f"{diagram_info['name']}",
+                "description": "Auto-extracted diagram",
+                "mermaid_code": mermaid_code.strip(),
+                "notes": note
+            }
+        
+        # Pattern 1: Standard mermaid code block
         mermaid_match = re.search(r'```mermaid\n(.*?)```', text, re.DOTALL)
         if mermaid_match:
-            return {
-                "title": f"{DIAGRAM_TYPE_INFO[diagram_type]['name']}",
-                "description": "Auto-extracted diagram",
-                "mermaid_code": mermaid_match.group(1).strip(),
-                "notes": "Diagram was extracted from AI response"
-            }
+            logger.info("Fallback: Extracted via Pattern 1 (standard mermaid block)")
+            return make_result(mermaid_match.group(1), "Diagram extracted from mermaid code block")
         
-        # Look for any code block
+        # Pattern 2: Mermaid block with variations (spacing, language hints)
+        mermaid_match = re.search(r'```\s*mermaid[^\n]*\n(.*?)```', text, re.DOTALL | re.IGNORECASE)
+        if mermaid_match:
+            logger.info("Fallback: Extracted via Pattern 2 (mermaid block with variations)")
+            return make_result(mermaid_match.group(1), "Diagram extracted from mermaid code block")
+        
+        # Pattern 3: Any code block
         code_match = re.search(r'```\n?(.*?)```', text, re.DOTALL)
         if code_match:
-            return {
-                "title": f"{DIAGRAM_TYPE_INFO[diagram_type]['name']}",
-                "description": "Auto-extracted diagram",
-                "mermaid_code": code_match.group(1).strip(),
-                "notes": "Diagram was extracted from AI response"
-            }
+            code = code_match.group(1).strip()
+            # Only use if it looks like mermaid syntax
+            if any(starter in code.lower() for starter in ['flowchart', 'graph', 'sequencediagram', 'gantt', 'erdiagram', 'mindmap']):
+                logger.info("Fallback: Extracted via Pattern 3 (generic code block with mermaid syntax)")
+                return make_result(code, "Diagram extracted from code block")
         
-        raise ValueError("Could not parse AI response into diagram")
+        # Pattern 4: Extract mermaid_code from partial/malformed JSON
+        json_field_match = re.search(r'"mermaid_code"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+        if json_field_match:
+            mermaid_code = json_field_match.group(1)
+            # Unescape the JSON string
+            mermaid_code = mermaid_code.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+            logger.info("Fallback: Extracted via Pattern 4 (mermaid_code JSON field)")
+            return make_result(mermaid_code, "Diagram extracted from JSON field")
+        
+        # Pattern 5: Look for raw mermaid syntax without code fences
+        mermaid_starters = [
+            (r'(flowchart\s+(?:TB|TD|LR|RL|BT)[^\n]*(?:\n(?!```|\n\n).*)*)', 'flowchart'),
+            (r'(graph\s+(?:TB|TD|LR|RL|BT)[^\n]*(?:\n(?!```|\n\n).*)*)', 'graph'),
+            (r'(sequenceDiagram[^\n]*(?:\n(?!```|\n\n).*)*)', 'sequence'),
+            (r'(gantt[^\n]*(?:\n(?!```|\n\n).*)*)', 'gantt'),
+            (r'(erDiagram[^\n]*(?:\n(?!```|\n\n).*)*)', 'er'),
+            (r'(mindmap[^\n]*(?:\n(?!```|\n\n).*)*)', 'mindmap'),
+        ]
+        
+        for pattern, dtype in mermaid_starters:
+            starter_match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if starter_match:
+                code = starter_match.group(1).strip()
+                # Ensure we have enough lines for a valid diagram
+                if code.count('\n') >= 1 or len(code) > 20:
+                    logger.info(f"Fallback: Extracted via Pattern 5 (raw {dtype} syntax)")
+                    return make_result(code, f"Diagram extracted from raw {dtype} syntax")
+        
+        # Pattern 6: Ultimate fallback - return a default diagram
+        logger.warning(f"All extraction patterns failed for {diagram_type}, using default diagram")
+        return self._get_default_diagram(diagram_type)
+    
+    def _get_default_diagram(self, diagram_type: str) -> Dict:
+        """Return a sensible default diagram when all parsing attempts fail."""
+        defaults = {
+            'architecture': 'flowchart TB\n    subgraph Frontend\n        A[Web App]\n        B[Mobile App]\n    end\n    subgraph Backend\n        C[API Gateway]\n        D[Services]\n    end\n    subgraph Data\n        E[Database]\n        F[Cache]\n    end\n    A --> C\n    B --> C\n    C --> D\n    D --> E\n    D --> F',
+            'flowchart': 'flowchart LR\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Process A]\n    B -->|No| D[Process B]\n    C --> E[End]\n    D --> E',
+            'sequence': 'sequenceDiagram\n    participant U as User\n    participant S as System\n    participant D as Database\n    U->>S: Request\n    S->>D: Query\n    D-->>S: Results\n    S-->>U: Response',
+            'timeline': 'gantt\n    title Project Timeline\n    dateFormat YYYY-MM-DD\n    section Phase 1\n        Planning: 2024-01-01, 30d\n        Design: 2024-01-15, 30d\n    section Phase 2\n        Development: 2024-02-01, 60d\n        Testing: 2024-03-01, 30d',
+            'er': 'erDiagram\n    USER ||--o{ ORDER : places\n    ORDER ||--|{ LINE_ITEM : contains\n    PRODUCT ||--o{ LINE_ITEM : includes',
+            'mindmap': 'mindmap\n    root((Project))\n        Requirements\n            Functional\n            Technical\n        Design\n            Architecture\n            UI/UX\n        Implementation\n            Frontend\n            Backend',
+        }
+        
+        diagram_info = DIAGRAM_TYPE_INFO.get(diagram_type, DIAGRAM_TYPE_INFO['architecture'])
+        mermaid_code = defaults.get(diagram_type, defaults['architecture'])
+        
+        return {
+            "title": f"{diagram_info['name']} (Template)",
+            "description": "Default template diagram - please customize for your project",
+            "mermaid_code": mermaid_code,
+            "notes": "This is a template diagram generated as a fallback. Please edit to add specific details from your RFP."
+        }
     
     def _clean_mermaid_code(self, code: str) -> str:
         """Clean and sanitize mermaid code for common syntax issues."""
@@ -544,6 +622,9 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         code = re.sub(r'^```(?:mermaid)?\n?', '', code)
         code = re.sub(r'\n?```$', '', code)
         
+        # Repair truncated/incomplete code first
+        code = self._repair_truncated_code(code)
+        
         # Fix common mermaid syntax issues
         code = self._sanitize_mermaid_syntax(code)
         
@@ -553,6 +634,119 @@ Return ONLY valid JSON, no markdown formatting or code blocks. Make sure mermaid
         logger.info(f"Cleaned mermaid code (first 100 chars): {code[:100]}")
         
         return code
+    
+    def _repair_truncated_code(self, code: str) -> str:
+        """Repair truncated or incomplete mermaid code."""
+        if not code:
+            return code
+        
+        lines = code.split('\n')
+        repaired_lines = []
+        open_subgraphs = 0
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Skip flowchart/graph declarations, empty lines
+            if not stripped or stripped.startswith('flowchart') or stripped.startswith('graph'):
+                repaired_lines.append(line)
+                continue
+            
+            # Track subgraph opens
+            if stripped.startswith('subgraph'):
+                open_subgraphs += 1
+                repaired_lines.append(line)
+                continue
+            
+            # Track subgraph closes
+            if stripped == 'end':
+                if open_subgraphs > 0:
+                    open_subgraphs -= 1
+                repaired_lines.append(line)
+                continue
+            
+            # Check for incomplete connection lines (e.g., "A -- Accesses" without target)
+            # Valid connections: A --> B, A -- Label --> B, A -->|Label| B
+            # Invalid: A -- Accesses (no target), A --> (no target)
+            
+            # Pattern: NodeID followed by -- or --> but no valid target node after
+            incomplete_connection = re.match(
+                r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)\s*(--|-->|<--|---)\s*([A-Za-z][A-Za-z0-9\s]*)?$',
+                stripped
+            )
+            if incomplete_connection:
+                node_id = incomplete_connection.group(2)
+                arrow = incomplete_connection.group(3)
+                rest = incomplete_connection.group(4)
+                
+                # Check if 'rest' is a valid node ID or just a label without target
+                if rest:
+                    # If rest contains spaces, it's likely a label like "Accesses", not a node ID
+                    # Valid node IDs are single words like "B", "NodeB", etc.
+                    if ' ' in rest.strip() or not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', rest.strip()):
+                        # This is an incomplete connection - skip it
+                        logger.warning(f"Removing incomplete connection: {stripped}")
+                        continue
+            
+            # Check for incomplete node definitions (unclosed brackets)
+            open_square = stripped.count('[') - stripped.count(']')
+            open_curly = stripped.count('{') - stripped.count('}')
+            open_paren = stripped.count('(') - stripped.count(')')
+            
+            if open_square > 0 or open_curly > 0 or open_paren > 0:
+                # This line is truncated - try to fix it
+                logger.warning(f"Detected truncated line: {stripped[:50]}...")
+                
+                # Extract the node ID if possible
+                node_match = re.match(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)\s*[\[\{\(]', stripped)
+                if node_match:
+                    indent = node_match.group(1)
+                    node_id = node_match.group(2)
+                    
+                    # Try to salvage the label
+                    label_match = re.search(r'[\[\{\(]([^\]\}\)]*)', stripped)
+                    label = label_match.group(1).strip() if label_match else node_id
+                    label = label[:20] if len(label) > 20 else label
+                    label = label if label else node_id
+                    
+                    # Determine bracket type and close it
+                    if '[' in stripped and open_square > 0:
+                        repaired_lines.append(f"{indent}{node_id}[{label}]")
+                    elif '{' in stripped and open_curly > 0:
+                        repaired_lines.append(f"{indent}{node_id}{{{label}}}")
+                    elif '(' in stripped and open_paren > 0:
+                        repaired_lines.append(f"{indent}{node_id}({label})")
+                    else:
+                        repaired_lines.append(f"{indent}{node_id}[{label}]")
+                    
+                    logger.info(f"Repaired truncated node: {node_id}")
+                else:
+                    logger.warning(f"Skipping unrepairable truncated line")
+                continue
+            
+            # Check for lines with arrows but incomplete targets
+            if '-->' in stripped or '<--' in stripped or '---' in stripped or re.search(r'\s--\s', stripped):
+                parts = re.split(r'(-->|<--|---|\s--\s)', stripped)
+                if len(parts) >= 3:
+                    target = parts[-1].strip()
+                    # If target is empty or too short to be a valid node
+                    if not target or len(target) < 1:
+                        logger.warning(f"Removing connection with no target: {stripped}")
+                        continue
+                    # If target has unclosed brackets
+                    if '[' in target and ']' not in target:
+                        logger.warning(f"Removing connection with truncated target: {stripped}")
+                        continue
+            
+            repaired_lines.append(line)
+        
+        # Close any unclosed subgraphs
+        while open_subgraphs > 0:
+            repaired_lines.append('    end')
+            open_subgraphs -= 1
+            logger.info("Added missing 'end' for unclosed subgraph")
+        
+        return '\n'.join(repaired_lines)
     
     def _sanitize_mermaid_syntax(self, code: str) -> str:
         """Fix common mermaid syntax issues in AI-generated code."""

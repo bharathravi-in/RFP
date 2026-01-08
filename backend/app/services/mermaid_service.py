@@ -25,6 +25,92 @@ def get_diagram_cache_key(mermaid_code: str) -> str:
     return hashlib.md5(mermaid_code.encode('utf-8')).hexdigest()
 
 
+def _repair_mermaid_code(code: str) -> str:
+    """
+    Repair malformed mermaid code before sending to rendering API.
+    Fixes: incomplete connections, unclosed brackets, missing subgraph ends.
+    """
+    import re
+    
+    if not code:
+        return code
+    
+    lines = code.split('\n')
+    repaired_lines = []
+    open_subgraphs = 0
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Skip empty lines, flowchart/graph declarations
+        if not stripped or stripped.startswith('flowchart') or stripped.startswith('graph'):
+            repaired_lines.append(line)
+            continue
+        
+        # Track subgraph opens
+        if stripped.startswith('subgraph'):
+            open_subgraphs += 1
+            repaired_lines.append(line)
+            continue
+        
+        # Track subgraph closes
+        if stripped == 'end':
+            if open_subgraphs > 0:
+                open_subgraphs -= 1
+            repaired_lines.append(line)
+            continue
+        
+        # Check for incomplete connections (e.g., "A -- Accesses" without target)
+        incomplete_match = re.match(
+            r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)\s*(--|-->|<--|---)\s*([A-Za-z][A-Za-z0-9\s]*)?$',
+            stripped
+        )
+        if incomplete_match:
+            rest = incomplete_match.group(4)
+            if rest:
+                # If rest has spaces or isn't a valid node ID, skip this line
+                if ' ' in rest.strip() or not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', rest.strip()):
+                    logger.warning(f"Removing incomplete connection: {stripped}")
+                    continue
+        
+        # Check for unclosed brackets
+        open_square = stripped.count('[') - stripped.count(']')
+        open_curly = stripped.count('{') - stripped.count('}')
+        open_paren = stripped.count('(') - stripped.count(')')
+        
+        if open_square > 0 or open_curly > 0 or open_paren > 0:
+            # Try to repair truncated node
+            node_match = re.match(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)\s*[\[\{\(]', stripped)
+            if node_match:
+                indent = node_match.group(1)
+                node_id = node_match.group(2)
+                # Extract partial label
+                label_match = re.search(r'[\[\{\(]([^\]\}\)]*)', stripped)
+                label = label_match.group(1).strip()[:20] if label_match else node_id
+                label = label if label else node_id
+                
+                if '[' in stripped and open_square > 0:
+                    repaired_lines.append(f"{indent}{node_id}[{label}]")
+                elif '{' in stripped and open_curly > 0:
+                    repaired_lines.append(f"{indent}{node_id}{{{label}}}")
+                elif '(' in stripped and open_paren > 0:
+                    repaired_lines.append(f"{indent}{node_id}({label})")
+                else:
+                    repaired_lines.append(f"{indent}{node_id}[{label}]")
+                logger.info(f"Repaired truncated node: {node_id}")
+            continue
+        
+        repaired_lines.append(line)
+    
+    # Close any unclosed subgraphs
+    while open_subgraphs > 0:
+        repaired_lines.append('    end')
+        open_subgraphs -= 1
+        logger.info("Added missing 'end' for unclosed subgraph")
+    
+    return '\n'.join(repaired_lines)
+
+
 def render_mermaid_to_png(mermaid_code: str, use_cache: bool = True) -> Optional[bytes]:
     """
     Render a Mermaid.js diagram to PNG image bytes.
@@ -44,6 +130,13 @@ def render_mermaid_to_png(mermaid_code: str, use_cache: bool = True) -> Optional
     
     # Clean up the mermaid code
     mermaid_code = mermaid_code.strip()
+    
+    # Repair common issues that would cause rendering to fail
+    mermaid_code = _repair_mermaid_code(mermaid_code)
+    
+    if not mermaid_code:
+        logger.warning("Mermaid code empty after repair")
+        return None
     
     # Check cache first
     cache_key = get_diagram_cache_key(mermaid_code)
