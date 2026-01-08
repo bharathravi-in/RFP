@@ -1232,6 +1232,350 @@ def apply_themes_to_section():
 
 
 # ===============================
+# Narrative Control & Quality Gates (NEW)
+# ===============================
+
+@agents_bp.route('/narrative-context', methods=['POST'])
+def build_narrative_context():
+    """
+    Build narrative context for a proposal using ProposalNarrativeArchitectAgent.
+    This should be called FIRST before generating any content.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide project_data directly
+        "project_data": {"name": "...", "client_name": "...", "description": "..."},
+        "rfp_content": "...",
+        "extracted_questions": [...],
+        "sections": [...]
+    }
+    
+    Returns narrative context that all content agents should consume.
+    """
+    from app.agents import get_proposal_narrative_architect
+    from app.models import Project, Organization
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    project_data = data.get('project_data', {})
+    vendor_profile = data.get('vendor_profile', {})
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+            'description': project.description,
+        }
+        
+        # Get vendor profile from organization
+        if project.organization_id:
+            org = Organization.query.get(project.organization_id)
+            if org and org.settings:
+                vendor_profile = org.settings.get('vendor_profile', {})
+            org_id = project.organization_id
+        else:
+            org_id = data.get('org_id')
+    else:
+        org_id = data.get('org_id')
+    
+    try:
+        agent = get_proposal_narrative_architect(org_id=org_id)
+        result = agent.build_narrative_context(
+            project_data=project_data,
+            rfp_content=data.get('rfp_content'),
+            extracted_questions=data.get('extracted_questions', []),
+            sections=data.get('sections', []),
+            vendor_profile=vendor_profile
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Narrative context generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/score-section', methods=['POST'])
+def score_section_depth():
+    """
+    Score a section's depth and quality using ProposalDepthScoringAgent.
+    
+    Request body:
+    {
+        "section_title": "Technical Approach",
+        "section_content": "...",
+        "narrative_context": {...}  // From /narrative-context endpoint
+    }
+    
+    Returns scoring with regeneration recommendation.
+    """
+    from app.agents import get_proposal_depth_scoring_agent
+    
+    data = request.get_json() or {}
+    
+    section_title = data.get('section_title', 'Untitled')
+    section_content = data.get('section_content', '')
+    narrative_context = data.get('narrative_context', {})
+    threshold = data.get('threshold')
+    
+    if not section_content:
+        return jsonify({"error": "section_content is required"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_proposal_depth_scoring_agent(org_id=org_id, threshold=threshold)
+        result = agent.score_section(
+            section_title=section_title,
+            section_content=section_content,
+            narrative_context=narrative_context
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Section scoring failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/score-proposal', methods=['POST'])
+def score_proposal():
+    """
+    Score entire proposal across all sections.
+    
+    Request body:
+    {
+        "sections": [{"title": "...", "content": "..."}],
+        "narrative_context": {...}
+    }
+    
+    Returns per-section and aggregate scores.
+    """
+    from app.agents import get_proposal_depth_scoring_agent
+    
+    data = request.get_json() or {}
+    
+    sections = data.get('sections', [])
+    narrative_context = data.get('narrative_context', {})
+    threshold = data.get('threshold')
+    
+    if not sections:
+        return jsonify({"error": "sections array is required"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_proposal_depth_scoring_agent(org_id=org_id, threshold=threshold)
+        result = agent.score_proposal(
+            sections=sections,
+            narrative_context=narrative_context
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Proposal scoring failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/executive-gate', methods=['POST'])
+def run_executive_gate():
+    """
+    Run final executive confidence gate check using ExecutiveConfidenceGateAgent.
+    
+    Request body:
+    {
+        "proposal_summary": "Brief overview",
+        "executive_summary": "Full executive summary section",
+        "sections": [{"title": "...", "content": "..."}],
+        "narrative_context": {...},
+        "vendor_name": "Our Company"
+    }
+    
+    Returns executive evaluation with go/no-go verdict.
+    """
+    from app.agents import get_executive_confidence_gate
+    
+    data = request.get_json() or {}
+    
+    proposal_summary = data.get('proposal_summary', '')
+    executive_summary = data.get('executive_summary', '')
+    sections = data.get('sections', [])
+    narrative_context = data.get('narrative_context', {})
+    vendor_name = data.get('vendor_name', 'Our Company')
+    
+    if not executive_summary and not sections:
+        return jsonify({"error": "executive_summary or sections required"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_executive_confidence_gate(org_id=org_id)
+        result = agent.evaluate_proposal(
+            proposal_summary=proposal_summary,
+            executive_summary=executive_summary,
+            sections=sections,
+            narrative_context=narrative_context,
+            vendor_name=vendor_name
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Executive gate evaluation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/validate-answer', methods=['POST'])
+def validate_answer():
+    """
+    Validate an answer for evidence density, anti-patterns, and client references.
+    
+    Request body:
+    {
+        "content": "The answer text to validate",
+        "client_name": "Client Name" (optional)
+    }
+    
+    Returns validation result with recommendations.
+    """
+    from app.agents import get_answer_generator_agent
+    
+    data = request.get_json() or {}
+    
+    content = data.get('content', '')
+    client_name = data.get('client_name')
+    
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    
+    org_id = data.get('org_id')
+    
+    try:
+        agent = get_answer_generator_agent(org_id=org_id)
+        result = agent.validate_answer(
+            content=content,
+            client_name=client_name
+        )
+        return jsonify({
+            'success': True,
+            'validation': result
+        })
+    except Exception as e:
+        logger.error(f"Answer validation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/analyze-decision-drivers', methods=['POST'])
+def analyze_decision_drivers():
+    """
+    Analyze decision drivers from document.
+    
+    Request body:
+    {
+        "document_id": int,
+        "text": "Optional raw text if no document_id"
+    }
+    """
+    from app.agents import get_document_analyzer_agent
+    from app.models import Document
+    
+    data = request.get_json() or {}
+    
+    document_id = data.get('document_id')
+    text = data.get('text', '')
+    
+    if document_id:
+        document = Document.query.get(document_id)
+        if not document:
+            return jsonify({"error": "Document not found"}), 404
+        text = document.extracted_text or ''
+    
+    if not text:
+        return jsonify({"error": "No text to analyze"}), 400
+    
+    try:
+        agent = get_document_analyzer_agent()
+        result = agent.extract_decision_drivers(text)
+        return jsonify({
+            'success': True,
+            'decision_drivers': result
+        })
+    except Exception as e:
+        logger.error(f"Decision driver analysis failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/analyze-buyer-mindset', methods=['POST'])
+def analyze_buyer_mindset():
+    """
+    Analyze buyer mindset and psychology.
+    
+    Request body:
+    {
+        "document_id": int,
+        "text": "Optional raw text if no document_id"
+    }
+    """
+    from app.agents import get_document_analyzer_agent
+    from app.models import Document
+    
+    data = request.get_json() or {}
+    
+    document_id = data.get('document_id')
+    text = data.get('text', '')
+    
+    if document_id:
+        document = Document.query.get(document_id)
+        if not document:
+            return jsonify({"error": "Document not found"}), 404
+        text = document.extracted_text or ''
+    
+    if not text:
+        return jsonify({"error": "No text to analyze"}), 400
+    
+    try:
+        agent = get_document_analyzer_agent()
+        result = agent.analyze_buyer_mindset(text)
+        return jsonify({
+            'success': True,
+            'buyer_mindset': result
+        })
+    except Exception as e:
+        logger.error(f"Buyer mindset analysis failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@agents_bp.route('/detect-ai-patterns', methods=['POST'])
+def detect_ai_patterns():
+    """
+    Detect AI-generated patterns in content.
+    
+    Request body:
+    {
+        "content": "The content to analyze"
+    }
+    """
+    from app.agents import get_quality_reviewer_agent
+    
+    data = request.get_json() or {}
+    
+    content = data.get('content', '')
+    
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    
+    try:
+        agent = get_quality_reviewer_agent()
+        result = agent.detect_ai_patterns(content)
+        return jsonify({
+            'success': True,
+            'ai_detection': result
+        })
+    except Exception as e:
+        logger.error(f"AI pattern detection failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===============================
 # Competitive Analysis Routes (NEW)
 # ===============================
 
@@ -1332,6 +1676,72 @@ def generate_counter_objections():
         logger.error(f"Counter objection generation failed: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+# ===============================
+# Case Study Generation Routes (NEW)
+# ===============================
+
+@agents_bp.route('/case-studies', methods=['POST'])
+def generate_case_studies():
+    """
+    Generate case studies for a proposal.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide project_data directly
+        "project_data": {"name": "...", "description": "..."},
+        "requirements": ["Requirement 1"],
+        "industry": "Technology",
+        "case_count": 3
+    }
+    
+    Returns generated case studies matching the project requirements.
+    """
+    from app.agents import get_case_study_agent
+    from app.models import Project, Organization
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    project_data = data.get('project_data', {})
+    vendor_profile = data.get('vendor_profile', {})
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+            'description': project.description,
+        }
+        
+        # Get vendor profile from organization
+        if project.organization_id:
+            org = Organization.query.get(project.organization_id)
+            if org and org.settings:
+                vendor_profile = org.settings.get('vendor_profile', {})
+            org_id = project.organization_id
+        else:
+            org_id = data.get('org_id')
+    else:
+        org_id = data.get('org_id')
+    
+    try:
+        agent = get_case_study_agent(org_id=org_id)
+        result = agent.generate_case_studies(
+            project_data=project_data,
+            requirements=data.get('requirements', []),
+            industry=data.get('industry'),
+            case_count=data.get('case_count', 3),
+            vendor_profile=vendor_profile
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Case study generation failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # ===============================
 # Strategy Persistence Routes
@@ -1474,6 +1884,28 @@ def save_diagrams(project_id: int):
     return jsonify({
         "success": True,
         "message": "Diagrams saved"
+    })
+
+
+@agents_bp.route('/strategy/<int:project_id>/case-studies', methods=['POST'])
+def save_case_studies(project_id: int):
+    """
+    Save case studies data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_case_studies(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Case studies saved"
     })
 
 

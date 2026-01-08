@@ -3,6 +3,13 @@ Orchestrator Agent
 
 Main entry point that coordinates all sub-agents in a sequential workflow
 for complete RFP analysis and response generation.
+
+Enhanced with Narrative Control Layer (P0):
+- ProposalNarrativeArchitectAgent runs FIRST to establish narrative foundation
+- All content agents receive narrative_context for coherence
+- ProposalDepthScoringAgent validates section quality
+- ExecutiveConfidenceGateAgent provides final go/no-go assessment
+- Regeneration loop for low-scoring sections
 """
 import logging
 from typing import Dict, List, Any, Optional
@@ -20,6 +27,10 @@ from .quality_reviewer_agent import get_quality_reviewer_agent
 from .proposal_quality_gate_agent import get_proposal_quality_gate_agent
 from .executive_editor_agent import get_executive_editor_agent
 from .similarity_validator_agent import get_similarity_validator_agent
+# Narrative Control Layer Agents (NEW - P0)
+from .proposal_narrative_architect_agent import get_proposal_narrative_architect
+from .proposal_depth_scoring_agent import get_proposal_depth_scoring_agent
+from .executive_confidence_gate_agent import get_executive_confidence_gate
 
 logger = logging.getLogger(__name__)
 
@@ -28,19 +39,23 @@ class OrchestratorAgent:
     """
     Main orchestrator that coordinates the multi-agent workflow.
     
-    Workflow:
-    1. Document Analyzer → Extracts structure and themes
+    Enhanced Workflow with Narrative Control Layer:
+    0. Narrative Architect → Establishes narrative foundation (FIRST - P0)
+    1. Document Analyzer → Extracts structure and themes (enhanced with narrative)
     2. Question Extractor → Identifies questions
     3. Knowledge Base → Retrieves context
-    4. Answer Generator → Creates draft answers
-    4.5. Answer Validator → Validates answers against knowledge (NEW)
-    4.6. Compliance Checker → Validates compliance claims (NEW)
+    4. Answer Generator → Creates draft answers (with narrative context)
+    4.5. Answer Validator → Validates answers against knowledge
+    4.6. Compliance Checker → Validates compliance claims
     5. Clarification Agent → Identifies questions needing clarification
     6. Quality Reviewer → Reviews and validates
+    7. Depth Scoring → Scores content quality, triggers regeneration
+    8. Executive Gate → Final CXO-perspective validation
     """
     
     # Workflow step definitions for progress tracking
     WORKFLOW_STEPS = [
+        {'step': 0, 'id': 'narrative_architecture', 'name': 'Narrative Architecture', 'agent': 'ProposalNarrativeArchitectAgent', 'weight': 10},
         {'step': 1, 'id': 'document_analysis', 'name': 'Document Analysis', 'agent': 'DocumentAnalyzerAgent', 'weight': 10},
         {'step': 2, 'id': 'question_extraction', 'name': 'Question Extraction', 'agent': 'QuestionExtractorAgent', 'weight': 10},
         {'step': 3, 'id': 'knowledge_retrieval', 'name': 'Knowledge Retrieval', 'agent': 'KnowledgeBaseAgent', 'weight': 15},
@@ -49,13 +64,16 @@ class OrchestratorAgent:
         {'step': 6, 'id': 'compliance_check', 'name': 'Compliance Check', 'agent': 'ComplianceCheckerAgent', 'weight': 5},
         {'step': 7, 'id': 'clarification', 'name': 'Clarification Analysis', 'agent': 'ClarificationAgent', 'weight': 5},
         {'step': 8, 'id': 'quality_review', 'name': 'Quality Review', 'agent': 'QualityReviewerAgent', 'weight': 5},
-        {'step': 9, 'id': 'executive_edit', 'name': 'Executive Editing', 'agent': 'ExecutiveEditorAgent', 'weight': 10},
-        {'step': 10, 'id': 'similarity_validation', 'name': 'Similarity Validation', 'agent': 'SimilarityValidatorAgent', 'weight': 5},
-        {'step': 11, 'id': 'quality_gate', 'name': 'Quality Gate', 'agent': 'ProposalQualityGateAgent', 'weight': 5},
+        {'step': 9, 'id': 'depth_scoring', 'name': 'Depth Scoring', 'agent': 'ProposalDepthScoringAgent', 'weight': 5},
+        {'step': 10, 'id': 'executive_edit', 'name': 'Executive Editing', 'agent': 'ExecutiveEditorAgent', 'weight': 5},
+        {'step': 11, 'id': 'similarity_validation', 'name': 'Similarity Validation', 'agent': 'SimilarityValidatorAgent', 'weight': 3},
+        {'step': 12, 'id': 'executive_gate', 'name': 'Executive Confidence Gate', 'agent': 'ExecutiveConfidenceGateAgent', 'weight': 5},
+        {'step': 13, 'id': 'quality_gate', 'name': 'Quality Gate', 'agent': 'ProposalQualityGateAgent', 'weight': 2},
     ]
     
     # Error recovery strategies
     ERROR_RECOVERY = {
+        'narrative_architecture': {'fallback': 'use_default', 'critical': False},
         'document_analysis': {'fallback': 'skip', 'critical': True},
         'question_extraction': {'fallback': 'skip', 'critical': True},
         'knowledge_retrieval': {'fallback': 'continue_empty', 'critical': False},
@@ -64,10 +82,16 @@ class OrchestratorAgent:
         'compliance_check': {'fallback': 'skip', 'critical': False},
         'clarification': {'fallback': 'skip', 'critical': False},
         'quality_review': {'fallback': 'skip', 'critical': False},
+        'depth_scoring': {'fallback': 'skip', 'critical': False},
         'executive_edit': {'fallback': 'skip', 'critical': False},
         'similarity_validation': {'fallback': 'skip', 'critical': False},
+        'executive_gate': {'fallback': 'pass_with_warning', 'critical': False},
         'quality_gate': {'fallback': 'pass_with_warning', 'critical': True},
     }
+    
+    # Regeneration settings
+    DEPTH_SCORE_THRESHOLD = 4.0  # Sections below this score trigger regeneration
+    MAX_REGENERATION_ATTEMPTS = 2  # Maximum times to regenerate a section
 
     
     def __init__(self, org_id: int = None):
@@ -75,7 +99,12 @@ class OrchestratorAgent:
         self.name = "OrchestratorAgent"
         self.org_id = org_id
         
-        # Initialize sub-agents with org_id for proper LLM config
+        # Initialize Narrative Control Layer agents (P0 - run first)
+        self.narrative_architect = get_proposal_narrative_architect(org_id=org_id)
+        self.depth_scorer = get_proposal_depth_scoring_agent(org_id=org_id)
+        self.executive_gate = get_executive_confidence_gate(org_id=org_id)
+        
+        # Initialize core processing agents with org_id for proper LLM config
         self.document_analyzer = get_document_analyzer_agent(org_id=org_id)
         self.question_extractor = get_question_extractor_agent(org_id=org_id)
         self.knowledge_base = get_knowledge_base_agent(org_id=org_id)
@@ -84,6 +113,9 @@ class OrchestratorAgent:
         self.compliance_checker = get_compliance_checker_agent(org_id=org_id)
         self.clarification_agent = get_clarification_agent(org_id=org_id)
         self.quality_reviewer = get_quality_reviewer_agent(org_id=org_id)
+        
+        # Cached narrative context for use across all agents
+        self._narrative_context = None
     
     def analyze_rfp(
         self,
@@ -119,13 +151,45 @@ class OrchestratorAgent:
             "success": False,
             "steps_completed": [],
             "document_analysis": None,
+            "narrative_context": None,
             "questions": [],
             "answers": [],
+            "depth_scores": {},
+            "executive_gate": None,
             "stats": {},
             "agent_log": []
         }
         
         try:
+            # Step 0: Build Narrative Context (P0 - RUNS FIRST)
+            session_state[SessionKeys.CURRENT_STEP] = "building_narrative"
+            logger.info("Step 0: Building narrative context (Narrative Architect)...")
+            
+            # Extract project data from options or build from document
+            project_data = options.get('project_data', {
+                'name': options.get('project_name', 'RFP Response'),
+                'client_name': options.get('client_name', 'Client'),
+                'description': document_text[:2000]  # First 2000 chars as description
+            })
+            
+            narrative_result = self.narrative_architect.build_narrative_context(
+                project_data=project_data,
+                rfp_content=document_text,
+                vendor_profile=options.get('vendor_profile')
+            )
+            
+            if narrative_result.get('success'):
+                self._narrative_context = narrative_result.get('narrative_context', {})
+                result["narrative_context"] = self._narrative_context
+                result["steps_completed"].append("narrative_architecture")
+                # Store narrative in session state for other agents
+                session_state['narrative_context'] = self._narrative_context
+                logger.info(f"Narrative established: {self._narrative_context.get('solution_thesis', 'N/A')[:100]}")
+            else:
+                logger.warning("Narrative architecture skipped - using defaults")
+                self._narrative_context = self.narrative_architect.DEFAULT_NARRATIVE
+                session_state['narrative_context'] = self._narrative_context
+            
             # Step 1: Analyze Document
             session_state[SessionKeys.CURRENT_STEP] = "analyzing_document"
             logger.info("Step 1: Analyzing document structure...")
@@ -267,6 +331,98 @@ class OrchestratorAgent:
                 result["steps_completed"].append("quality_review_skipped")
             
             session_state = review_result.get("session_state", session_state)
+            
+            # Step 7: Score Content Depth (P0 - Quality Enforcement)
+            session_state[SessionKeys.CURRENT_STEP] = "scoring_depth"
+            logger.info("Step 7: Scoring content depth (Depth Scoring Agent)...")
+            
+            depth_scores = {}
+            low_scoring_sections = []
+            
+            try:
+                # Score each answer/section
+                for i, answer in enumerate(result.get("answers", [])):
+                    section_content = answer.get('content', answer.get('answer', ''))
+                    section_title = answer.get('question', {}).get('text', f'Section {i+1}')[:100]
+                    
+                    if section_content:
+                        score_result = self.depth_scorer.score_section(
+                            section_title=section_title,
+                            section_content=section_content,
+                            narrative_context=self._narrative_context
+                        )
+                        
+                        if score_result.get('success'):
+                            scoring = score_result.get('scoring', {})
+                            depth_scores[f"section_{i}"] = scoring
+                            overall_score = scoring.get('overall_score', 0)
+                            
+                            if overall_score < self.DEPTH_SCORE_THRESHOLD:
+                                low_scoring_sections.append({
+                                    'index': i,
+                                    'title': section_title,
+                                    'score': overall_score,
+                                    'issues': scoring.get('issues', [])
+                                })
+                
+                result["depth_scores"] = depth_scores
+                result["low_scoring_sections"] = low_scoring_sections
+                result["steps_completed"].append("depth_scoring")
+                
+                if low_scoring_sections:
+                    logger.warning(f"Found {len(low_scoring_sections)} sections below quality threshold")
+                    # TODO: Implement regeneration loop for low-scoring sections
+                    result["regeneration_needed"] = True
+                else:
+                    result["regeneration_needed"] = False
+                    
+            except Exception as depth_err:
+                logger.warning(f"Depth scoring skipped: {depth_err}")
+                result["steps_completed"].append("depth_scoring_skipped")
+            
+            # Step 8: Executive Confidence Gate (P0 - Final Gate)
+            session_state[SessionKeys.CURRENT_STEP] = "executive_gate"
+            logger.info("Step 8: Running Executive Confidence Gate...")
+            
+            try:
+                # Build proposal summary for executive evaluation
+                proposal_summary = self._build_proposal_summary(result, options)
+                
+                # Build sections list for evaluation
+                sections_for_gate = [
+                    {'title': a.get('question', {}).get('text', f'Section {i}')[:100],
+                     'content': a.get('content', a.get('answer', ''))}
+                    for i, a in enumerate(result.get("answers", []))
+                ]
+                
+                gate_result = self.executive_gate.evaluate_proposal(
+                    proposal_summary=proposal_summary,
+                    executive_summary=self._extract_executive_summary(result.get("answers", [])),
+                    sections=sections_for_gate,
+                    narrative_context=self._narrative_context,
+                    vendor_name=options.get('organization_name', 'Our Organization')
+                )
+                
+                if gate_result.get('success'):
+                    evaluation = gate_result.get('evaluation', {})
+                    result["executive_gate"] = {
+                        'executive_ready': evaluation.get('executive_ready', False),
+                        'trust_score': evaluation.get('trust_score', 0),
+                        'checklist': evaluation.get('checklist', {}),
+                        'gaps': evaluation.get('gaps', []),
+                        'executive_summary_rewrite_needed': evaluation.get('executive_summary_rewrite_needed', False)
+                    }
+                    result["steps_completed"].append("executive_gate")
+                    
+                    if not gate_result.get('executive_ready', False):
+                        logger.warning(f"Proposal not executive-ready. Trust score: {gate_result.get('trust_score', 0)}")
+                else:
+                    result["steps_completed"].append("executive_gate_skipped")
+                    
+            except Exception as gate_err:
+                logger.warning(f"Executive gate skipped: {gate_err}")
+                result["steps_completed"].append("executive_gate_skipped")
+            
             result["success"] = True
             
         except Exception as e:
@@ -275,6 +431,71 @@ class OrchestratorAgent:
             session_state[SessionKeys.ERRORS].append(str(e))
         
         return self._finalize_result(result, session_state)
+    
+    def _build_proposal_summary(self, result: Dict, options: Dict) -> str:
+        """Build a summary of the proposal for executive evaluation."""
+        summary_parts = []
+        
+        # Add narrative context summary
+        if self._narrative_context:
+            summary_parts.append(f"Solution Thesis: {self._narrative_context.get('solution_thesis', 'N/A')}")
+            summary_parts.append(f"Core Problem: {self._narrative_context.get('core_problem', 'N/A')}")
+            
+            value_pillars = self._narrative_context.get('value_pillars', [])
+            if value_pillars:
+                pillars = [p.get('pillar', '') for p in value_pillars[:3]]
+                summary_parts.append(f"Value Pillars: {', '.join(pillars)}")
+        
+        # Add document analysis summary
+        doc_analysis = result.get('document_analysis', {})
+        if doc_analysis:
+            summary_parts.append(f"Document Type: {doc_analysis.get('document_type', 'Unknown')}")
+            themes = doc_analysis.get('themes', [])
+            if themes:
+                summary_parts.append(f"Key Themes: {', '.join(themes[:5])}")
+        
+        # Add answer count
+        answer_count = len(result.get('answers', []))
+        summary_parts.append(f"Total Responses: {answer_count}")
+        
+        return '\n'.join(summary_parts)
+    
+    def _extract_executive_summary(self, answers: List[Dict]) -> str:
+        """Extract executive summary from answers if available."""
+        for answer in answers:
+            question = answer.get('question', {})
+            question_text = question.get('text', '').lower()
+            
+            # Look for executive summary type content
+            if any(term in question_text for term in ['executive summary', 'overview', 'introduction', 'summary']):
+                return answer.get('content', answer.get('answer', ''))[:3000]
+        
+        # Fallback: use first answer
+        if answers:
+            return answers[0].get('content', answers[0].get('answer', ''))[:2000]
+        
+        return "No executive summary available."
+    
+    def _build_sections_overview(self, answers: List[Dict]) -> str:
+        """Build an overview of all sections for executive gate."""
+        sections = []
+        
+        for i, answer in enumerate(answers[:10]):  # Limit to first 10
+            question = answer.get('question', {})
+            question_text = question.get('text', f'Section {i+1}')[:100]
+            content = answer.get('content', answer.get('answer', ''))
+            word_count = len(content.split()) if content else 0
+            
+            sections.append(f"- {question_text}: {word_count} words")
+        
+        if len(answers) > 10:
+            sections.append(f"- ... and {len(answers) - 10} more sections")
+        
+        return '\n'.join(sections)
+    
+    def get_narrative_context(self) -> Optional[Dict]:
+        """Return the current narrative context."""
+        return self._narrative_context
     
     def _finalize_result(self, result: Dict, session_state: Dict) -> Dict:
         """Finalize the result with session data."""

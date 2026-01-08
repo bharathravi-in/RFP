@@ -92,7 +92,41 @@ class AnswerGeneratorAgent:
         'comprehensive': {'min_words': 400, 'max_words': 1000, 'sentences': '8-15'}
     }
     
+    # Evidence-bound generation requirements (NEW)
+    EVIDENCE_TYPES = {
+        'architecture': ['architecture', 'system', 'infrastructure', 'platform', 'framework', 'integration'],
+        'metric': ['%', 'hours', 'days', 'weeks', 'reduction', 'increase', 'improved', 'saved', 'achieved'],
+        'delivery': ['phase', 'milestone', 'sprint', 'iteration', 'deployment', 'rollout', 'implementation'],
+        'constraint': ['requirement', 'constraint', 'compliance', 'regulation', 'standard', 'certification'],
+        'case_study': ['client', 'project', 'similar', 'previously', 'case', 'example', 'deployed']
+    }
+    
+    # Anti-pattern phrases to avoid (NEW)
+    ANTI_PATTERNS = [
+        'comprehensive solution',
+        'seamless integration',
+        'best-in-class',
+        'robust platform',
+        'cutting-edge technology',
+        'state-of-the-art',
+        'world-class',
+        'industry-leading',
+        'innovative approach',
+        'holistic solution',
+        'end-to-end',
+        'leverage synergies',
+        'digital transformation journey',
+        'paradigm shift',
+        'value-added',
+        'scalable and flexible',
+        'proven track record',
+        'unique value proposition'
+    ]
+    
     GENERATION_PROMPT = """You are an expert RFP response writer. Think step-by-step to generate accurate, well-sourced answers.
+
+## NARRATIVE CONTEXT (Single Source of Truth)
+{narrative_context}
 
 ## STEP 1: Understand the Question
 Analyze what is being asked:
@@ -151,6 +185,7 @@ Sources Used:
     def __init__(self, org_id: int = None):
         self.config = get_agent_config(org_id=org_id, agent_type='answer_generation')
         self.name = "AnswerGeneratorAgent"
+        self._narrative_context = None
     
     def generate_answers(
         self,
@@ -158,7 +193,8 @@ Sources Used:
         knowledge_context: Dict = None,
         tone: str = "professional",
         length: str = "medium",
-        session_state: Dict = None
+        session_state: Dict = None,
+        narrative_context: Dict = None
     ) -> Dict:
         """
         Generate answers for questions using context.
@@ -169,6 +205,7 @@ Sources Used:
             tone: professional, formal, or friendly
             length: short, medium, or long
             session_state: Shared state
+            narrative_context: Context from ProposalNarrativeArchitectAgent (P0)
             
         Returns:
             Generated answers with metadata
@@ -178,6 +215,10 @@ Sources Used:
         # Get data from session if not provided
         questions = questions or session_state.get(SessionKeys.EXTRACTED_QUESTIONS, [])
         knowledge_context = knowledge_context or session_state.get(SessionKeys.KNOWLEDGE_CONTEXT, {})
+        
+        # Get narrative context from session if not provided directly
+        narrative_context = narrative_context or session_state.get('narrative_context', {})
+        self._narrative_context = narrative_context
         
         if not questions:
             return {"success": False, "error": "No questions to answer"}
@@ -198,7 +239,8 @@ Sources Used:
                     category=q_category,
                     context=q_context,
                     tone=tone,
-                    length=length
+                    length=length,
+                    narrative_context=narrative_context
                 )
             except Exception as e:
                 logger.error(f"Answer generation failed for question {q_id}: {e}")
@@ -215,7 +257,8 @@ Sources Used:
                 "answer": answer["content"],
                 "confidence_score": answer.get("confidence", 0.5),
                 "flags": answer.get("flags", []),
-                "sources": q_context.get("knowledge_items", [])[:3]
+                "sources": q_context.get("knowledge_items", [])[:3],
+                "narrative_aligned": bool(narrative_context)
             })
         
         # Store in session state
@@ -252,9 +295,10 @@ Sources Used:
         category: str,
         context: Dict,
         tone: str,
-        length: str
+        length: str,
+        narrative_context: Dict = None
     ) -> Dict:
-        """Generate a single answer."""
+        """Generate a single answer with narrative grounding."""
         client = self.config.client
         if not client:
             return self._placeholder_answer(question)
@@ -280,6 +324,9 @@ Sources Used:
             'long': 'Provide detailed answer with examples.'
         }
         
+        # Build narrative context section
+        narrative_text = self._format_narrative_context(narrative_context)
+        
         prompt = self.GENERATION_PROMPT.format(
             question=question,
             context=context_text,
@@ -287,7 +334,8 @@ Sources Used:
             tone=tone,
             length_instruction=length_map.get(length, length_map['medium']),
             category=category,
-            category_instructions=self.CATEGORY_INSTRUCTIONS.get(category, "")
+            category_instructions=self.CATEGORY_INSTRUCTIONS.get(category, ""),
+            narrative_context=narrative_text
         )
         
         try:
@@ -345,6 +393,211 @@ Sources Used:
             "confidence": 0.0,
             "flags": ["ai_unavailable", "needs_manual_answer"]
         }
+    
+    def _format_narrative_context(self, narrative_context: Dict) -> str:
+        """Format narrative context for prompt injection."""
+        if not narrative_context:
+            return "No narrative context available. Generate a professional, balanced response."
+        
+        lines = []
+        
+        client_name = narrative_context.get('client_name', 'Client')
+        lines.append(f"Client: {client_name}")
+        
+        if narrative_context.get('core_problem'):
+            lines.append(f"Core Problem: {narrative_context['core_problem']}")
+        
+        if narrative_context.get('solution_thesis'):
+            lines.append(f"Solution Thesis: {narrative_context['solution_thesis']}")
+        
+        # Value pillars
+        pillars = narrative_context.get('value_pillars', [])
+        if pillars:
+            pillar_names = [p.get('pillar', '') for p in pillars[:3] if p.get('pillar')]
+            if pillar_names:
+                lines.append(f"Value Pillars: {', '.join(pillar_names)}")
+        
+        # Constraints
+        constraints = narrative_context.get('client_constraints', [])
+        if constraints:
+            lines.append(f"Client Constraints: {', '.join(constraints[:3])}")
+        
+        # Tone
+        tone_directive = narrative_context.get('tone_directive', {})
+        if tone_directive:
+            voice = tone_directive.get('voice', 'professional')
+            style = tone_directive.get('style', 'consultative')
+            lines.append(f"Tone: {voice}, {style}")
+            
+            avoid = tone_directive.get('avoid', [])
+            if avoid:
+                lines.append(f"AVOID these phrases: {', '.join(avoid[:5])}")
+        
+        lines.append(f"\nREQUIRED: Reference {client_name} by name and acknowledge constraints where relevant.")
+        
+        return '\n'.join(lines)
+    
+    def validate_evidence_density(self, content: str) -> Dict[str, Any]:
+        """
+        Validate that answer contains sufficient evidence.
+        
+        Every paragraph should include at least one of:
+        - Architecture reference
+        - Metric or number
+        - Delivery method
+        - Constraint acknowledgement
+        
+        Returns validation result with evidence types found.
+        """
+        content_lower = content.lower()
+        evidence_found = {}
+        
+        for evidence_type, keywords in self.EVIDENCE_TYPES.items():
+            matches = [kw for kw in keywords if kw.lower() in content_lower]
+            if matches:
+                evidence_found[evidence_type] = matches
+        
+        # Calculate evidence density score
+        total_types = len(self.EVIDENCE_TYPES)
+        found_types = len(evidence_found)
+        density_score = found_types / total_types
+        
+        # Check paragraph-level evidence (simplified)
+        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+        paragraphs_with_evidence = 0
+        
+        for para in paragraphs:
+            para_lower = para.lower()
+            has_evidence = False
+            for keywords in self.EVIDENCE_TYPES.values():
+                if any(kw.lower() in para_lower for kw in keywords):
+                    has_evidence = True
+                    break
+            if has_evidence:
+                paragraphs_with_evidence += 1
+        
+        paragraph_coverage = paragraphs_with_evidence / len(paragraphs) if paragraphs else 0
+        
+        return {
+            'evidence_found': evidence_found,
+            'evidence_types_count': found_types,
+            'density_score': round(density_score, 2),
+            'paragraphs_checked': len(paragraphs),
+            'paragraphs_with_evidence': paragraphs_with_evidence,
+            'paragraph_coverage': round(paragraph_coverage, 2),
+            'sufficient_evidence': density_score >= 0.4 and paragraph_coverage >= 0.5,
+            'recommendation': 'Pass' if density_score >= 0.4 else 'Add more evidence (metrics, architecture, case studies)'
+        }
+    
+    def detect_anti_patterns(self, content: str) -> Dict[str, Any]:
+        """
+        Detect generic/anti-pattern phrases that reduce proposal quality.
+        
+        Returns list of anti-patterns found and quality assessment.
+        """
+        content_lower = content.lower()
+        patterns_found = []
+        
+        for pattern in self.ANTI_PATTERNS:
+            if pattern.lower() in content_lower:
+                patterns_found.append(pattern)
+        
+        # Calculate quality penalty
+        quality_penalty = len(patterns_found) * 0.1
+        quality_score = max(0, 1.0 - quality_penalty)
+        
+        # Determine severity
+        if len(patterns_found) == 0:
+            severity = 'none'
+            recommendation = 'Content is free of generic phrases'
+        elif len(patterns_found) <= 2:
+            severity = 'low'
+            recommendation = f'Remove generic phrases: {", ".join(patterns_found)}'
+        elif len(patterns_found) <= 4:
+            severity = 'medium'
+            recommendation = f'Content has too many generic phrases. Rewrite with specifics.'
+        else:
+            severity = 'high'
+            recommendation = 'Content appears AI-generated. Major rewrite needed with client-specific details.'
+        
+        return {
+            'patterns_found': patterns_found,
+            'count': len(patterns_found),
+            'quality_score': round(quality_score, 2),
+            'severity': severity,
+            'recommendation': recommendation,
+            'passes_quality_check': len(patterns_found) <= 2
+        }
+    
+    def validate_answer(self, content: str, client_name: str = None) -> Dict[str, Any]:
+        """
+        Comprehensive answer validation combining all checks.
+        
+        Returns overall validation result with recommendations.
+        """
+        evidence_result = self.validate_evidence_density(content)
+        anti_pattern_result = self.detect_anti_patterns(content)
+        
+        # Check client name usage
+        client_referenced = False
+        client_count = 0
+        if client_name:
+            client_count = content.lower().count(client_name.lower())
+            client_referenced = client_count > 0
+        
+        # Calculate overall score
+        overall_score = (
+            evidence_result['density_score'] * 0.4 +
+            anti_pattern_result['quality_score'] * 0.4 +
+            (0.2 if client_referenced else 0)
+        )
+        
+        # Determine if answer needs regeneration
+        needs_regeneration = (
+            not evidence_result['sufficient_evidence'] or
+            not anti_pattern_result['passes_quality_check'] or
+            (client_name and not client_referenced)
+        )
+        
+        return {
+            'overall_score': round(overall_score, 2),
+            'passes_validation': not needs_regeneration,
+            'needs_regeneration': needs_regeneration,
+            'evidence': evidence_result,
+            'anti_patterns': anti_pattern_result,
+            'client_reference': {
+                'name': client_name,
+                'referenced': client_referenced,
+                'count': client_count
+            },
+            'recommendations': self._build_recommendations(
+                evidence_result, anti_pattern_result, client_referenced, client_name
+            )
+        }
+    
+    def _build_recommendations(
+        self, 
+        evidence: Dict, 
+        anti_patterns: Dict,
+        client_referenced: bool,
+        client_name: str
+    ) -> List[str]:
+        """Build list of improvement recommendations."""
+        recommendations = []
+        
+        if not evidence['sufficient_evidence']:
+            recommendations.append(evidence['recommendation'])
+        
+        if not anti_patterns['passes_quality_check']:
+            recommendations.append(anti_patterns['recommendation'])
+        
+        if client_name and not client_referenced:
+            recommendations.append(f'Add reference to {client_name} by name')
+        
+        if not recommendations:
+            recommendations.append('Answer meets quality standards')
+        
+        return recommendations
 
 
 def get_answer_generator_agent(org_id: int = None) -> AnswerGeneratorAgent:

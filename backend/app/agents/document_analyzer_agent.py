@@ -60,6 +60,57 @@ class DocumentAnalyzerAgent:
         'electronic_submission': r'(?:electronic|email|portal|online)\s+submission',
         'deadline_time': r'(?:by|before|no later than)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?)'
     }
+    
+    # NEW: Buyer Mindset Indicators (P2 Enhancement)
+    BUYER_MINDSET_INDICATORS = {
+        'risk_appetite': {
+            'low': ['proven', 'established', 'stable', 'conservative', 'risk-averse', 'safety', 'guaranteed'],
+            'medium': ['reasonable', 'balanced', 'practical', 'phased', 'iterative'],
+            'high': ['innovative', 'cutting-edge', 'bold', 'aggressive', 'first-mover', 'disruptive']
+        },
+        'decision_style': {
+            'pilot_first': ['pilot', 'proof of concept', 'poc', 'trial', 'validation', 'testing phase'],
+            'phased': ['phase', 'staged', 'incremental', 'rollout', 'wave', 'milestone'],
+            'big_bang': ['full deployment', 'enterprise-wide', 'complete', 'comprehensive', 'all at once']
+        },
+        'value_orientation': {
+            'cost_focused': ['cost', 'budget', 'lowest price', 'economical', 'savings', 'affordable'],
+            'value_focused': ['value', 'roi', 'return on investment', 'benefit', 'outcome', 'impact'],
+            'innovation_focused': ['innovative', 'modern', 'advanced', 'next-generation', 'state-of-the-art']
+        },
+        'buyer_type': {
+            'government': ['government', 'federal', 'state', 'municipal', 'public sector', 'agency'],
+            'enterprise': ['enterprise', 'corporation', 'fortune 500', 'large organization'],
+            'ngo': ['ngo', 'non-profit', 'foundation', 'charity', 'humanitarian'],
+            'healthcare': ['hospital', 'healthcare', 'clinical', 'medical', 'patient'],
+            'financial': ['bank', 'financial', 'insurance', 'fintech', 'payment']
+        }
+    }
+    
+    # NEW: Decision Driver Patterns (P2 Enhancement)
+    DECISION_DRIVER_PATTERNS = {
+        'evaluation_priorities': {
+            'technical': ['technical capability', 'technology', 'architecture', 'integration', 'platform'],
+            'experience': ['experience', 'track record', 'past performance', 'references', 'case studies'],
+            'team': ['team', 'resources', 'expertise', 'qualifications', 'certifications'],
+            'cost': ['cost', 'pricing', 'fee', 'budget', 'investment'],
+            'methodology': ['approach', 'methodology', 'process', 'framework', 'best practices'],
+            'timeline': ['timeline', 'schedule', 'delivery', 'deadline', 'go-live'],
+            'support': ['support', 'maintenance', 'sla', 'warranty', 'service level']
+        },
+        'risk_sensitivity': {
+            'security': ['security', 'data protection', 'privacy', 'breach', 'compliance'],
+            'delivery': ['delay', 'timeline risk', 'schedule', 'deadline', 'missed'],
+            'vendor': ['vendor lock-in', 'transition', 'exit', 'continuity', 'stability'],
+            'change': ['change management', 'adoption', 'training', 'resistance', 'culture']
+        },
+        'non_negotiables': {
+            'compliance': ['must comply', 'required certification', 'mandatory', 'regulatory'],
+            'timeline': ['must complete by', 'deadline is', 'no later than'],
+            'budget': ['not to exceed', 'maximum budget', 'fixed price'],
+            'experience': ['minimum years', 'required experience', 'must demonstrate']
+        }
+    }
 
     
     ANALYSIS_PROMPT = """You are an expert RFP analyst. Carefully analyze this RFP (Request for Proposal) document and extract comprehensive information.
@@ -725,6 +776,178 @@ Return ONLY valid JSON."""
             })
         
         return tables[:10]  # Limit to 10 tables
+    
+    def extract_decision_drivers(self, text: str) -> Dict[str, Any]:
+        """
+        Extract decision drivers from RFP document.
+        
+        Identifies:
+        - Evaluation priorities (what they care about most)
+        - Risk sensitivity areas
+        - Non-negotiable requirements
+        - Hidden decision criteria
+        
+        Returns dict with structured decision driver analysis.
+        """
+        text_lower = text.lower()
+        
+        result = {
+            'evaluation_priorities': {},
+            'risk_sensitivity': {},
+            'non_negotiables': [],
+            'hidden_criteria': []
+        }
+        
+        # Detect evaluation priorities
+        for priority, keywords in self.DECISION_DRIVER_PATTERNS['evaluation_priorities'].items():
+            score = sum(1 for kw in keywords if kw.lower() in text_lower)
+            if score > 0:
+                result['evaluation_priorities'][priority] = {
+                    'score': score,
+                    'importance': 'high' if score >= 3 else ('medium' if score >= 2 else 'low')
+                }
+        
+        # Sort by score to identify top priorities
+        sorted_priorities = sorted(
+            result['evaluation_priorities'].items(),
+            key=lambda x: x[1]['score'],
+            reverse=True
+        )
+        result['top_priorities'] = [p[0] for p in sorted_priorities[:3]]
+        
+        # Detect risk sensitivity
+        for risk_type, keywords in self.DECISION_DRIVER_PATTERNS['risk_sensitivity'].items():
+            if any(kw.lower() in text_lower for kw in keywords):
+                # Find context for this risk
+                result['risk_sensitivity'][risk_type] = {
+                    'detected': True,
+                    'keywords_found': [kw for kw in keywords if kw.lower() in text_lower]
+                }
+        
+        result['overall_risk_sensitivity'] = 'high' if len(result['risk_sensitivity']) >= 3 else (
+            'medium' if len(result['risk_sensitivity']) >= 2 else 'low'
+        )
+        
+        # Detect non-negotiables
+        for category, keywords in self.DECISION_DRIVER_PATTERNS['non_negotiables'].items():
+            for kw in keywords:
+                if kw.lower() in text_lower:
+                    result['non_negotiables'].append({
+                        'category': category,
+                        'indicator': kw
+                    })
+        
+        return result
+    
+    def analyze_buyer_mindset(self, text: str) -> Dict[str, Any]:
+        """
+        Analyze buyer psychology and decision-making style.
+        
+        Extracts:
+        - Risk appetite (low/medium/high)
+        - Decision style (pilot-first/phased/big-bang)
+        - Value orientation (cost/value/innovation focused)
+        - Buyer type (government/enterprise/ngo/etc)
+        
+        Returns structured buyer mindset analysis.
+        """
+        text_lower = text.lower()
+        
+        result = {
+            'risk_appetite': 'medium',
+            'decision_style': 'phased',
+            'value_orientation': 'value_focused',
+            'buyer_type': 'enterprise',
+            'confidence_scores': {}
+        }
+        
+        # Analyze each dimension
+        for dimension, options in self.BUYER_MINDSET_INDICATORS.items():
+            scores = {}
+            for option, keywords in options.items():
+                score = sum(1 for kw in keywords if kw.lower() in text_lower)
+                if score > 0:
+                    scores[option] = score
+            
+            if scores:
+                # Pick the highest scoring option
+                best_option = max(scores, key=scores.get)
+                result[dimension] = best_option
+                result['confidence_scores'][dimension] = {
+                    'selected': best_option,
+                    'score': scores[best_option],
+                    'alternatives': {k: v for k, v in scores.items() if k != best_option}
+                }
+        
+        # Generate buyer profile summary
+        result['buyer_profile'] = self._generate_buyer_profile(result)
+        
+        return result
+    
+    def _generate_buyer_profile(self, mindset: Dict) -> str:
+        """Generate a human-readable buyer profile summary."""
+        risk_desc = {
+            'low': 'Conservative, prefers proven solutions',
+            'medium': 'Balanced, open to reasonable innovation',
+            'high': 'Innovative, willing to take risks'
+        }
+        
+        style_desc = {
+            'pilot_first': 'Prefers to start small and validate',
+            'phased': 'Likes staged rollouts with milestones',
+            'big_bang': 'Prefers comprehensive deployment'
+        }
+        
+        value_desc = {
+            'cost_focused': 'Price-sensitive, needs cost justification',
+            'value_focused': 'ROI-oriented, appreciates value narrative',
+            'innovation_focused': 'Wants cutting-edge solutions'
+        }
+        
+        profile_parts = [
+            risk_desc.get(mindset.get('risk_appetite', 'medium'), ''),
+            style_desc.get(mindset.get('decision_style', 'phased'), ''),
+            value_desc.get(mindset.get('value_orientation', 'value_focused'), '')
+        ]
+        
+        return '. '.join(p for p in profile_parts if p)
+    
+    def get_proposal_guidance(self, text: str) -> Dict[str, Any]:
+        """
+        Get comprehensive proposal guidance based on document analysis.
+        
+        Combines decision drivers and buyer mindset into actionable guidance.
+        """
+        decision_drivers = self.extract_decision_drivers(text)
+        buyer_mindset = self.analyze_buyer_mindset(text)
+        
+        guidance = {
+            'decision_drivers': decision_drivers,
+            'buyer_mindset': buyer_mindset,
+            'recommendations': []
+        }
+        
+        # Generate recommendations based on analysis
+        if buyer_mindset.get('risk_appetite') == 'low':
+            guidance['recommendations'].append('Emphasize proven track record and case studies')
+            guidance['recommendations'].append('Include detailed risk mitigation sections')
+        
+        if buyer_mindset.get('decision_style') == 'pilot_first':
+            guidance['recommendations'].append('Propose a pilot phase with clear success criteria')
+        
+        if buyer_mindset.get('value_orientation') == 'cost_focused':
+            guidance['recommendations'].append('Lead with cost savings and ROI calculations')
+        elif buyer_mindset.get('value_orientation') == 'innovation_focused':
+            guidance['recommendations'].append('Highlight innovative approaches and modern technologies')
+        
+        if decision_drivers.get('overall_risk_sensitivity') == 'high':
+            guidance['recommendations'].append('Dedicate significant space to risk management')
+        
+        # Priority-based recommendations
+        for priority in decision_drivers.get('top_priorities', [])[:2]:
+            guidance['recommendations'].append(f'Address {priority} prominently in proposal')
+        
+        return guidance
 
 
 def get_document_analyzer_agent(org_id: int = None) -> DocumentAnalyzerAgent:

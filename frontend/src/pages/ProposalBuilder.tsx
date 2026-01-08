@@ -50,7 +50,7 @@ import TemplateSelector from '@/components/export/TemplateSelector';
 import WorkflowStepper, { WorkflowPhase } from '@/components/proposal/WorkflowStepper';
 import ProposalView from '@/components/proposal/ProposalView';
 import VersionHistory from '@/components/proposal/VersionHistory';
-import { sectionsApi, projectsApi, documentsApi, pptApi } from '@/api/client';
+import { sectionsApi, projectsApi, documentsApi, pptApi, exportApi } from '@/api/client';
 
 // Section type styling configuration
 const SECTION_STYLES: Record<string, {
@@ -331,7 +331,7 @@ export default function ProposalBuilder() {
         setSelectedSection(updatedSection);
     };
 
-    const performExport = async (format: 'docx' | 'xlsx' | 'pptx', templateId?: number) => {
+    const performExport = async (format: 'docx' | 'xlsx' | 'pptx' | 'pdf', templateId?: number) => {
         setIsExporting(true);
         try {
             let blob: Blob;
@@ -340,6 +340,10 @@ export default function ProposalBuilder() {
                 const response = await pptApi.generate(projectId, { template_id: templateId });
                 blob = response.data;
                 filename = `${project?.name || 'proposal'}.pptx`;
+            } else if (format === 'pdf') {
+                const response = await exportApi.pdf(projectId);
+                blob = response.data;
+                filename = `${project?.name || 'proposal'}.pdf`;
             } else {
                 const response = await sectionsApi.exportProposal(projectId, format, templateId);
                 blob = response.data;
@@ -359,11 +363,11 @@ export default function ProposalBuilder() {
         }
     };
 
-    const handleExport = async (format: 'docx' | 'xlsx' | 'pptx') => {
+    const handleExport = async (format: 'docx' | 'xlsx' | 'pptx' | 'pdf') => {
         setShowExportMenu(false);
 
-        // For Excel, export immediately
-        if (format === 'xlsx') {
+        // For Excel and PDF, export immediately (no templates)
+        if (format === 'xlsx' || format === 'pdf') {
             performExport(format);
             return;
         }
@@ -608,6 +612,13 @@ export default function ProposalBuilder() {
                                             Excel (.xlsx)
                                         </button>
                                         <button
+                                            onClick={() => handleExport('pdf')}
+                                            className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                                        >
+                                            <DocumentTextIcon className="h-4 w-4 text-red-500" />
+                                            PDF (.pdf)
+                                        </button>
+                                        <button
                                             onClick={() => handleExport('pptx')}
                                             className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
                                         >
@@ -841,6 +852,13 @@ export default function ProposalBuilder() {
                                                                                 >
                                                                                     <TableCellsIcon className="h-4 w-4 text-green-500" />
                                                                                     Excel (.xlsx)
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleExport('pdf')}
+                                                                                    className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 flex items-center gap-3 transition-colors text-gray-700"
+                                                                                >
+                                                                                    <DocumentTextIcon className="h-4 w-4 text-red-500" />
+                                                                                    PDF (.pdf)
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => handleExport('pptx')}

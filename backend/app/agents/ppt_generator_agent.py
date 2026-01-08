@@ -199,6 +199,70 @@ Generate the complete 13-slide deck JSON. Return ONLY valid JSON:"""
             'layout_index': 11
         }
     }
+    
+    # NEW: Executive Slide Rules (P3 Enhancement)
+    EXECUTIVE_SLIDE_RULES = {
+        'one_message_per_slide': {
+            'enabled': True,
+            'description': 'Each slide should convey ONE key message',
+            'enforcement': 'validate_single_message'
+        },
+        'evidence_per_slide': {
+            'enabled': True,
+            'required_types': ['metric', 'case_study', 'architecture', 'timeline'],
+            'minimum_per_content_slide': 1,
+            'exemptions': ['cover', 'agenda', 'closing']
+        },
+        'slide_type_rules': {
+            'cover': {
+                'max_elements': 4,
+                'required': ['title', 'client_name', 'date'],
+                'evidence_required': False
+            },
+            'problem': {
+                'max_bullets': 4,
+                'required': ['pain_point_with_impact'],
+                'evidence_required': True,
+                'evidence_types': ['metric', 'client_statement']
+            },
+            'solution': {
+                'max_bullets': 5,
+                'required': ['outcome_focus'],
+                'evidence_required': True,
+                'evidence_types': ['architecture', 'methodology']
+            },
+            'architecture': {
+                'format': '4_layer_structure',
+                'layers': ['Presentation', 'Application', 'Integration', 'Data'],
+                'evidence_required': True,
+                'evidence_types': ['technology_stack']
+            },
+            'timeline': {
+                'max_phases': 5,
+                'required': ['milestone_dates'],
+                'evidence_required': True,
+                'evidence_types': ['duration', 'deliverable']
+            },
+            'roi': {
+                'max_metrics': 4,
+                'required': ['quantified_benefit'],
+                'evidence_required': True,
+                'evidence_types': ['metric', 'benchmark']
+            },
+            'risk': {
+                'max_risks': 4,
+                'required': ['mitigation_owner'],
+                'columns': ['Risk', 'Impact', 'Mitigation', 'Owner'],
+                'evidence_required': True
+            }
+        },
+        'visual_hierarchy': {
+            'title_prominence': 'high',
+            'bullet_limit': 5,
+            'words_per_bullet': 10,
+            'whitespace_ratio': 0.4
+        }
+    }
 
     def __init__(self, org_id: int = None):
         self.org_id = org_id

@@ -70,6 +70,67 @@ class QualityReviewerAgent:
         'max_sentence_length': 25,      # Max average words per sentence
         'max_paragraph_length': 150     # Max words per paragraph
     }
+    
+    # NEW: Anti-AI Detection Indicators (P2 Enhancement)
+    AI_PATTERN_INDICATORS = {
+        'over_polished_phrases': [
+            'it is important to note that',
+            'in conclusion',
+            'furthermore',
+            'moreover',
+            'additionally',
+            'in today\'s rapidly evolving',
+            'in the modern world',
+            'it goes without saying',
+            'needless to say',
+            'at the end of the day',
+            'moving forward',
+            'going forward',
+            'in order to',
+            'due to the fact that',
+            'in terms of',
+            'with respect to',
+            'for the purpose of',
+            'in light of',
+            'as per our discussion',
+            'please be advised'
+        ],
+        'empty_adjectives': [
+            'innovative',
+            'cutting-edge',
+            'state-of-the-art',
+            'revolutionary',
+            'groundbreaking',
+            'world-class',
+            'best-in-class',
+            'seamless',
+            'robust',
+            'comprehensive',
+            'holistic',
+            'synergistic',
+            'paradigm',
+            'leverage',
+            'optimize',
+            'streamline',
+            'enhance',
+            'empower',
+            'transformative'
+        ],
+        'ai_sentence_patterns': [
+            r'^(?:In today\'s|In the modern|As we move)',
+            r'^(?:It is worth noting|It should be noted)',
+            r'^(?:This approach|This solution|This methodology) allows',
+            r'(?:ensure|ensures) seamless',
+            r'(?:drive|drives|driving) business (?:value|outcomes|success)',
+            r'key (?:advantages|benefits|features) include',
+            r'(?:uniquely|strategically) positioned'
+        ],
+        'structural_indicators': {
+            'sentence_length_uniformity_threshold': 5.0,  # Low variance = AI-like
+            'filler_phrase_ratio_threshold': 0.15,  # High ratio = AI-like
+            'empty_adjective_ratio_threshold': 0.10  # High ratio = AI-like
+        }
+    }
 
     
     REVIEW_PROMPT = """Review this RFP answer for quality, accuracy, and compliance.
@@ -302,6 +363,115 @@ Unverified Claims: {validation_info.get('unverified_claims', 0)}"""
             "review_reason": "AI review unavailable - manual review recommended",
             "revised_answer": answer_text
         }
+    
+    def detect_ai_patterns(self, content: str) -> Dict[str, Any]:
+        """
+        Detect AI-generated patterns in content.
+        
+        Checks for:
+        - Over-polished phrases common in AI output
+        - Empty adjectives that add no value
+        - AI-typical sentence patterns
+        - Structural uniformity (AI tends to be very regular)
+        
+        Returns detection result with recommendations.
+        """
+        content_lower = content.lower()
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if s.strip()]
+        words = content_lower.split()
+        
+        result = {
+            'ai_likelihood': 'low',
+            'score': 0.0,
+            'indicators_found': [],
+            'recommendations': []
+        }
+        
+        # Check over-polished phrases
+        polished_found = []
+        for phrase in self.AI_PATTERN_INDICATORS['over_polished_phrases']:
+            if phrase.lower() in content_lower:
+                polished_found.append(phrase)
+        
+        # Check empty adjectives
+        empty_adj_found = []
+        for adj in self.AI_PATTERN_INDICATORS['empty_adjectives']:
+            if adj.lower() in content_lower:
+                empty_adj_found.append(adj)
+        
+        # Check AI sentence patterns
+        pattern_matches = 0
+        for pattern in self.AI_PATTERN_INDICATORS['ai_sentence_patterns']:
+            for sentence in sentences:
+                if re.search(pattern, sentence, re.IGNORECASE):
+                    pattern_matches += 1
+        
+        # Check sentence length uniformity
+        sentence_lengths = [len(s.split()) for s in sentences if s]
+        if sentence_lengths:
+            avg_length = sum(sentence_lengths) / len(sentence_lengths)
+            variance = sum((l - avg_length) ** 2 for l in sentence_lengths) / len(sentence_lengths)
+            std_dev = variance ** 0.5
+        else:
+            std_dev = 0
+        
+        # Calculate AI likelihood score
+        score = 0.0
+        
+        # Penalize for over-polished phrases
+        polished_ratio = len(polished_found) / max(1, len(sentences))
+        if polished_ratio > 0.15:
+            score += 0.3
+            result['indicators_found'].append(f'{len(polished_found)} over-polished phrases')
+        
+        # Penalize for empty adjectives
+        empty_ratio = len(empty_adj_found) / max(1, len(words) / 100)
+        if empty_ratio > 0.10:
+            score += 0.25
+            result['indicators_found'].append(f'{len(empty_adj_found)} empty adjectives')
+        
+        # Penalize for AI sentence patterns
+        pattern_ratio = pattern_matches / max(1, len(sentences))
+        if pattern_ratio > 0.10:
+            score += 0.25
+            result['indicators_found'].append(f'{pattern_matches} AI-typical sentence patterns')
+        
+        # Penalize for low sentence length variance (AI is uniform)
+        if std_dev < 5.0 and len(sentences) >= 3:
+            score += 0.2
+            result['indicators_found'].append('Low sentence length variance (very uniform)')
+        
+        result['score'] = round(min(1.0, score), 2)
+        
+        # Determine likelihood level
+        if score >= 0.6:
+            result['ai_likelihood'] = 'high'
+            result['recommendations'] = [
+                'Major rewrite recommended - content appears AI-generated',
+                'Replace with client-specific language',
+                'Remove generic phrases and add concrete evidence'
+            ]
+        elif score >= 0.35:
+            result['ai_likelihood'] = 'medium'
+            result['recommendations'] = [
+                'Review and humanize language',
+                f'Remove these phrases: {", ".join(polished_found[:3])}' if polished_found else '',
+                f'Replace empty adjectives: {", ".join(empty_adj_found[:3])}' if empty_adj_found else ''
+            ]
+        else:
+            result['ai_likelihood'] = 'low'
+            result['recommendations'] = ['Content appears human-written']
+        
+        # Add detail
+        result['detail'] = {
+            'over_polished_phrases': polished_found,
+            'empty_adjectives': empty_adj_found,
+            'ai_patterns': pattern_matches,
+            'sentence_variance': round(std_dev, 2),
+            'thresholds': self.AI_PATTERN_INDICATORS['structural_indicators']
+        }
+        
+        return result
 
 
 def get_quality_reviewer_agent(org_id: int = None) -> QualityReviewerAgent:

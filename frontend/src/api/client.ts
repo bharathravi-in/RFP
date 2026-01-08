@@ -995,6 +995,16 @@ export const agentsApi = {
         api.post('/agents/counter-objections', { objections, vendor_profile: vendorProfile }),
 
     // ========================================
+    // CASE STUDY GENERATION (NEW)
+    // ========================================
+    generateCaseStudies: (projectId: number, options?: {
+        requirements?: string[];
+        industry?: string;
+        case_count?: number;
+    }) =>
+        api.post('/agents/case-studies', { project_id: projectId, ...options }),
+
+    // ========================================
     // STRATEGY PERSISTENCE (NEW)
     // ========================================
     getProjectStrategy: (projectId: number) =>
@@ -1015,6 +1025,9 @@ export const agentsApi = {
     saveDiagrams: (projectId: number, diagramsData: any[]) =>
         api.post(`/agents/strategy/${projectId}/diagrams`, diagramsData),
 
+    saveCaseStudies: (projectId: number, caseStudiesData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/case-studies`, caseStudiesData),
+
     // ========================================
     // EXPERT ROUTING & CONTENT FRESHNESS (NEW)
     // ========================================
@@ -1029,6 +1042,52 @@ export const agentsApi = {
     // ========================================
     getExperiments: () =>
         api.get('/agents/experiments'),
+
+    // ========================================
+    // PROPOSAL WEIGHT ENHANCEMENT (NEW)
+    // ========================================
+
+    // Narrative Context - Build proposal narrative foundation
+    buildNarrativeContext: (projectId: number, options?: {
+        client_name?: string;
+        rfp_analysis?: Record<string, unknown>;
+    }) =>
+        api.post('/agents/narrative-context', { project_id: projectId, ...options }),
+
+    // Section Scoring - Score individual section quality
+    scoreSection: (data: {
+        section_content: string;
+        section_type: string;
+        client_name?: string;
+        narrative_context?: Record<string, unknown>;
+    }) =>
+        api.post('/agents/score-section', data),
+
+    // Proposal Scoring - Score entire proposal
+    scoreProposal: (projectId: number, sections?: Array<{
+        section_type: string;
+        content: string;
+    }>) =>
+        api.post('/agents/score-proposal', { project_id: projectId, sections }),
+
+    // Executive Gate - CXO-level approval check
+    executiveGate: (projectId: number, proposalContent?: string) =>
+        api.post('/agents/executive-gate', { project_id: projectId, proposal_content: proposalContent }),
+
+    // Answer Validation - Validate answer for evidence and anti-patterns
+    validateAnswer: (content: string, clientName?: string, orgId?: number) =>
+        api.post('/agents/validate-answer', { content, client_name: clientName, org_id: orgId }),
+
+    // Document Analysis Enhancements
+    analyzeDecisionDrivers: (documentId: number) =>
+        api.post('/agents/analyze-decision-drivers', { document_id: documentId }),
+
+    analyzeBuyerMindset: (documentId: number) =>
+        api.post('/agents/analyze-buyer-mindset', { document_id: documentId }),
+
+    // Quality Review Enhancement
+    detectAIPatterns: (content: string) =>
+        api.post('/agents/detect-ai-patterns', { content }),
 };
 
 // ===============================

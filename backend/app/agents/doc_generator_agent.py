@@ -151,6 +151,78 @@ Generate the complete document sections JSON now:"""
         'default_subtitle': 'Technical & Commercial Proposal',
         'default_version': '1.0'
     }
+    
+    # NEW: Executive Enhancement Configuration (P3 Enhancement)
+    EXECUTIVE_ENHANCEMENTS = {
+        'callout_boxes': {
+            'why_this_matters': {
+                'title': '💡 Why This Matters for {client_name}',
+                'style': 'highlight_box',
+                'background': '#f0f7ff',
+                'border': '#2563eb',
+                'placement': 'after_section'
+            },
+            'key_takeaway': {
+                'title': '📌 Key Takeaway',
+                'style': 'callout',
+                'background': '#f0fdf4',
+                'border': '#16a34a',
+                'placement': 'section_start'
+            },
+            'risk_acknowledgment': {
+                'title': '⚠️ Risk Consideration',
+                'style': 'warning_box',
+                'background': '#fffbeb',
+                'border': '#d97706',
+                'placement': 'inline'
+            },
+            'evidence_highlight': {
+                'title': '📊 Evidence',
+                'style': 'quote_box',
+                'background': '#f8fafc',
+                'border': '#64748b',
+                'placement': 'inline'
+            }
+        },
+        'visual_hierarchy': {
+            'executive_summary': {
+                'max_paragraphs': 3,
+                'key_points_limit': 5,
+                'include_callout': 'key_takeaway',
+                'emphasis': 'value_proposition'
+            },
+            'technical_approach': {
+                'max_paragraphs': 6,
+                'include_diagram_placeholder': True,
+                'include_callout': 'why_this_matters',
+                'emphasis': 'architecture'
+            },
+            'risk_management': {
+                'format': 'table',
+                'include_callout': 'risk_acknowledgment',
+                'columns': ['Risk', 'Impact', 'Mitigation', 'Owner'],
+                'emphasis': 'ownership'
+            },
+            'pricing': {
+                'format': 'table_with_summary',
+                'include_callout': 'evidence_highlight',
+                'emphasis': 'value_justification'
+            }
+        },
+        'section_summary_template': {
+            'structure': [
+                'In this section, we address {topic}.',
+                'For {client_name}, this means {value_statement}.',
+                'Key points: {key_points_list}'
+            ],
+            'max_words': 50
+        },
+        'evidence_requirements': {
+            'min_per_section': 1,
+            'types': ['metric', 'case_study', 'architecture', 'timeline'],
+            'format_template': '**Evidence:** {evidence_text}'
+        }
+    }
 
     def __init__(self, org_id: int = None):
         self.org_id = org_id
@@ -407,6 +479,86 @@ Return the enhanced content in markdown format."""
                 'error': str(e),
                 'enhanced_content': section_content
             }
+    
+    def apply_executive_enhancements(
+        self,
+        section_content: str,
+        section_type: str,
+        client_name: str = 'Client',
+        narrative_context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Apply executive enhancements to section content.
+        
+        Adds:
+        - Callout boxes (Why This Matters, Key Takeaway)
+        - Section summaries
+        - Evidence highlights
+        
+        Args:
+            section_content: The section content to enhance
+            section_type: Type of section (executive_summary, technical_approach, etc.)
+            client_name: Client name for personalization
+            narrative_context: Narrative context for value statements
+            
+        Returns:
+            Enhanced content with executive formatting
+        """
+        # Get section-specific hierarchy rules
+        hierarchy = self.EXECUTIVE_ENHANCEMENTS['visual_hierarchy'].get(
+            section_type, 
+            {'include_callout': None}
+        )
+        
+        enhanced_content = section_content
+        additions = []
+        
+        # Add callout box if specified for this section type
+        callout_type = hierarchy.get('include_callout')
+        if callout_type:
+            callout_config = self.EXECUTIVE_ENHANCEMENTS['callout_boxes'].get(callout_type, {})
+            callout_title = callout_config.get('title', '').format(client_name=client_name)
+            
+            # Generate "Why This Matters" content
+            if callout_type == 'why_this_matters' and narrative_context:
+                value_pillars = narrative_context.get('value_pillars', [])
+                if value_pillars:
+                    why_matters = f"\n\n> **{callout_title}**\n> {value_pillars[0].get('why_it_matters', '')}\n"
+                    additions.append(why_matters)
+            
+            elif callout_type == 'key_takeaway':
+                # Extract first sentence as takeaway
+                first_sentence = section_content.split('.')[0] if section_content else ''
+                if first_sentence:
+                    takeaway = f"\n> **{callout_title}**\n> {first_sentence.strip()}.\n\n"
+                    enhanced_content = takeaway + enhanced_content
+        
+        # Add evidence requirement reminder
+        evidence_config = self.EXECUTIVE_ENHANCEMENTS['evidence_requirements']
+        if narrative_context:
+            # Check if content has evidence markers
+            evidence_found = any(
+                marker in section_content.lower() 
+                for marker in ['%', 'case study', 'architecture', 'timeline', 'phase']
+            )
+            if not evidence_found:
+                additions.append(
+                    f"\n\n*Note: Consider adding specific evidence (metrics, case studies, or architecture details) to strengthen this section.*\n"
+                )
+        
+        # Add all additions
+        enhanced_content = enhanced_content + ''.join(additions)
+        
+        return {
+            'success': True,
+            'enhanced_content': enhanced_content,
+            'section_type': section_type,
+            'enhancements_applied': {
+                'callout_added': callout_type is not None,
+                'callout_type': callout_type,
+                'hierarchy_rules': hierarchy
+            }
+        }
 
 
 def get_doc_generator_agent(org_id: int = None) -> DOCGeneratorAgent:

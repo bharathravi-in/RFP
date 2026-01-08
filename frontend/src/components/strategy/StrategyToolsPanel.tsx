@@ -19,6 +19,7 @@ import {
     CheckCircleIcon,
     LightBulbIcon,
     ArrowPathIcon,
+    BookOpenIcon,
 } from '@heroicons/react/24/outline';
 import { agentsApi } from '../../api/client';
 import toast from 'react-hot-toast';
@@ -63,6 +64,10 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
     const [pricingData, setPricingData] = useState<any>(null);
     const [loadingPricing, setLoadingPricing] = useState(false);
 
+    // Case Study State
+    const [caseStudiesData, setCaseStudiesData] = useState<any[]>([]);
+    const [loadingCaseStudies, setLoadingCaseStudies] = useState(false);
+
     // Legal Review State
     const [legalData, setLegalData] = useState<any>(null);
     const [loadingLegal, setLoadingLegal] = useState(false);
@@ -86,6 +91,10 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
                     // Load pricing
                     if (data.strategy.pricing) {
                         setPricingData(data.strategy.pricing);
+                    }
+                    // Load case studies
+                    if (data.strategy.case_studies) {
+                        setCaseStudiesData(data.strategy.case_studies.case_studies || []);
                     }
                     // Load legal review
                     if (data.strategy.legal_review) {
@@ -170,6 +179,30 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
             toast.error(err.message || 'Error calculating pricing');
         } finally {
             setLoadingPricing(false);
+        }
+    };
+
+    // Generate Case Studies
+    const generateCaseStudies = async () => {
+        setLoadingCaseStudies(true);
+        try {
+            const response = await agentsApi.generateCaseStudies(projectId, { case_count: 3 });
+            const data = response.data;
+            if (data.success) {
+                setCaseStudiesData(data.case_studies || []);
+                toast.success(`Generated ${data.case_count || 0} case studies`);
+                // Save to database
+                await agentsApi.saveCaseStudies(projectId, {
+                    case_studies: data.case_studies || [],
+                    summary: data.summary
+                });
+            } else {
+                toast.error(data.error || 'Failed to generate case studies');
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Error generating case studies');
+        } finally {
+            setLoadingCaseStudies(false);
         }
     };
 
@@ -270,7 +303,7 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
                             Risk Status
                         </div>
                         <div className={`text-2xl font-bold capitalize ${legalData?.overall_risk_level === 'high' || legalData?.overall_risk_level === 'critical' ? 'text-red-700' :
-                                legalData?.overall_risk_level === 'medium' ? 'text-amber-600' : 'text-emerald-600'
+                            legalData?.overall_risk_level === 'medium' ? 'text-amber-600' : 'text-emerald-600'
                             }`}>
                             {legalData?.overall_risk_level || "Unknown"}
                             <span className="text-sm font-normal opacity-70 ms-1">Overall Risk</span>
@@ -414,6 +447,84 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
                                 <ChartBarIcon className="h-4 w-4" />
                             )}
                             {competitiveData ? 'Refresh' : 'Run'} Competitive Analysis
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Case Study Generator Section */}
+            <div className="border border-gray-200 rounded-xl mb-4 overflow-hidden">
+                <button
+                    onClick={() => toggleSection('casestudies')}
+                    className="w-full px-4 py-3 flex items-center justify-between bg-white hover:bg-gray-50"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <BookOpenIcon className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <span className="font-medium text-gray-900">Case Studies</span>
+                        {caseStudiesData.length > 0 && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                                {caseStudiesData.length} studies
+                            </span>
+                        )}
+                    </div>
+                    {expandedSection === 'casestudies' ? (
+                        <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                    )}
+                </button>
+                {expandedSection === 'casestudies' && (
+                    <div className="px-4 pb-4 border-t border-gray-100">
+                        {caseStudiesData.length > 0 ? (
+                            <div className="mt-4 space-y-3">
+                                {caseStudiesData.map((study: any, index: number) => (
+                                    <div key={study.case_id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                        <h4 className="font-medium text-gray-900 mb-2">{study.title}</h4>
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            <span className="font-medium">Challenge:</span> {study.challenge}
+                                        </p>
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            <span className="font-medium">Solution:</span> {study.solution}
+                                        </p>
+                                        {study.results?.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {study.results.slice(0, 3).map((result: any, i: number) => (
+                                                    <span key={i} className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">
+                                                        {result.metric}: {result.value}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {study.technologies?.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {study.technologies.slice(0, 3).map((tech: string, i: number) => (
+                                                    <span key={i} className="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded border border-blue-100">
+                                                        {tech}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                                Generate relevant case studies based on project requirements
+                            </p>
+                        )}
+                        <button
+                            onClick={generateCaseStudies}
+                            disabled={loadingCaseStudies}
+                            className="w-full mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {loadingCaseStudies ? (
+                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <BookOpenIcon className="h-4 w-4" />
+                            )}
+                            {caseStudiesData.length > 0 ? 'Regenerate' : 'Generate'} Case Studies
                         </button>
                     </div>
                 )}

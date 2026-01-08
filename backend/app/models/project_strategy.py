@@ -48,6 +48,10 @@ class ProjectStrategy(db.Model):
     diagrams = db.Column(db.JSON, nullable=True)  # List of generated diagrams
     diagrams_generated_at = db.Column(db.DateTime, nullable=True)
     
+    # Case Studies Data
+    case_studies = db.Column(db.JSON, nullable=True)  # List of generated case studies
+    case_studies_generated_at = db.Column(db.DateTime, nullable=True)
+    
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -70,6 +74,8 @@ class ProjectStrategy(db.Model):
             'legal_review_generated_at': self.legal_review_generated_at.isoformat() if self.legal_review_generated_at else None,
             'diagrams': self.diagrams,
             'diagrams_generated_at': self.diagrams_generated_at.isoformat() if self.diagrams_generated_at else None,
+            'case_studies': self.case_studies,
+            'case_studies_generated_at': self.case_studies_generated_at.isoformat() if self.case_studies_generated_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -112,4 +118,10 @@ class ProjectStrategy(db.Model):
         """Update diagrams data."""
         self.diagrams = diagrams_data
         self.diagrams_generated_at = datetime.utcnow()
+        db.session.commit()
+
+    def update_case_studies(self, case_studies_data: dict):
+        """Update case studies data."""
+        self.case_studies = case_studies_data
+        self.case_studies_generated_at = datetime.utcnow()
         db.session.commit()

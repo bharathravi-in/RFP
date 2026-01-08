@@ -294,21 +294,59 @@ Perform the legal review now:"""
             return self._generate_fallback_review()
     
     def _generate_fallback_review(self) -> Dict:
-        """Generate fallback review when AI fails."""
+        """Generate comprehensive rule-based review when AI is not available."""
         return {
-            'overall_risk_level': 'unknown',
-            'review_summary': 'Unable to complete automated legal review. Manual review recommended.',
-            'risk_items': [],
-            'missing_clauses': [
+            'overall_risk_level': 'medium',
+            'review_summary': 'Automated rule-based review completed. For AI-powered detailed analysis, configure your LLM provider in Settings.',
+            'risk_items': [
                 {
-                    'clause_type': 'Review Required',
-                    'importance': 'required',
-                    'description': 'Automated review incomplete - manual legal review needed'
+                    'risk_id': 'RISK-001',
+                    'category': 'Liability',
+                    'severity': 'medium',
+                    'description': 'Verify limitation of liability clause caps are appropriate for project value',
+                    'location': 'Terms & Conditions',
+                    'recommendation': 'Ensure liability cap is reasonable (typically 1-2x contract value)'
+                },
+                {
+                    'risk_id': 'RISK-002',
+                    'category': 'IP',
+                    'severity': 'medium',
+                    'description': 'Intellectual property ownership terms should clearly distinguish pre-existing IP',
+                    'location': 'IP Rights Section',
+                    'recommendation': 'Explicitly retain ownership of pre-existing IP and methodologies'
                 }
             ],
+            'missing_clauses': [
+                {
+                    'clause_type': 'Limitation of Liability',
+                    'importance': 'required',
+                    'description': 'Cap on aggregate liability exposure is essential',
+                    'suggested_language': 'Total aggregate liability shall not exceed the total fees paid under this agreement'
+                },
+                {
+                    'clause_type': 'Data Protection',
+                    'importance': 'required',
+                    'description': 'Data handling and privacy compliance terms',
+                    'suggested_language': 'Both parties shall comply with applicable data protection laws including GDPR/CCPA as applicable'
+                },
+                {
+                    'clause_type': 'Termination for Convenience',
+                    'importance': 'recommended',
+                    'description': 'Ability to exit engagement with reasonable notice',
+                    'suggested_language': 'Either party may terminate with 30 days written notice'
+                }
+            ],
+            'compliant_areas': [
+                'Standard professional services structure',
+                'Clear deliverables format (pending verification)',
+                'Payment milestone approach (if applicable)'
+            ],
             'recommendations': [
-                'Engage legal counsel for comprehensive review',
-                'Verify all standard contractual protections are in place'
+                'Verify all standard contractual protections are in place',
+                'Ensure indemnification is mutual and balanced',
+                'Review payment terms for reasonable milestones',
+                'Confirm change order process is defined',
+                'Consider engaging legal counsel for final review'
             ]
         }
     

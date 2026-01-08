@@ -87,6 +87,11 @@ from .pricing_calculator_agent import PricingCalculatorAgent, get_pricing_calcul
 from .legal_review_agent import LegalReviewAgent, get_legal_review_agent
 from .win_theme_agent import WinThemeAgent, get_win_theme_agent
 from .competitive_analysis_agent import CompetitiveAnalysisAgent, get_competitive_analysis_agent
+from .case_study_agent import CaseStudyGeneratorAgent, get_case_study_agent
+# Narrative Control & Quality Gate Agents (NEW)
+from .proposal_narrative_architect_agent import ProposalNarrativeArchitectAgent, get_proposal_narrative_architect
+from .proposal_depth_scoring_agent import ProposalDepthScoringAgent, get_proposal_depth_scoring_agent
+from .executive_confidence_gate_agent import ExecutiveConfidenceGateAgent, get_executive_confidence_gate
 from .metrics_service import (
     AgentMetricsService,
     get_metrics_service,
@@ -153,6 +158,15 @@ __all__ = [
     'get_win_theme_agent',
     'CompetitiveAnalysisAgent',
     'get_competitive_analysis_agent',
+    'CaseStudyGeneratorAgent',
+    'get_case_study_agent',
+    # Narrative Control & Quality Gate Agents (NEW)
+    'ProposalNarrativeArchitectAgent',
+    'get_proposal_narrative_architect',
+    'ProposalDepthScoringAgent',
+    'get_proposal_depth_scoring_agent',
+    'ExecutiveConfidenceGateAgent',
+    'get_executive_confidence_gate',
     # Metrics & Observability
     'AgentMetricsService',
     'get_metrics_service',

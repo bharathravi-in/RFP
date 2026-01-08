@@ -368,26 +368,78 @@ Perform the competitive analysis now:"""
             return {}
     
     def _generate_fallback_analysis(self) -> Dict:
-        """Generate fallback analysis when AI fails."""
+        """Generate comprehensive fallback analysis using static competitor profiles."""
+        # Use DEFAULT_COMPETITOR_PROFILES for rich static analysis
+        likely_competitors = []
+        for comp_type, profile in self.DEFAULT_COMPETITOR_PROFILES.items():
+            likely_competitors.append({
+                'type': comp_type,
+                'typical_strengths': profile['strengths'][:2],
+                'typical_weaknesses': profile['weaknesses'][:2],
+                'likely_price_position': profile['pricing_tier']
+            })
+        
         return {
             'competitive_landscape': {
-                'market_context': 'Competitive analysis requires manual review',
-                'likely_competitors': []
+                'market_context': 'Analysis based on standard industry competitor profiles. For AI-powered insights, configure your LLM provider in Settings.',
+                'likely_competitors': likely_competitors[:3]
             },
             'our_position': {
-                'recommended_positioning': 'Emphasize proven track record and client focus'
+                'strengths_vs_large_competitors': ['Agility and faster decision-making', 'More personalized client attention', 'Cost-effective delivery'],
+                'strengths_vs_small_competitors': ['Broader service capabilities', 'Enterprise-grade processes', 'Proven scalability'],
+                'areas_to_address': ['Establish credibility through case studies', 'Highlight relevant certifications'],
+                'recommended_positioning': 'Emphasize proven track record, client-focused approach, and value delivery'
             },
             'competitive_strategies': [
                 {
                     'strategy_id': 'CS-001',
                     'strategy_name': 'Value-Based Differentiation',
-                    'description': 'Focus on unique value delivery rather than price',
-                    'when_to_use': 'Always applicable',
-                    'key_messages': ['Partnership approach', 'Proven methodology']
+                    'description': 'Focus on unique value delivery rather than competing on price alone',
+                    'when_to_use': 'Against price-focused competitors',
+                    'key_messages': ['Partnership approach', 'Proven methodology', 'Long-term value']
+                },
+                {
+                    'strategy_id': 'CS-002',
+                    'strategy_name': 'Agility Advantage',
+                    'description': 'Highlight faster decision-making and flexibility compared to large competitors',
+                    'when_to_use': 'Against large system integrators',
+                    'key_messages': ['Faster time-to-value', 'Direct senior engagement', 'Flexible engagement models']
+                },
+                {
+                    'strategy_id': 'CS-003',
+                    'strategy_name': 'Enterprise Capability',
+                    'description': 'Demonstrate enterprise-grade processes while maintaining boutique attention',
+                    'when_to_use': 'Against boutique competitors',
+                    'key_messages': ['Scalable solutions', 'Industry best practices', 'Comprehensive support']
                 }
             ],
-            'counter_objections': [],
-            'ghost_competitive_statements': []
+            'counter_objections': [
+                {
+                    'objection': 'Your company is smaller than major competitors',
+                    'response': 'Our size enables faster decisions and more personalized attention. You get direct access to senior experts rather than junior consultants.',
+                    'proof_points': ['Named senior resources', 'Faster response times', 'Dedicated team']
+                },
+                {
+                    'objection': 'How do we know you can handle this scale?',
+                    'response': 'We have successfully delivered similar projects and can scale our team as needed with proven delivery partners.',
+                    'proof_points': ['Reference clients', 'Case studies', 'Flexible resourcing model']
+                }
+            ],
+            'ghost_competitive_statements': [
+                {
+                    'statement': 'Unlike traditional approaches that add layers of overhead, we provide direct access to decision-makers',
+                    'target': 'Large SI bureaucracy'
+                },
+                {
+                    'statement': 'We bring a holistic view rather than being tied to any single product or platform',
+                    'target': 'Product vendor bias'
+                }
+            ],
+            'evaluation_impact': {
+                'technical_score_boosters': ['Detailed methodology documentation', 'Relevant case studies', 'Strong reference clients'],
+                'price_score_strategies': ['Value-based pricing narrative', 'Phased delivery options', 'Risk-sharing models'],
+                'risk_mitigation_points': ['Proven delivery track record', 'Flexible engagement terms', 'Clear escalation paths']
+            }
         }
     
     def generate_counter_objections(

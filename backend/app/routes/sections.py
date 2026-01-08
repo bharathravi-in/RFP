@@ -668,6 +668,13 @@ Client: {project.client_name or 'Not specified'}
 def generate_section_content(section_id):
     """Generate AI content for a section"""
     user_id = get_jwt_identity()
+    
+    # Ensure clean transaction state at start
+    try:
+        db.session.rollback()
+    except:
+        pass
+    
     user = User.query.get(user_id)
     
     section = RFPSection.query.get(section_id)
@@ -681,6 +688,9 @@ def generate_section_content(section_id):
     section_type = section.section_type
     if not section_type:
         return jsonify({'error': 'Section type not found'}), 404
+    
+    # Pre-fetch organization to avoid lazy loading issues later
+    organization = user.organization
     
     # Get optional parameters from request
     data = request.get_json() or {}
@@ -727,6 +737,8 @@ def generate_section_content(section_id):
             print(f"[SOURCES DEBUG]   - {c.get('title', 'Unknown')}: score={c.get('score', 0)}")
     except Exception as e:
         print(f"[SOURCES DEBUG] Qdrant search failed: {e}")
+        # Rollback any failed transaction to allow subsequent DB operations
+        db.session.rollback()
         # Fallback: Smart keyword-based search with calculated relevance
         try:
             from sqlalchemy import or_, func
@@ -808,6 +820,8 @@ def generate_section_content(section_id):
 
         except Exception as e2:
             print(f"[SOURCES DEBUG] Fallback also failed: {e2}")
+            # Rollback to ensure clean transaction state
+            db.session.rollback()
     
     # ========================================
     # WIN THEME INTEGRATION (Phase 2 Enhancement)
@@ -834,6 +848,8 @@ def generate_section_content(section_id):
             print(f"[WIN THEMES] Added {len(win_themes_context)} themes to section generation")
     except Exception as e:
         print(f"[WIN THEMES] Failed to fetch win themes: {e}")
+        # Rollback to clear aborted transaction state
+        db.session.rollback()
     
     # Generate content
     generator = get_section_generator(org_id=user.organization_id)
@@ -848,8 +864,7 @@ def generate_section_content(section_id):
     # Post-process: Replace common placeholders with actual values
     content = result['content']
     
-    # Get company name from organization
-    organization = user.organization
+    # Get company name from organization (already pre-fetched to avoid lazy loading issues)
     company_name = organization.name if organization else 'Our Company'
     
     # Get vendor profile for additional company info
