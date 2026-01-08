@@ -152,6 +152,141 @@ def generate_answer():
     }), 201
 
 
+@bp.route('/suggest-improvements', methods=['POST'])
+@jwt_required()
+def suggest_answer_improvements():
+    """AI analyzes answer content and suggests improvements for regeneration"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    
+    # Rollback any existing failed transaction
+    try:
+        db.session.rollback()
+    except:
+        pass
+    
+    data = request.get_json()
+    question_id = data.get('question_id')
+    content = data.get('content')
+    
+    if not question_id:
+        return jsonify({'error': 'question_id is required'}), 400
+    
+    question = Question.query.get(question_id)
+    if not question:
+        return jsonify({'error': 'Question not found'}), 404
+    
+    project = question.project
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Use existing answer content if not provided
+    if not content and question.answer:
+        content = question.answer.content
+    
+    if not content or len(content) < 30:
+        return jsonify({'error': 'Not enough content to analyze'}), 400
+    
+    # Use AI to analyze and suggest improvements
+    try:
+        from app.agents import get_answer_generator_agent
+        agent = get_answer_generator_agent(org_id=user.organization_id)
+        
+        analysis_prompt = f"""Analyze the following RFP answer and provide specific improvement suggestions.
+
+QUESTION: {question.text}
+
+CURRENT ANSWER:
+{content[:3000]}
+
+PROJECT CONTEXT:
+- Client: {project.client_name or project.name}
+
+ANALYZE FOR:
+1. Does it directly answer the question asked?
+2. Is it specific to the client or generic?
+3. Does it include evidence, metrics, or examples?
+4. Is the tone professional and confident?
+5. Are there any vague or marketing-speak phrases?
+
+PROVIDE 3-5 specific, actionable improvement suggestions as bullet points.
+Start each with "• " and be specific to THIS answer."""
+
+        # Use agent's config to generate
+        if agent.config.client:
+            try:
+                response = agent.config.generate_content(
+                    analysis_prompt,
+                    temperature=0.3,
+                    max_tokens=800
+                )
+                suggestions = response.strip() if response else None
+            except Exception as e:
+                print(f"[SUGGEST] AI generation failed: {e}")
+                suggestions = None
+        else:
+            suggestions = None
+        
+        if not suggestions:
+            suggestions = generate_answer_suggestions(content, question.text, project.client_name)
+        
+        return jsonify({
+            'success': True,
+            'suggestions': suggestions,
+            'feedback': suggestions,
+            'question_id': question_id
+        })
+        
+    except Exception as e:
+        print(f"[SUGGEST] Answer analysis failed: {e}")
+        suggestions = generate_answer_suggestions(content, question.text, project.client_name or project.name)
+        return jsonify({
+            'success': True,
+            'suggestions': suggestions,
+            'feedback': suggestions,
+            'question_id': question_id,
+            'source': 'rule_based'
+        })
+
+
+def generate_answer_suggestions(content: str, question: str, client_name: str) -> str:
+    """Generate rule-based improvement suggestions for answers"""
+    suggestions = []
+    content_lower = content.lower()
+    question_lower = question.lower()
+    
+    # Check if answer addresses question keywords
+    question_keywords = [w for w in question_lower.split() if len(w) > 4][:5]
+    missing_keywords = [k for k in question_keywords if k not in content_lower]
+    if len(missing_keywords) > 2:
+        suggestions.append("• Address all key aspects of the question more directly")
+    
+    # Check client reference
+    if client_name and client_name.lower() not in content_lower:
+        suggestions.append(f"• Reference {client_name} specifically to show tailored response")
+    
+    # Check for metrics
+    if not any(c.isdigit() for c in content):
+        suggestions.append("• Add specific metrics or quantifiable outcomes")
+    
+    # Check for generic phrases
+    generic = ['comprehensive', 'seamless', 'robust', 'best-in-class', 'cutting-edge']
+    if any(g in content_lower for g in generic):
+        suggestions.append("• Replace generic marketing phrases with specific capabilities")
+    
+    # Check length
+    if len(content) < 200:
+        suggestions.append("• Expand with more specific details and examples")
+    elif len(content) > 1500:
+        suggestions.append("• Consider condensing - evaluators prefer concise answers")
+    
+    if not suggestions:
+        suggestions.append("• Add specific examples or case studies")
+        suggestions.append("• Include metrics or measurable outcomes")
+    
+    return '\n'.join(suggestions[:5])
+
+
 @bp.route('/regenerate', methods=['POST'])
 @jwt_required()
 def regenerate_answer():

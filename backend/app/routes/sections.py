@@ -1081,6 +1081,161 @@ def generate_diagram_section(section, project, user):
     })
 
 
+@bp.route('/sections/<int:section_id>/suggest-improvements', methods=['POST'])
+@jwt_required()
+def suggest_section_improvements(section_id):
+    """AI analyzes content and suggests improvements for regeneration"""
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # Rollback any existing failed transaction
+    try:
+        db.session.rollback()
+    except:
+        pass
+    
+    section = RFPSection.query.get(section_id)
+    if not section:
+        return jsonify({'error': 'Section not found'}), 404
+    
+    project = section.project
+    if project.organization_id != user.organization_id:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json() or {}
+    content = data.get('content') or section.content
+    
+    if not content or len(content) < 50:
+        return jsonify({'error': 'Not enough content to analyze'}), 400
+    
+    # Get section type for context
+    section_type = section.section_type
+    section_name = section_type.name if section_type else 'General'
+    
+    # Use AI to analyze and suggest improvements
+    try:
+        from app.services.section_generation_service import get_section_generator
+        generator = get_section_generator(org_id=user.organization_id)
+        
+        analysis_prompt = f"""Analyze the following {section_name} section content and provide specific, actionable improvement suggestions.
+
+CONTENT TO ANALYZE:
+{content[:4000]}
+
+PROJECT CONTEXT:
+- Client: {project.client_name or project.name}
+- Project: {project.name}
+
+ANALYZE FOR:
+1. Client Specificity - Does it reference the client by name? Address their specific needs?
+2. Evidence & Metrics - Are there concrete numbers, timelines, case studies?
+3. Generic Language - Are there vague marketing phrases that should be replaced?
+4. Missing Elements - What key information is missing for this section type?
+5. Risk Acknowledgement - Are risks mentioned with mitigations?
+6. Clarity & Structure - Is the content well-organized and clear?
+
+PROVIDE:
+- 3-5 specific improvement suggestions as bullet points
+- Each suggestion should be actionable and specific to THIS content
+- Focus on what would make an evaluator more confident
+
+OUTPUT FORMAT:
+Return only the bullet-pointed suggestions, no preamble. Start each with "• "
+"""
+        
+        result = generator.generate_section_content(
+            section_type_slug='feedback',
+            prompt_template=analysis_prompt,
+            inputs={},
+            context=[],
+            generation_params={'temperature': 0.3, 'max_tokens': 1000}
+        )
+        
+        suggestions = result.get('content', '').strip()
+        
+        # Clean up the suggestions
+        if suggestions:
+            # Remove any preamble before bullet points
+            if '•' in suggestions:
+                suggestions = '•' + suggestions.split('•', 1)[1]
+            elif '-' in suggestions and not suggestions.startswith('-'):
+                lines = suggestions.split('\n')
+                bullet_lines = [l for l in lines if l.strip().startswith('-') or l.strip().startswith('•')]
+                if bullet_lines:
+                    suggestions = '\n'.join(bullet_lines)
+        
+        return jsonify({
+            'success': True,
+            'suggestions': suggestions,
+            'feedback': suggestions,  # Alias for frontend compatibility
+            'section_id': section_id,
+            'analyzed_length': len(content)
+        })
+        
+    except Exception as e:
+        print(f"[SUGGEST] AI analysis failed: {e}")
+        # Fallback: Rule-based suggestions
+        suggestions = generate_rule_based_suggestions(content, project.client_name or project.name, section_name)
+        return jsonify({
+            'success': True,
+            'suggestions': suggestions,
+            'feedback': suggestions,
+            'section_id': section_id,
+            'source': 'rule_based'
+        })
+
+
+def generate_rule_based_suggestions(content: str, client_name: str, section_name: str) -> str:
+    """Generate rule-based improvement suggestions when AI is unavailable"""
+    suggestions = []
+    content_lower = content.lower()
+    
+    # Check client reference
+    if client_name and client_name.lower() not in content_lower:
+        suggestions.append(f"• Add explicit references to {client_name} and their specific requirements")
+    
+    # Check for generic phrases
+    generic_phrases = ['comprehensive solution', 'seamless integration', 'best-in-class', 
+                       'cutting-edge', 'state-of-the-art', 'robust platform', 'leverage']
+    found_generic = [p for p in generic_phrases if p in content_lower]
+    if found_generic:
+        suggestions.append(f"• Replace generic phrases ({', '.join(found_generic[:2])}) with specific capabilities")
+    
+    # Check for metrics
+    if not any(c.isdigit() for c in content) and '%' not in content:
+        suggestions.append("• Add specific metrics, timelines, or quantifiable outcomes (e.g., '30% reduction', '2-week sprints')")
+    
+    # Check content length
+    if len(content) < 500:
+        suggestions.append("• Expand with more specific details, examples, or case study references")
+    
+    # Check for risks
+    if 'risk' not in content_lower and 'mitigation' not in content_lower:
+        suggestions.append("• Add risk acknowledgement with specific mitigation strategies")
+    
+    # Check for structure
+    if '\n\n' not in content and len(content) > 500:
+        suggestions.append("• Improve structure with clear sections/paragraphs for better readability")
+    
+    # Section-specific suggestions
+    section_lower = section_name.lower()
+    if 'executive' in section_lower or 'summary' in section_lower:
+        if len(content) > 1000:
+            suggestions.append("• Condense executive summary - aim for 1-2 pages maximum")
+    elif 'technical' in section_lower or 'approach' in section_lower:
+        if 'architecture' not in content_lower and 'diagram' not in content_lower:
+            suggestions.append("• Add architecture overview or reference to technical diagrams")
+    elif 'team' in section_lower or 'resource' in section_lower:
+        if 'experience' not in content_lower and 'years' not in content_lower:
+            suggestions.append("• Include team experience and relevant qualifications")
+    
+    if not suggestions:
+        suggestions.append("• Add more client-specific details to demonstrate understanding of their unique challenges")
+        suggestions.append("• Include concrete examples or case studies from similar projects")
+    
+    return '\n'.join(suggestions[:5])
+
+
 @bp.route('/sections/<int:section_id>/regenerate', methods=['POST'])
 @jwt_required()
 def regenerate_section(section_id):

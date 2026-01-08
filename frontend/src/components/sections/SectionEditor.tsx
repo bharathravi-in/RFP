@@ -54,6 +54,7 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
     const [isSaving, setIsSaving] = useState(false);
     const [feedback, setFeedback] = useState('');
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+    const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
     const [showAIChatPanel, setShowAIChatPanel] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [showDetailsSidebar, setShowDetailsSidebar] = useState(false);
@@ -260,6 +261,69 @@ export default function SectionEditor({ section, projectId, onUpdate }: SectionE
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    // NEW: Get AI suggestion for what to improve
+    const handleGetAISuggestion = async () => {
+        if (!content || content.length < 50) {
+            toast.error('Need more content to analyze');
+            return;
+        }
+
+        setIsGettingSuggestion(true);
+        try {
+            const response = await sectionsApi.getSuggestions(section.id, content);
+            const suggestions = response.data.suggestions || response.data.feedback;
+            if (suggestions) {
+                setFeedback(suggestions);
+                toast.success('AI suggestions generated!');
+            } else {
+                toast.error('No suggestions available');
+            }
+        } catch {
+            // Fallback suggestion based on content analysis
+            const fallbackSuggestions = generateFallbackSuggestions();
+            setFeedback(fallbackSuggestions);
+            toast.success('Generated improvement suggestions');
+        } finally {
+            setIsGettingSuggestion(false);
+        }
+    };
+
+    // Generate fallback suggestions if API fails
+    const generateFallbackSuggestions = () => {
+        const suggestions = [];
+
+        // Check content length
+        if (content.length < 500) {
+            suggestions.push('Add more specific details and examples');
+        }
+
+        // Check for generic phrases
+        const genericPhrases = ['leveraging', 'state-of-the-art', 'robust solution', 'cutting-edge', 'best-in-class'];
+        const hasGeneric = genericPhrases.some(phrase => content.toLowerCase().includes(phrase));
+        if (hasGeneric) {
+            suggestions.push('Replace generic marketing language with specific capabilities');
+        }
+
+        // Check for client reference
+        if (!content.toLowerCase().includes('client') && !content.toLowerCase().includes('your')) {
+            suggestions.push('Add direct references to the client\'s specific needs');
+        }
+
+        // Check for metrics
+        if (!/\d+%|\d+ (days|weeks|months|users|projects)/.test(content)) {
+            suggestions.push('Include specific metrics, timelines, or quantifiable outcomes');
+        }
+
+        // Check for risks
+        if (!content.toLowerCase().includes('risk') && !content.toLowerCase().includes('mitigation')) {
+            suggestions.push('Add risk acknowledgement and mitigation strategies');
+        }
+
+        return suggestions.length > 0
+            ? suggestions.join('\n• ')
+            : 'Make the content more specific to the client\'s requirements and add concrete examples';
     };
 
     const handleSave = async () => {
@@ -801,14 +865,34 @@ ${answer}
                 {/* Regenerate Feedback Input */}
                 {showFeedbackInput && (
                     <div className="mt-3 p-3 rounded-lg bg-background border border-border">
-                        <label className="block text-sm font-medium text-text-primary mb-2">
-                            Feedback for Regeneration
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-text-primary">
+                                Feedback for Regeneration
+                            </label>
+                            <button
+                                onClick={handleGetAISuggestion}
+                                disabled={isGettingSuggestion || !content || content.length < 50}
+                                className="text-xs px-2 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 flex items-center gap-1 disabled:opacity-50"
+                                title="Let AI analyze and suggest improvements"
+                            >
+                                {isGettingSuggestion ? (
+                                    <>
+                                        <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                                        Analyzing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <SparklesIcon className="h-3 w-3" />
+                                        AI Suggest
+                                    </>
+                                )}
+                            </button>
+                        </div>
                         <textarea
                             value={feedback}
                             onChange={(e) => setFeedback(e.target.value)}
-                            placeholder="Describe what you'd like to change..."
-                            rows={2}
+                            placeholder="Describe what you'd like to change... or click 'AI Suggest' to get recommendations"
+                            rows={3}
                             className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                         />
                         <div className="flex justify-end gap-2 mt-2">

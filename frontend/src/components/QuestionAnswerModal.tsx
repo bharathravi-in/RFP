@@ -41,6 +41,7 @@ export default function QuestionAnswerModal({
     const [editedAnswer, setEditedAnswer] = useState(question.answer?.content || '');
     const [feedback, setFeedback] = useState('');
     const [showFeedback, setShowFeedback] = useState(false);
+    const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
     const [librarySuggestions, setLibrarySuggestions] = useState<AnswerLibraryItem[]>([]);
     const [knowledgeSuggestions, setKnowledgeSuggestions] = useState<{ id: number; title: string; content: string; confidence: number }[]>([]);
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -158,6 +159,60 @@ export default function QuestionAnswerModal({
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    // Get AI suggestions for what to improve
+    const handleGetAISuggestion = async () => {
+        const content = question.answer?.content;
+        if (!content || content.length < 30) {
+            toast.error('Need more content to analyze');
+            return;
+        }
+
+        setIsGettingSuggestion(true);
+        try {
+            const response = await answersApi.getSuggestions(question.id, content);
+            const suggestions = response.data.suggestions || response.data.feedback;
+            if (suggestions) {
+                setFeedback(suggestions);
+                toast.success('AI suggestions generated!');
+            } else {
+                toast.error('No suggestions available');
+            }
+        } catch {
+            // Fallback suggestion based on content analysis
+            const fallbackSuggestions = generateFallbackSuggestions(content);
+            setFeedback(fallbackSuggestions);
+            toast.success('Generated improvement suggestions');
+        } finally {
+            setIsGettingSuggestion(false);
+        }
+    };
+
+    // Generate fallback suggestions if API fails
+    const generateFallbackSuggestions = (content: string) => {
+        const suggestions = [];
+        const contentLower = content.toLowerCase();
+
+        // Check content length
+        if (content.length < 300) {
+            suggestions.push('Add more specific details and examples');
+        }
+
+        // Check for generic phrases
+        const genericPhrases = ['comprehensive', 'seamless', 'robust', 'cutting-edge', 'best-in-class'];
+        if (genericPhrases.some(phrase => contentLower.includes(phrase))) {
+            suggestions.push('Replace generic marketing language with specific capabilities');
+        }
+
+        // Check for metrics
+        if (!/\d+%|\d+ (days|weeks|months|users|projects)/.test(content)) {
+            suggestions.push('Include specific metrics or quantifiable outcomes');
+        }
+
+        return suggestions.length > 0
+            ? '• ' + suggestions.join('\n• ')
+            : '• Make the response more specific to the client\'s requirements\n• Add concrete examples or case studies';
     };
 
     const handleSaveEdit = async () => {
@@ -454,15 +509,35 @@ export default function QuestionAnswerModal({
                                 {/* Regenerate with feedback */}
                                 {showFeedback && (
                                     <div className="p-4 rounded-lg bg-gray-50 border border-border">
-                                        <label className="block text-sm font-medium text-text-primary mb-2">
-                                            Feedback for Regeneration
-                                        </label>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-sm font-medium text-text-primary">
+                                                Feedback for Regeneration
+                                            </label>
+                                            <button
+                                                onClick={handleGetAISuggestion}
+                                                disabled={isGettingSuggestion || !question.answer?.content}
+                                                className="text-xs px-2 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 flex items-center gap-1 disabled:opacity-50"
+                                                title="Let AI analyze and suggest improvements"
+                                            >
+                                                {isGettingSuggestion ? (
+                                                    <>
+                                                        <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                                                        Analyzing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <SparklesIcon className="h-3 w-3" />
+                                                        AI Suggest
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
                                         <textarea
                                             value={feedback}
                                             onChange={(e) => setFeedback(e.target.value)}
                                             rows={3}
                                             className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                                            placeholder="Describe what you'd like to change..."
+                                            placeholder="Describe what you'd like to change... or click 'AI Suggest' to get recommendations"
                                         />
                                         <div className="flex justify-end gap-2 mt-3">
                                             <button
@@ -473,7 +548,7 @@ export default function QuestionAnswerModal({
                                             </button>
                                             <button
                                                 onClick={handleRegenerate}
-                                                disabled={isGenerating}
+                                                disabled={isGenerating || !feedback.trim()}
                                                 className="btn-primary text-sm flex items-center gap-2"
                                             >
                                                 {isGenerating && <ArrowPathIcon className="h-4 w-4 animate-spin" />}

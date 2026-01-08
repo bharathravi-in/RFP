@@ -252,6 +252,10 @@ export const answersApi = {
     regenerate: (questionId: number, feedback?: string, action: string = 'regenerate') =>
         api.post('/answers/regenerate', { question_id: questionId, feedback, action }),
 
+    // Get AI suggestions for improving an answer
+    getSuggestions: (questionId: number, content: string) =>
+        api.post('/answers/suggest-improvements', { question_id: questionId, content }),
+
     create: (questionId: number, content: string) =>
         api.post('/answers', { question_id: questionId, content }),
 
@@ -396,6 +400,10 @@ export const sectionsApi = {
 
     regenerateSection: (sectionId: number, feedback: string) =>
         api.post(`/sections/${sectionId}/regenerate`, { feedback }),
+
+    // Get AI suggestions for content improvement
+    getSuggestions: (sectionId: number, content: string) =>
+        api.post(`/sections/${sectionId}/suggest-improvements`, { content }),
 
     reviewSection: (sectionId: number, action: 'approve' | 'reject') =>
         api.post(`/sections/${sectionId}/review`, { action }),
