@@ -45,6 +45,7 @@ import CRMIntegrationSection from '@/components/settings/CRMIntegrationSection';
 import PlatformTour from '@/components/onboarding/PlatformTour';
 import LanguageSelector from '@/components/common/LanguageSelector';
 import ThemeSelector from '@/components/common/ThemeSelector';
+import VendorProfileManager from '@/components/vendor/VendorProfileManager';
 
 const TOUR_COMPLETED_KEY = 'rfp_pro_tour_completed';
 
@@ -807,271 +808,89 @@ export default function Settings() {
 
                 {/* Vendor Profile Tab */}
                 {activeTab === 'vendor' && (
-                    <div className="space-y-6">
-                        <div className="bg-surface rounded-xl border border-border">
-                            <div className="p-6 border-b border-border">
-                                <h2 className="text-xl font-bold text-text-primary">Vendor Profile</h2>
-                                <p className="text-sm text-text-secondary mt-1">
-                                    This information is used to assess eligibility for RFPs and display on your dashboard.
-                                </p>
-                            </div>
-
-                            <form onSubmit={handleSaveVendorProfile} className="p-6 space-y-6">
-                                {/* Document Upload Section */}
-                                <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-100">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <DocumentArrowUpIcon className="h-6 w-6 text-primary" />
-                                        <div>
-                                            <h3 className="font-medium text-text-primary">Quick Fill from Document</h3>
-                                            <p className="text-xs text-text-secondary">Upload your company profile, capability statement, or about us document</p>
-                                        </div>
-                                    </div>
-
-                                    <input
-                                        type="file"
-                                        ref={vendorFileInputRef}
-                                        onChange={handleVendorFileUpload}
-                                        accept=".pdf,.docx,.doc,.pptx,.ppt"
-                                        className="hidden"
-                                    />
-
-                                    <button
-                                        type="button"
-                                        onClick={() => vendorFileInputRef.current?.click()}
-                                        disabled={isExtractingVendor}
-                                        className={clsx(
-                                            "w-full p-4 border-2 border-dashed rounded-lg text-center transition-all",
-                                            isExtractingVendor
-                                                ? "border-primary bg-primary-50 cursor-wait"
-                                                : "border-gray-300 hover:border-primary hover:bg-primary-50/50 cursor-pointer"
-                                        )}
-                                    >
-                                        {isExtractingVendor ? (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="h-8 w-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-                                                <span className="text-sm font-medium text-primary">Extracting vendor profile with AI...</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <DocumentArrowUpIcon className="h-8 w-8 text-gray-400" />
-                                                <span className="text-sm font-medium text-text-secondary">
-                                                    Click to upload PDF, DOCX, or PPTX
-                                                </span>
-                                                <span className="text-xs text-text-muted">Maximum 10MB</span>
-                                            </div>
-                                        )}
-                                    </button>
-                                </div>
-
-                                {/* Divider */}
-                                <div className="relative">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-border"></div>
-                                    </div>
-                                    <div className="relative flex justify-center">
-                                        <span className="px-3 bg-surface text-sm text-text-muted">Or fill in manually</span>
-                                    </div>
-                                </div>
-
-                                {/* Company Registration */}
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Company Registration Country
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={vendorProfile.registration_country}
-                                        onChange={(e) => setVendorProfile(prev => ({ ...prev, registration_country: e.target.value }))}
-                                        className="input w-full max-w-md"
-                                        placeholder="e.g., United States, India, United Kingdom"
-                                    />
-                                </div>
-
-                                {/* Years in Business */}
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Years in Business
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={vendorProfile.years_in_business}
-                                        onChange={(e) => setVendorProfile(prev => ({ ...prev, years_in_business: e.target.value }))}
-                                        className="input w-full max-w-md"
-                                        placeholder="e.g., 5"
-                                        min="0"
-                                    />
-                                </div>
-
-                                {/* Team Size / Employee Count */}
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Team Size (Number of Employees)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={vendorProfile.employee_count}
-                                        onChange={(e) => setVendorProfile(prev => ({ ...prev, employee_count: e.target.value }))}
-                                        className="input w-full max-w-md"
-                                        placeholder="e.g., 50"
-                                        min="1"
-                                    />
-                                </div>
-
-                                {/* Certifications */}
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Certifications
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={vendorProfile.certifications}
-                                        onChange={(e) => setVendorProfile(prev => ({ ...prev, certifications: e.target.value }))}
-                                        className="input w-full max-w-md"
-                                        placeholder="e.g., ISO 27001, SOC 2, GDPR Compliant (comma-separated)"
-                                    />
-                                    <p className="text-xs text-text-muted mt-1">Enter certifications separated by commas</p>
-                                </div>
-
-                                {/* Geographic Presence */}
-                                <div>
-                                    <label className="block text-sm font-medium text-text-primary mb-2">
-                                        Geographic Presence
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={vendorProfile.geographies}
-                                        onChange={(e) => setVendorProfile(prev => ({ ...prev, geographies: e.target.value }))}
-                                        className="input w-full max-w-md"
-                                        placeholder="e.g., North America, Europe, APAC (comma-separated)"
-                                    />
-                                    <p className="text-xs text-text-muted mt-1">Enter regions where you operate, separated by commas</p>
-                                </div>
-
-                                {/* Submit Button */}
-                                <div className="pt-4">
-                                    <button
-                                        type="submit"
-                                        disabled={isSavingVendor}
-                                        className="btn-primary"
-                                    >
-                                        {isSavingVendor ? (
-                                            <span className="flex items-center gap-2">
-                                                <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                Saving...
-                                            </span>
-                                        ) : (
-                                            'Save Vendor Profile'
-                                        )}
-                                    </button>
-                                </div>
-                                <div className="mt-8 pt-6 border-t border-border flex justify-between items-center bg-green-50/50 -mx-6 -mb-6 p-6 rounded-b-xl border-t border-green-100">
-                                    <div>
-                                        <p className="text-sm font-medium text-green-900">Next Step: Knowledge Profiles</p>
-                                        <p className="text-xs text-green-700">Configure AI dimensions to specialized your RFP responses.</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleTabChange('knowledge')}
-                                        className="btn-primary bg-green-600 hover:bg-green-700 border-green-700 flex items-center gap-2"
-                                    >
-                                        Next Section
-                                        <ArrowRightIcon className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-
-                        {/* Info Note */}
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                            <div className="flex items-start gap-3">
-                                <ShieldCheckIcon className="h-5 w-5 text-blue-600 mt-0.5" />
-                                <div>
-                                    <h4 className="text-sm font-medium text-blue-800">Why is this important?</h4>
-                                    <p className="text-xs text-blue-700 mt-1">
-                                        Your vendor profile is used to assess eligibility for RFPs. Complete profiles have higher chances of meeting RFP requirements. This information appears in the Vendor Eligibility panel on your dashboard.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <VendorProfileManager />
                 )}
 
                 {activeTab === 'knowledge' && <KnowledgeProfiles />}
                 {activeTab === 'dimensions' && <FilterDimensions />}
 
                 {/* Security Tab */}
-                {activeTab === 'security' && (
-                    <div className="bg-surface rounded-xl border border-border max-w-3xl">
-                        <div className="p-6 border-b border-border">
-                            <h2 className="text-lg font-semibold text-text-primary">Security</h2>
-                            <p className="text-sm text-text-secondary mt-1">Manage your password and security</p>
-                        </div>
-                        <form onSubmit={handleChangePassword} className="p-6 space-y-6">
-                            <div>
-                                <h3 className="text-sm font-medium text-text-primary mb-4">Change Password</h3>
-                                <div className="space-y-3 max-w-md">
-                                    <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Current password" className="input w-full" />
-                                    <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" className="input w-full" />
-                                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="input w-full" />
-                                </div>
-                                <button type="submit" disabled={isChangingPassword} className="btn-primary mt-4">
-                                    {isChangingPassword ? 'Updating...' : 'Update Password'}
-                                </button>
+                {
+                    activeTab === 'security' && (
+                        <div className="bg-surface rounded-xl border border-border max-w-3xl">
+                            <div className="p-6 border-b border-border">
+                                <h2 className="text-lg font-semibold text-text-primary">Security</h2>
+                                <p className="text-sm text-text-secondary mt-1">Manage your password and security</p>
                             </div>
-                            <div className="pt-6 border-t border-border">
-                                <div className="flex items-center justify-between p-4 bg-background rounded-lg">
-                                    <div>
-                                        <p className="font-medium text-text-primary">Two-Factor Authentication</p>
-                                        <p className="text-sm text-text-secondary">Add extra security</p>
+                            <form onSubmit={handleChangePassword} className="p-6 space-y-6">
+                                <div>
+                                    <h3 className="text-sm font-medium text-text-primary mb-4">Change Password</h3>
+                                    <div className="space-y-3 max-w-md">
+                                        <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Current password" className="input w-full" />
+                                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" className="input w-full" />
+                                        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="input w-full" />
                                     </div>
-                                    <button type="button" className="btn-secondary btn-sm">Enable</button>
+                                    <button type="submit" disabled={isChangingPassword} className="btn-primary mt-4">
+                                        {isChangingPassword ? 'Updating...' : 'Update Password'}
+                                    </button>
                                 </div>
-                            </div>
-                        </form>
-                    </div>
-                )}
+                                <div className="pt-6 border-t border-border">
+                                    <div className="flex items-center justify-between p-4 bg-background rounded-lg">
+                                        <div>
+                                            <p className="font-medium text-text-primary">Two-Factor Authentication</p>
+                                            <p className="text-sm text-text-secondary">Add extra security</p>
+                                        </div>
+                                        <button type="button" className="btn-secondary btn-sm">Enable</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    )
+                }
 
                 {/* Notifications Tab */}
-                {activeTab === 'notifications' && (
-                    <div className="bg-surface rounded-xl border border-border max-w-3xl">
-                        <div className="p-6 border-b border-border">
-                            <h2 className="text-lg font-semibold text-text-primary">Notifications</h2>
-                            <p className="text-sm text-text-secondary mt-1">Configure your alert preferences</p>
-                        </div>
-                        <div className="p-6 space-y-3">
-                            {[
-                                { id: 'email_project', label: 'Project assignments', desc: 'When assigned to a project' },
-                                { id: 'email_review', label: 'Answer reviews', desc: 'When answers are reviewed' },
-                                { id: 'email_export', label: 'Export completions', desc: 'When exports are ready' },
-                                { id: 'browser', label: 'Browser notifications', desc: 'Real-time alerts' },
-                            ].map(setting => (
-                                <label key={setting.id} className="flex items-center justify-between p-4 bg-background rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                                    <div className="min-w-0 flex-1">
-                                        <p className="font-medium text-text-primary">{setting.label}</p>
-                                        <p className="text-sm text-text-secondary">{setting.desc}</p>
-                                    </div>
-                                    <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-border text-primary focus:ring-primary flex-shrink-0 ml-4" />
-                                </label>
-                            ))}
-                        </div>
+                {
+                    activeTab === 'notifications' && (
+                        <div className="bg-surface rounded-xl border border-border max-w-3xl">
+                            <div className="p-6 border-b border-border">
+                                <h2 className="text-lg font-semibold text-text-primary">Notifications</h2>
+                                <p className="text-sm text-text-secondary mt-1">Configure your alert preferences</p>
+                            </div>
+                            <div className="p-6 space-y-3">
+                                {[
+                                    { id: 'email_project', label: 'Project assignments', desc: 'When assigned to a project' },
+                                    { id: 'email_review', label: 'Answer reviews', desc: 'When answers are reviewed' },
+                                    { id: 'email_export', label: 'Export completions', desc: 'When exports are ready' },
+                                    { id: 'browser', label: 'Browser notifications', desc: 'Real-time alerts' },
+                                ].map(setting => (
+                                    <label key={setting.id} className="flex items-center justify-between p-4 bg-background rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-medium text-text-primary">{setting.label}</p>
+                                            <p className="text-sm text-text-secondary">{setting.desc}</p>
+                                        </div>
+                                        <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-border text-primary focus:ring-primary flex-shrink-0 ml-4" />
+                                    </label>
+                                ))}
+                            </div>
 
-                        {/* Language Section */}
-                        <div className="p-6 border-t border-border">
-                            <h3 className="text-sm font-semibold text-text-primary mb-3">Language / भाषा</h3>
-                            <div className="flex items-center gap-4">
-                                <LanguageSelector variant="buttons" />
+                            {/* Language Section */}
+                            <div className="p-6 border-t border-border">
+                                <h3 className="text-sm font-semibold text-text-primary mb-3">Language / भाषा</h3>
+                                <div className="flex items-center gap-4">
+                                    <LanguageSelector variant="buttons" />
+                                </div>
+                            </div>
+
+                            {/* Theme Section */}
+                            <div className="p-6 border-t border-border">
+                                <h3 className="text-sm font-semibold text-text-primary mb-3">Theme</h3>
+                                <div className="flex items-center gap-4">
+                                    <ThemeSelector variant="buttons" />
+                                </div>
                             </div>
                         </div>
-
-                        {/* Theme Section */}
-                        <div className="p-6 border-t border-border">
-                            <h3 className="text-sm font-semibold text-text-primary mb-3">Theme</h3>
-                            <div className="flex items-center gap-4">
-                                <ThemeSelector variant="buttons" />
-                            </div>
-                        </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {activeTab === 'ai' && <AIConfigurationSection />}
 
@@ -1094,155 +913,159 @@ export default function Settings() {
                 {activeTab === 'crm' && <CRMIntegrationSection />}
 
                 {/* Branding Tab */}
-                {activeTab === 'branding' && (
-                    <div className="space-y-6 max-w-3xl">
-                        <div className="bg-surface rounded-xl border border-border p-6">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="p-3 bg-gradient-to-br from-primary/20 to-purple-100 rounded-xl">
-                                    <SwatchIcon className="h-6 w-6 text-primary" />
+                {
+                    activeTab === 'branding' && (
+                        <div className="space-y-6 max-w-3xl">
+                            <div className="bg-surface rounded-xl border border-border p-6">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="p-3 bg-gradient-to-br from-primary/20 to-purple-100 rounded-xl">
+                                        <SwatchIcon className="h-6 w-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-text-primary">Custom Branding</h2>
+                                        <p className="text-text-secondary">Customize your organization's look and feel</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-text-primary">Custom Branding</h2>
-                                    <p className="text-text-secondary">Customize your organization's look and feel</p>
-                                </div>
+                                <Link
+                                    to="/settings/branding"
+                                    className="btn-primary inline-flex items-center gap-2"
+                                >
+                                    <SwatchIcon className="h-4 w-4" />
+                                    Open Branding Settings
+                                </Link>
                             </div>
-                            <Link
-                                to="/settings/branding"
-                                className="btn-primary inline-flex items-center gap-2"
-                            >
-                                <SwatchIcon className="h-4 w-4" />
-                                Open Branding Settings
-                            </Link>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Help & Support Tab */}
-                {activeTab === 'help' && (
-                    <div className="space-y-6 max-w-3xl">
-                        {/* Platform Tour Card */}
-                        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
-                            <div className="flex items-start gap-4">
-                                <div className="p-3 bg-white/20 rounded-xl">
-                                    <RocketLaunchIcon className="h-8 w-8" />
+                {
+                    activeTab === 'help' && (
+                        <div className="space-y-6 max-w-3xl">
+                            {/* Platform Tour Card */}
+                            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+                                <div className="flex items-start gap-4">
+                                    <div className="p-3 bg-white/20 rounded-xl">
+                                        <RocketLaunchIcon className="h-8 w-8" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-xl font-bold mb-2">Platform Tour</h3>
+                                        <p className="text-white/90 mb-4">
+                                            New to RFP Pro? Take an interactive tour to learn how our AI-powered platform
+                                            helps you create winning proposals.
+                                        </p>
+                                        <button
+                                            onClick={handleStartTour}
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-all"
+                                        >
+                                            <RocketLaunchIcon className="h-5 w-5" />
+                                            Start Platform Tour
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-xl font-bold mb-2">Platform Tour</h3>
-                                    <p className="text-white/90 mb-4">
-                                        New to RFP Pro? Take an interactive tour to learn how our AI-powered platform
-                                        helps you create winning proposals.
-                                    </p>
-                                    <button
-                                        onClick={handleStartTour}
-                                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-all"
+                            </div>
+
+                            {/* Documentation Card */}
+                            <div className="bg-surface rounded-xl border border-border">
+                                <div className="p-6 border-b border-border">
+                                    <h2 className="text-lg font-semibold text-text-primary">Documentation & Resources</h2>
+                                    <p className="text-sm text-text-secondary mt-1">Learn how to use RFP Pro effectively</p>
+                                </div>
+                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <Link
+                                        to="/projects"
+                                        className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group"
                                     >
-                                        <RocketLaunchIcon className="h-5 w-5" />
-                                        Start Platform Tour
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                                                <BookOpenIcon className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-text-primary group-hover:text-primary transition-colors">Getting Started Guide</p>
+                                                <p className="text-sm text-text-secondary">Create your first project</p>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                    <button
+                                        onClick={() => {
+                                            handleStartTour();
+                                        }}
+                                        className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group text-left"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                                                <CogIcon className="h-5 w-5 text-green-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-text-primary group-hover:text-primary transition-colors">AI Agents Overview</p>
+                                                <p className="text-sm text-text-secondary">See our 27 AI agents in action</p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <Link
+                                        to="/knowledge"
+                                        className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                                                <FolderIcon className="h-5 w-5 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-text-primary group-hover:text-primary transition-colors">Knowledge Base Tips</p>
+                                                <p className="text-sm text-text-secondary">Upload and manage content</p>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                    <button
+                                        onClick={() => {
+                                            toast.success('FAQ section coming soon!');
+                                        }}
+                                        className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group text-left"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                                                <QuestionMarkCircleIcon className="h-5 w-5 text-orange-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-text-primary group-hover:text-primary transition-colors">FAQ</p>
+                                                <p className="text-sm text-text-secondary">Common questions answered</p>
+                                            </div>
+                                        </div>
                                     </button>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Documentation Card */}
-                        <div className="bg-surface rounded-xl border border-border">
-                            <div className="p-6 border-b border-border">
-                                <h2 className="text-lg font-semibold text-text-primary">Documentation & Resources</h2>
-                                <p className="text-sm text-text-secondary mt-1">Learn how to use RFP Pro effectively</p>
-                            </div>
-                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <Link
-                                    to="/projects"
-                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                                            <BookOpenIcon className="h-5 w-5 text-blue-600" />
+                            {/* Contact Support Card */}
+                            <div className="bg-surface rounded-xl border border-border">
+                                <div className="p-6 border-b border-border">
+                                    <h2 className="text-lg font-semibold text-text-primary">Need Help?</h2>
+                                    <p className="text-sm text-text-secondary mt-1">Our support team is here to assist you</p>
+                                </div>
+                                <div className="p-6">
+                                    <a
+                                        href="mailto:support@rfppro.com?subject=RFP Pro Support Request"
+                                        className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all"
+                                    >
+                                        <EnvelopeIcon className="h-6 w-6 text-blue-600" />
+                                        <div className="flex-1">
+                                            <p className="font-medium text-text-primary">Email Support</p>
+                                            <p className="text-sm text-blue-600">support@rfppro.com</p>
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">Getting Started Guide</p>
-                                            <p className="text-sm text-text-secondary">Create your first project</p>
-                                        </div>
-                                    </div>
-                                </Link>
-                                <button
-                                    onClick={() => {
-                                        handleStartTour();
-                                    }}
-                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group text-left"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                                            <CogIcon className="h-5 w-5 text-green-600" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">AI Agents Overview</p>
-                                            <p className="text-sm text-text-secondary">See our 27 AI agents in action</p>
-                                        </div>
-                                    </div>
-                                </button>
-                                <Link
-                                    to="/knowledge"
-                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                                            <FolderIcon className="h-5 w-5 text-purple-600" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">Knowledge Base Tips</p>
-                                            <p className="text-sm text-text-secondary">Upload and manage content</p>
-                                        </div>
-                                    </div>
-                                </Link>
-                                <button
-                                    onClick={() => {
-                                        toast.success('FAQ section coming soon!');
-                                    }}
-                                    className="p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-md transition-all cursor-pointer group text-left"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
-                                            <QuestionMarkCircleIcon className="h-5 w-5 text-orange-600" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-text-primary group-hover:text-primary transition-colors">FAQ</p>
-                                            <p className="text-sm text-text-secondary">Common questions answered</p>
-                                        </div>
-                                    </div>
-                                </button>
+                                        <span className="px-4 py-2 bg-white text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary hover:text-white transition-colors">Contact</span>
+                                    </a>
+                                </div>
                             </div>
                         </div>
-
-                        {/* Contact Support Card */}
-                        <div className="bg-surface rounded-xl border border-border">
-                            <div className="p-6 border-b border-border">
-                                <h2 className="text-lg font-semibold text-text-primary">Need Help?</h2>
-                                <p className="text-sm text-text-secondary mt-1">Our support team is here to assist you</p>
-                            </div>
-                            <div className="p-6">
-                                <a
-                                    href="mailto:support@rfppro.com?subject=RFP Pro Support Request"
-                                    className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all"
-                                >
-                                    <EnvelopeIcon className="h-6 w-6 text-blue-600" />
-                                    <div className="flex-1">
-                                        <p className="font-medium text-text-primary">Email Support</p>
-                                        <p className="text-sm text-blue-600">support@rfppro.com</p>
-                                    </div>
-                                    <span className="px-4 py-2 bg-white text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary hover:text-white transition-colors">Contact</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
+                    )
+                }
+            </div >
 
             {/* Platform Tour Modal */}
-            <PlatformTour
+            < PlatformTour
                 isOpen={showTour}
                 onClose={() => setShowTour(false)}
                 onComplete={handleTourComplete}
             />
-        </div>
+        </div >
     );
 }

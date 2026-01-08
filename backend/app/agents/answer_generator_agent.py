@@ -2,6 +2,7 @@
 Answer Generator Agent
 
 Generates AI-powered answers for RFP questions using RAG approach.
+Includes vendor profile context for personalized responses.
 """
 import logging
 import json
@@ -9,6 +10,7 @@ from typing import Dict, List, Any, Optional
 
 from .config import get_agent_config, SessionKeys
 from .utils import with_retry, RetryConfig  # NEW
+from .vendor_profile_agent import get_vendor_context  # NEW
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +242,8 @@ Sources Used:
                     context=q_context,
                     tone=tone,
                     length=length,
-                    narrative_context=narrative_context
+                    narrative_context=narrative_context,
+                    organization_id=session_state.get('organization_id')  # NEW
                 )
             except Exception as e:
                 logger.error(f"Answer generation failed for question {q_id}: {e}")
@@ -296,14 +299,15 @@ Sources Used:
         context: Dict,
         tone: str,
         length: str,
-        narrative_context: Dict = None
+        narrative_context: Dict = None,
+        organization_id: int = None
     ) -> Dict:
-        """Generate a single answer with narrative grounding."""
+        """Generate a single answer with narrative grounding and vendor context."""
         client = self.config.client
         if not client:
             return self._placeholder_answer(question)
         
-        # Format context
+        # Format knowledge context
         knowledge_items = context.get("knowledge_items", [])
         context_text = "\n\n".join([
             f"[{item['title']}] {item['content']}"
@@ -317,6 +321,18 @@ Sources Used:
             for s in similar
         ]) if similar else "No similar answers available."
         
+        # Get vendor profile context (NEW)
+        vendor_context = ""
+        if organization_id:
+            try:
+                rfp_context = {
+                    'category': category,
+                    'question': question
+                }
+                vendor_context = get_vendor_context(organization_id, rfp_context)
+            except Exception as e:
+                logger.warning(f"Failed to load vendor context: {e}")
+        
         # Length instruction
         length_map = {
             'short': 'Keep answer to 2-3 sentences.',
@@ -327,16 +343,34 @@ Sources Used:
         # Build narrative context section
         narrative_text = self._format_narrative_context(narrative_context)
         
-        prompt = self.GENERATION_PROMPT.format(
-            question=question,
-            context=context_text,
-            similar_answers=similar_text,
-            tone=tone,
-            length_instruction=length_map.get(length, length_map['medium']),
-            category=category,
-            category_instructions=self.CATEGORY_INSTRUCTIONS.get(category, ""),
-            narrative_context=narrative_text
-        )
+        # Enhanced prompt with vendor context
+        prompt_parts = [
+            f"Question: {question}",
+            f"\nCategory: {category}",
+            self.CATEGORY_INSTRUCTIONS.get(category, ""),
+            f"\n\n{length_map.get(length, length_map['medium'])}",
+            f"Tone: {tone}",
+        ]
+        
+        if vendor_context:
+            prompt_parts.append(f"\n\nVENDOR PROFILE CONTEXT:\n{vendor_context}")
+            prompt_parts.append("\nIMPORTANT: Use the vendor profile information above to personalize your answer. Reference specific clients, success stories, or capabilities when relevant to the question.")
+        
+        if narrative_text:
+            prompt_parts.append(f"\n\nNARRATIVE CONTEXT:\n{narrative_text}")
+        
+        prompt_parts.extend([
+            f"\n\nKNOWLEDGE BASE CONTEXT:\n{context_text}",
+            f"\n\nSIMILAR PAST ANSWERS:\n{similar_text}",
+            "\n\nGenerate a comprehensive, evidence-based answer that:"
+            "\n- Directly addresses the question"
+            "\n- Uses vendor profile examples where relevant (clients, success stories, metrics)"
+            "\n- Maintains narrative consistency"
+            "\n- Includes specific details from the knowledge base"
+            "\n- Sounds authentic and personalized to our company"
+        ])
+        
+        prompt = "\n".join(prompt_parts)
         
         try:
             if self.config.is_adk_enabled:

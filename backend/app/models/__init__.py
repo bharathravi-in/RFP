@@ -49,6 +49,13 @@ from .sso import SSOConfiguration, SSOLoginAttempt
 # CRM Integration
 from .crm_integration import CRMIntegration, CRMSyncRecord, CRMSyncLog
 
+# Vendor Profile (NEW)
+from .vendor_profile import VendorProfile
+from .vendor_client import VendorClient
+from .vendor_success_story import VendorSuccessStory
+from .vendor_capability import VendorCapability
+from .vendor_testimonial import VendorTestimonial
+
 __all__ = [
     'User',
     'Organization',
@@ -122,4 +129,10 @@ __all__ = [
     'CRMIntegration',
     'CRMSyncRecord',
     'CRMSyncLog',
+    # Vendor Profile
+    'VendorProfile',
+    'VendorClient',
+    'VendorSuccessStory',
+    'VendorCapability',
+    'VendorTestimonial',
 ]
