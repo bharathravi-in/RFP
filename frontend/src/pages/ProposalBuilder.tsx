@@ -650,16 +650,7 @@ export default function ProposalBuilder() {
                                 Batch AI
                             </button>
 
-                            {/* Import from Q&A */}
-                            <button
-                                onClick={handleImportFromQA}
-                                disabled={isImportingQA}
-                                className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1.5"
-                                title="Import answers from Q&A Workspace into proposal sections"
-                            >
-                                <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                                {isImportingQA ? 'Importing...' : 'Import Q&A'}
-                            </button>
+
                         </div>
 
                         {/* Add Section - only visible in standard mode */}
@@ -742,14 +733,7 @@ export default function ProposalBuilder() {
                                                         <SparklesIcon className="h-3.5 w-3.5" />
                                                         Batch AI
                                                     </button>
-                                                    <button
-                                                        onClick={handleImportFromQA}
-                                                        disabled={isImportingQA}
-                                                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
-                                                    >
-                                                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" />
-                                                        {isImportingQA ? 'Importing...' : 'Import Q&A'}
-                                                    </button>
+
                                                 </div>
                                             </div>
                                             {/* Section editor */}

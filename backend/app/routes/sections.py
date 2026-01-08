@@ -506,20 +506,11 @@ def restore_section_version(section_id, version_number):
     if not version:
         return jsonify({'error': 'Version not found'}), 404
     
-    # Save current state before restoring
-    save_section_version(
-        section=section,
-        user_id=user_id,
-        change_type='restore',
-        change_summary=f'Before restoring to version {version_number}'
-    )
-    
-    # Restore the section
+    # Restore the section content directly (no new version created)
     section.content = version.content
     section.title = version.title or section.title
     section.status = version.status or section.status
     section.confidence_score = version.confidence_score
-    section.version += 1
     section.updated_at = datetime.utcnow()
     
     db.session.commit()
@@ -936,6 +927,15 @@ def generate_section_content(section_id):
     result['content'] = content
 
 
+    
+    # Save version history BEFORE content changes (for regeneration)
+    if section.content:  # Only save if there's existing content
+        save_section_version(
+            section=section,
+            user_id=int(user_id),
+            change_type='regenerate' if section.content else 'generate',
+            change_summary='AI content generation'
+        )
     
     # Update section
     section.content = result['content']
