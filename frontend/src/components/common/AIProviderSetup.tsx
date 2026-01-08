@@ -33,7 +33,7 @@ interface AIProviderSetupProps {
 }
 
 export default function AIProviderSetup({ onConfigured }: AIProviderSetupProps) {
-    const { user } = useAuthStore();
+    const { user, organization } = useAuthStore();
     const [providers, setProviders] = useState<Record<string, Provider>>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -45,17 +45,20 @@ export default function AIProviderSetup({ onConfigured }: AIProviderSetupProps) 
     const [apiKey, setApiKey] = useState('');
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+    // Get organization ID from either user or organization object
+    const orgId = user?.organization_id || organization?.id;
+
     useEffect(() => {
-        if (user?.organization_id) {
+        if (orgId) {
             loadProviders();
         }
-    }, [user?.organization_id]);
+    }, [orgId]);
 
     const loadProviders = async () => {
-        if (!user?.organization_id) return;
+        if (!orgId) return;
         setLoading(true);
         try {
-            const providerRes = await fetch(`/api/organizations/${user.organization_id}/ai-config/providers`, {
+            const providerRes = await fetch(`/api/organizations/${orgId}/ai-config/providers`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
             });
             if (providerRes.ok) {
@@ -64,7 +67,7 @@ export default function AIProviderSetup({ onConfigured }: AIProviderSetupProps) 
             }
 
             // Check if already configured
-            const configRes = await fetch(`/api/organizations/${user.organization_id}/agent-configs/default`, {
+            const configRes = await fetch(`/api/organizations/${orgId}/agent-configs/default`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
             });
             if (configRes.ok) {
@@ -91,7 +94,7 @@ export default function AIProviderSetup({ onConfigured }: AIProviderSetupProps) 
         setTestResult(null);
 
         try {
-            const res = await fetch(`/api/organizations/${user?.organization_id}/agent-configs/test`, {
+            const res = await fetch(`/api/organizations/${orgId}/agent-configs/test`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -135,7 +138,7 @@ export default function AIProviderSetup({ onConfigured }: AIProviderSetupProps) 
         setSaving(true);
         try {
             const res = await fetch(
-                `/api/organizations/${user?.organization_id}/agent-configs/default`,
+                `/api/organizations/${orgId}/agent-configs/default`,
                 {
                     method: 'POST',
                     headers: {
