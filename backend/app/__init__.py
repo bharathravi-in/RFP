@@ -123,6 +123,10 @@ def create_app(config_name=None):
     from .routes import crm
     app.register_blueprint(crm.bp, url_prefix='/api/crm')  # CRM sync and integration
 
+    # Vendor Profile (Company portfolio for RFP generation)
+    from .routes import vendor_profile
+    app.register_blueprint(vendor_profile.bp)  # /api/vendor-profile/*
+
     # Super Admin (Platform-level administration)
     from .routes import superadmin
     app.register_blueprint(superadmin.bp)  # /api/superadmin/*
