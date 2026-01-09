@@ -2,7 +2,8 @@ import { memo } from 'react';
 import clsx from 'clsx';
 import { ChatMessage as ChatMessageType } from './types';
 import AgentBadge from './AgentBadge';
-import { SparklesIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
 
 interface ChatMessageProps {
     message: ChatMessageType;
@@ -12,6 +13,7 @@ interface ChatMessageProps {
 }
 
 function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvatar }: ChatMessageProps) {
+    const [copied, setCopied] = useState(false);
     const isUser = message.role === 'user';
     const isError = message.status === 'error';
 
@@ -21,6 +23,12 @@ function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvat
             minute: '2-digit',
             hour12: true,
         });
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
     const renderContent = (content: string) => {
@@ -36,12 +44,20 @@ function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvat
             if (codeMatch) {
                 const [, lang, code] = codeMatch;
                 return (
-                    <pre key={index} className="my-3 p-4 bg-gray-900 text-gray-100 rounded-lg overflow-x-auto text-sm font-mono">
-                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-700">
-                            <span className="text-xs text-gray-400">{lang}</span>
-                            <button className="text-xs text-gray-400 hover:text-white px-2 py-1 hover:bg-gray-700 rounded">Copy</button>
+                    <pre key={index} className="my-4 rounded-xl overflow-hidden bg-slate-900 shadow-lg">
+                        <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700">
+                            <span className="text-xs font-mono text-slate-400">{lang}</span>
+                            <button
+                                onClick={() => copyToClipboard(code)}
+                                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white px-2 py-1 hover:bg-slate-700 rounded-md transition-colors"
+                            >
+                                {copied ? <CheckIcon className="h-3.5 w-3.5 text-emerald-400" /> : <ClipboardDocumentIcon className="h-3.5 w-3.5" />}
+                                {copied ? 'Copied!' : 'Copy'}
+                            </button>
                         </div>
-                        <code>{code}</code>
+                        <div className="p-4 overflow-x-auto">
+                            <code className="text-sm text-slate-100 font-mono">{code}</code>
+                        </div>
                     </pre>
                 );
             }
@@ -60,13 +76,15 @@ function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvat
     };
 
     const renderInlineMarkdown = (text: string) => {
-        text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>');
-        text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        text = text.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-sm font-mono text-pink-600">$1</code>');
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary hover:underline" target="_blank" rel="noopener">$1</a>');
-        text = text.replace(/^- (.+)$/gm, '<div class="flex gap-2 my-0.5"><span class="text-gray-400">•</span><span>$1</span></div>');
-        text = text.replace(/^### (.+)$/gm, '<h3 class="font-semibold text-base mt-4 mb-2 text-gray-900">$1</h3>');
-        text = text.replace(/^## (.+)$/gm, '<h2 class="font-semibold text-lg mt-4 mb-2 text-gray-900">$1</h2>');
+        text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>');
+        text = text.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+        text = text.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-violet-100 border border-violet-200 rounded-md text-sm font-mono text-violet-700">$1</code>');
+        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-violet-600 hover:text-violet-700 underline underline-offset-2" target="_blank" rel="noopener">$1</a>');
+        text = text.replace(/^- (.+)$/gm, '<div class="flex gap-2.5 my-1"><span class="text-violet-400 text-lg leading-none">•</span><span>$1</span></div>');
+        text = text.replace(/^### (.+)$/gm, '<h3 class="font-bold text-base mt-5 mb-2 text-slate-900">$1</h3>');
+        text = text.replace(/^## (.+)$/gm, '<h2 class="font-bold text-lg mt-6 mb-3 text-slate-900">$1</h2>');
+        text = text.replace(/^# (.+)$/gm, '<h1 class="font-bold text-xl mt-6 mb-3 text-slate-900">$1</h1>');
+        text = text.replace(/^\d+\. (.+)$/gm, '<div class="flex gap-2.5 my-1"><span class="text-violet-500 font-semibold min-w-[20px]">$&</span></div>');
         return <span dangerouslySetInnerHTML={{ __html: text }} />;
     };
 
@@ -74,25 +92,25 @@ function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvat
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     };
 
-    // User messages - Right aligned
+    // User messages - Right aligned with premium bubble
     if (isUser) {
         return (
-            <div className="py-3 px-4 bg-transparent">
+            <div className="py-4 px-6">
                 <div className="max-w-4xl mx-auto flex flex-col items-end">
                     {/* Header - Right aligned */}
-                    <div className="flex items-center gap-2 mb-1">
-                        {showTimestamp && <span className="text-xs text-gray-400">{formatTime(message.timestamp)}</span>}
-                        <span className="font-semibold text-gray-900 text-sm">{userName}</span>
-                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <div className="flex items-center gap-2 mb-2">
+                        {showTimestamp && <span className="text-xs text-slate-400">{formatTime(message.timestamp)}</span>}
+                        <span className="font-semibold text-slate-700 text-sm">{userName}</span>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
                             {userAvatar ? (
                                 <img src={userAvatar} alt={userName} className="h-full w-full rounded-full object-cover" />
                             ) : (
-                                <span className="text-[10px] font-semibold text-white">{getUserInitials(userName)}</span>
+                                <span className="text-[11px] font-bold text-white">{getUserInitials(userName)}</span>
                             )}
                         </div>
                     </div>
-                    {/* Message - Right aligned, with background */}
-                    <div className="bg-primary text-white px-4 py-2 rounded-2xl rounded-tr-sm max-w-[70%] text-[15px]">
+                    {/* Message Bubble - Premium Gradient */}
+                    <div className="bg-gradient-to-br from-violet-600 to-purple-600 text-white px-5 py-3 rounded-2xl rounded-tr-md max-w-[75%] shadow-lg shadow-violet-200 text-[15px] leading-relaxed">
                         {message.content}
                     </div>
                 </div>
@@ -100,35 +118,46 @@ function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvat
         );
     }
 
-    // AI messages - Left aligned, no bubble
+    // AI messages - Left aligned with card style
     return (
-        <div className="py-4 px-4 bg-gray-50">
+        <div className="py-4 px-6 bg-gradient-to-r from-slate-50/80 to-white">
             <div className="max-w-4xl mx-auto flex gap-4">
-                {/* Avatar */}
-                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                    <SparklesIcon className="h-4 w-4 text-white" />
+                {/* Avatar with Glow */}
+                <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl blur-md opacity-30" />
+                    <div className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
+                        <SparklesIcon className="h-5 w-5 text-white" />
+                    </div>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                     {/* Header */}
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-900 text-sm">Co-Pilot</span>
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-slate-900 text-sm">Co-Pilot</span>
                         {message.agentName && (
                             <AgentBadge name={message.agentName} icon={message.agentIcon} color="purple" size="sm" />
                         )}
-                        {showTimestamp && <span className="text-xs text-gray-400">{formatTime(message.timestamp)}</span>}
+                        {showTimestamp && <span className="text-xs text-slate-400">{formatTime(message.timestamp)}</span>}
                     </div>
 
                     {/* Message Text */}
-                    <div className={clsx('text-gray-800 leading-relaxed text-[15px]', isError && 'text-red-600')}>
+                    <div className={clsx(
+                        'text-slate-700 leading-relaxed text-[15px]',
+                        isError && 'text-red-600'
+                    )}>
                         {renderContent(message.content)}
                     </div>
 
                     {message.status === 'streaming' && (
-                        <span className="inline-flex items-center gap-1 text-xs text-primary mt-2">
-                            <span className="animate-pulse">●</span> Generating...
-                        </span>
+                        <div className="flex items-center gap-2 mt-3">
+                            <div className="flex gap-1">
+                                <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span className="text-sm text-violet-600 font-medium">Generating...</span>
+                        </div>
                     )}
                 </div>
             </div>

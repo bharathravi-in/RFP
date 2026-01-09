@@ -5,6 +5,7 @@ import ChatWindow from './ChatWindow';
 import ChatInput from './ChatInput';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { copilotApi } from '@/api/client';
+import { useAuthStore } from '@/store/authStore';
 import clsx from 'clsx';
 
 // Session type from backend
@@ -54,6 +55,7 @@ export default function CoPilotChat({
     className,
     defaultSidebarOpen = true,
 }: CoPilotChatProps) {
+    const { organization } = useAuthStore();
     const [sessions, setSessions] = useState<any[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [activeMessages, setActiveMessages] = useState<ChatMessage[]>([]);
@@ -268,6 +270,7 @@ export default function CoPilotChat({
                     onNewChat={handleNewChat}
                     onSelectSession={handleSelectSession}
                     onDeleteSession={handleDeleteSession}
+                    organizationName={organization?.name}
                 />
             </div>
 
