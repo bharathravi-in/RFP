@@ -358,9 +358,13 @@ Sources Used:
         vendor_context = ""
         if organization_id:
             try:
+                # Extract potential technology/capability keywords from question
+                tech_keywords = self._extract_tech_keywords(question, category)
+                
                 rfp_context = {
                     'category': category,
-                    'question': question
+                    'question': question,
+                    'required_capabilities': tech_keywords
                 }
                 vendor_context = get_vendor_context(organization_id, rfp_context)
             except Exception as e:
@@ -387,7 +391,11 @@ Sources Used:
         
         if vendor_context:
             prompt_parts.append(f"\n\nVENDOR PROFILE CONTEXT:\n{vendor_context}")
-            prompt_parts.append("\nIMPORTANT: Use the vendor profile information above to personalize your answer. Reference specific clients, success stories, or capabilities when relevant to the question.")
+            prompt_parts.append("\nIMPORTANT: Use the vendor profile information above to personalize your answer.")
+            prompt_parts.append("- Reference specific clients, success stories, or capabilities when relevant")
+            prompt_parts.append("- If ACCELERATORS & POCs section is present, PROMINENTLY highlight matching solutions")
+            prompt_parts.append("- Emphasize time savings and quantifiable benefits from accelerators")
+            prompt_parts.append("- Mention demo availability when applicable to build credibility")
         
         if narrative_text:
             prompt_parts.append(f"\n\nNARRATIVE CONTEXT:\n{narrative_text}")
@@ -398,6 +406,8 @@ Sources Used:
             "\n\nGenerate a comprehensive, evidence-based answer that:"
             "\n- Directly addresses the question"
             "\n- Uses vendor profile examples where relevant (clients, success stories, metrics)"
+            "\n- HIGHLIGHTS any matching accelerators/POCs that can reduce project time or risk"
+            "\n- Quantifies benefits (time savings, cost reduction) when accelerators are available"
             "\n- Maintains narrative consistency"
             "\n- Includes specific details from the knowledge base"
             "\n- Sounds authentic and personalized to our company"
@@ -460,6 +470,65 @@ Sources Used:
             "confidence": 0.0,
             "flags": ["ai_unavailable", "needs_manual_answer"]
         }
+    
+    def _extract_tech_keywords(self, question: str, category: str) -> List[str]:
+        """
+        Extract technology and capability keywords from RFP question.
+        Used to match against accelerators.
+        
+        Args:
+            question: RFP question text
+            category: Question category
+            
+        Returns:
+            List of extracted keywords
+        """
+        keywords = []
+        
+        # Common technology patterns
+        tech_patterns = [
+            r'\b(python|java|javascript|typescript|react|angular|vue|node\.?js|django|flask|spring)\b',
+            r'\b(aws|azure|gcp|cloud|kubernetes|docker|terraform|ansible)\b',
+            r'\b(postgres|mysql|mongodb|redis|elasticsearch|kafka|rabbitmq)\b',
+            r'\b(microservices|api|rest|graphql|grpc|websocket)\b',
+            r'\b(ai|ml|machine learning|deep learning|nlp|computer vision|llm|gpt)\b',
+            r'\b(devops|ci/cd|jenkins|github actions|gitlab)\b',
+            r'\b(mobile|ios|android|flutter|react native)\b',
+            r'\b(blockchain|web3|ethereum|smart contracts)\b',
+            r'\b(iot|edge computing|sensors)\b',
+            r'\b(data analytics|bi|tableau|power bi|looker)\b'
+        ]
+        
+        import re
+        question_lower = question.lower()
+        
+        for pattern in tech_patterns:
+            matches = re.findall(pattern, question_lower, re.IGNORECASE)
+            keywords.extend(matches)
+        
+        # Extract words that might indicate use cases
+        use_case_words = ['automation', 'integration', 'migration', 'optimization', 
+                          'analytics', 'dashboard', 'reporting', 'monitoring', 
+                          'authentication', 'security', 'testing', 'deployment',
+                          'scalability', 'performance', 'real-time', 'batch processing']
+        
+        for word in use_case_words:
+            if word in question_lower:
+                keywords.append(word)
+        
+        # Category-specific keywords
+        category_keywords = {
+            'Technical': ['architecture', 'design', 'implementation', 'infrastructure'],
+            'Project Management': ['agile', 'scrum', 'kanban', 'sprint', 'delivery'],
+            'Team': ['developers', 'engineers', 'architects', 'devops', 'qa'],
+            'Security': ['compliance', 'encryption', 'authentication', 'authorization']
+        }
+        
+        if category in category_keywords:
+            keywords.extend(category_keywords[category])
+        
+        # Remove duplicates and return
+        return list(set(keywords))
     
     def _format_narrative_context(self, narrative_context: Dict) -> str:
         """Format narrative context for prompt injection."""

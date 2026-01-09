@@ -116,38 +116,69 @@ class VendorProfileAgent:
         required_capabilities: Optional[List[str]] = None
     ) -> List[VendorCapability]:
         """
-        Get relevant capabilities matching RFP requirements.
+        Get relevant accelerators matching RFP requirements.
+        Matches based on technologies and use cases.
         
         Args:
             organization_id: Organization ID
-            required_capabilities: List of required capability keywords
+            required_capabilities: List of required technology/use-case keywords
             
         Returns:
-            List of matching capabilities
+            List of matching accelerators sorted by relevance
         """
         try:
             profile = VendorProfile.query.filter_by(organization_id=organization_id).first()
             if not profile:
                 return []
             
-            query = VendorCapability.query.filter_by(vendor_profile_id=profile.id)
+            capabilities = VendorCapability.query.filter_by(vendor_profile_id=profile.id).all()
             
-            if required_capabilities:
-                # Filter capabilities that match any required keyword
-                filters = []
-                for cap in required_capabilities:
-                    filters.append(VendorCapability.capability_name.ilike(f"%{cap}%"))
-                    filters.append(VendorCapability.description.ilike(f"%{cap}%"))
+            if not required_capabilities:
+                # Return all accelerators if no specific requirements
+                return capabilities[:10]
+            
+            # Score each accelerator by relevance
+            scored_capabilities = []
+            for cap in capabilities:
+                score = 0
                 
-                from sqlalchemy import or_
-                query = query.filter(or_(*filters))
+                # Match against technologies_used (highest priority)
+                if cap.technologies_used:
+                    for tech in cap.technologies_used:
+                        for req in required_capabilities:
+                            if req.lower() in tech.lower() or tech.lower() in req.lower():
+                                score += 3  # High weight for technology matches
+                
+                # Match against capability name
+                for req in required_capabilities:
+                    if req.lower() in cap.capability_name.lower():
+                        score += 2
+                
+                # Match against use_cases (medium priority)
+                if cap.use_cases:
+                    for req in required_capabilities:
+                        if req.lower() in cap.use_cases.lower():
+                            score += 2
+                
+                # Match against description
+                if cap.description:
+                    for req in required_capabilities:
+                        if req.lower() in cap.description.lower():
+                            score += 1
+                
+                # Boost score if time savings are quantified
+                if cap.time_saved:
+                    score += 0.5
+                
+                # Boost score if demo link is available
+                if cap.demo_link:
+                    score += 0.5
+                
+                scored_capabilities.append((score, cap))
             
-            # Prioritize core capabilities and expertise
-            return query.order_by(
-                VendorCapability.is_core_capability.desc(),
-                VendorCapability.expertise_level.desc(),
-                VendorCapability.years_of_experience.desc()
-            ).limit(10).all()
+            # Sort by score (descending) and return top 10
+            scored_capabilities.sort(key=lambda x: x[0], reverse=True)
+            return [cap for score, cap in scored_capabilities[:10] if score > 0] or capabilities[:10]
             
         except Exception as e:
             logger.error(f"Error retrieving capabilities: {e}")
@@ -269,19 +300,27 @@ class VendorProfileAgent:
                         context_parts.append(f"Results: {', '.join(metrics)}")
                 context_parts.append("")
             
-            # Capabilities
+            # Accelerators/POCs
             capabilities = VendorProfileAgent.get_relevant_capabilities(
                 organization_id,
                 rfp_context.get('required_capabilities') if rfp_context else None
             )
             if capabilities:
-                context_parts.append("=== KEY CAPABILITIES ===")
+                context_parts.append("=== ACCELERATORS & POCs ===")
+                context_parts.append("Our ready-to-use solutions and POCs that can accelerate project delivery:\n")
                 for cap in capabilities[:5]:
-                    context_parts.append(f"- {cap.capability_name} ({cap.expertise_level})")
-                    if cap.years_of_experience:
-                        context_parts.append(f"  Experience: {cap.years_of_experience} years")
+                    context_parts.append(f"✓ {cap.capability_name}")
                     if cap.description:
-                        context_parts.append(f"  {cap.description[:150]}...")
+                        context_parts.append(f"  Description: {cap.description}")
+                    if cap.technologies_used:
+                        context_parts.append(f"  Technologies: {', '.join(cap.technologies_used)}")
+                    if cap.use_cases:
+                        context_parts.append(f"  Use Cases: {cap.use_cases}")
+                    if cap.time_saved:
+                        context_parts.append(f"  ⚡ TIME SAVINGS: {cap.time_saved}")
+                    if cap.demo_link:
+                        context_parts.append(f"  🔗 Demo Available: {cap.demo_link}")
+                    context_parts.append("")
                 context_parts.append("")
             
             # Testimonials

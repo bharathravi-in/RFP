@@ -1,48 +1,29 @@
-"""Vendor Capability Model - Service offerings and expertise areas."""
+"""Vendor Capability Model - Accelerators and POCs."""
 from datetime import datetime
 from ..extensions import db
 
 
 class VendorCapability(db.Model):
-    """Vendor capabilities and service offerings."""
+    """Vendor accelerators, POCs, and ready-to-use solutions."""
     __tablename__ = 'vendor_capabilities'
     
     id = db.Column(db.Integer, primary_key=True)
     vendor_profile_id = db.Column(db.Integer, db.ForeignKey('vendor_profiles.id'), nullable=False)
+    organization_id = db.Column(db.Integer, nullable=False)
     
-    # Capability Information
+    # Accelerator Information
     capability_name = db.Column(db.String(255), nullable=False)
-    category = db.Column(db.String(100), nullable=True)  # "Development", "Consulting", "Support"
     description = db.Column(db.Text, nullable=True)
     
-    # Experience & Expertise
-    years_of_experience = db.Column(db.Integer, nullable=True)
-    expertise_level = db.Column(db.String(50), default='intermediate')  # beginner, intermediate, expert
-    key_projects_count = db.Column(db.Integer, default=0)
+    # Technical Details
+    technologies_used = db.Column(db.JSON, default=list)  # ["Python", "React", "PostgreSQL"]
+    use_cases = db.Column(db.Text, nullable=True)  # Detailed use case description
     
-    # Technologies & Tools
-    technologies = db.Column(db.JSON, default=list)  # ["Python", "AWS", "Docker"]
-    tools = db.Column(db.JSON, default=list)  # ["Jira", "GitHub", "Jenkins"]
-    
-    # Certifications & Standards
-    certifications = db.Column(db.JSON, default=list)  # ["AWS Certified", "Google Cloud Professional"]
-    compliance_standards = db.Column(db.JSON, default=list)  # ["SOC 2", "ISO 27001"]
-    
-    # Performance Metrics
-    success_rate = db.Column(db.Float, nullable=True)  # 0-100%
-    client_satisfaction = db.Column(db.Float, nullable=True)  # 0-5 rating
-    delivery_success = db.Column(db.Float, nullable=True)  # % on-time delivery
-    
-    # Team & Resources
-    team_size = db.Column(db.Integer, nullable=True)
-    availability = db.Column(db.String(50), nullable=True)  # "Immediately", "2-4 weeks"
-    
-    # Service Details
-    service_locations = db.Column(db.JSON, default=list)  # ["Remote", "US", "EU"]
-    languages_supported = db.Column(db.JSON, default=list)  # ["English", "Spanish"]
+    # Value Proposition
+    time_saved = db.Column(db.String(100), nullable=True)  # "2-3 weeks", "40% reduction"
+    demo_link = db.Column(db.String(500), nullable=True)  # URL to demo/POC
     
     # Visibility
-    is_core_capability = db.Column(db.Boolean, default=False)
     display_order = db.Column(db.Integer, default=0)
     
     # Timestamps
@@ -54,24 +35,13 @@ class VendorCapability(db.Model):
         return {
             'id': self.id,
             'vendor_profile_id': self.vendor_profile_id,
+            'organization_id': self.organization_id,
             'capability_name': self.capability_name,
-            'category': self.category,
             'description': self.description,
-            'years_of_experience': self.years_of_experience,
-            'expertise_level': self.expertise_level,
-            'key_projects_count': self.key_projects_count,
-            'technologies': self.technologies,
-            'tools': self.tools,
-            'certifications': self.certifications,
-            'compliance_standards': self.compliance_standards,
-            'success_rate': self.success_rate,
-            'client_satisfaction': self.client_satisfaction,
-            'delivery_success': self.delivery_success,
-            'team_size': self.team_size,
-            'availability': self.availability,
-            'service_locations': self.service_locations,
-            'languages_supported': self.languages_supported,
-            'is_core_capability': self.is_core_capability,
+            'technologies_used': self.technologies_used,
+            'use_cases': self.use_cases,
+            'time_saved': self.time_saved,
+            'demo_link': self.demo_link,
             'display_order': self.display_order,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

@@ -73,18 +73,11 @@ export interface VendorSuccessStory {
 export interface VendorCapability {
     id?: number;
     capability_name: string;
-    category?: string;
     description?: string;
-    years_of_experience?: number;
-    expertise_level?: string;
-    key_projects_count?: number;
-    technologies?: string[];
-    tools?: string[];
-    certifications?: string[];
-    compliance_standards?: string[];
-    success_rate?: number;
-    client_satisfaction?: number;
-    is_core_capability?: boolean;
+    technologies_used?: string[];
+    use_cases?: string;
+    time_saved?: string;
+    demo_link?: string;
 }
 
 export interface VendorTestimonial {
@@ -131,4 +124,15 @@ export const vendorProfileApi = {
     updateTestimonial: (id: number, data: Partial<VendorTestimonial>) => api.put<VendorTestimonial>(`/vendor-profile/testimonials/${id}`, data),
     deleteTestimonial: (id: number) => api.delete(`/vendor-profile/testimonials/${id}`),
     verifyTestimonial: (id: number, method: string) => api.post<VendorTestimonial>(`/vendor-profile/testimonials/${id}/verify`, { verification_method: method }),
+
+    // Bulk Upload
+    bulkUpload: (type: 'clients' | 'stories' | 'capabilities' | 'testimonials', file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post(`/vendor-profile/bulk-upload/${type}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+    },
 };

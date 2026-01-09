@@ -1,10 +1,12 @@
 """Vendor Profile Routes - API endpoints for vendor profile management."""
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from werkzeug.utils import secure_filename
 import logging
 
 from app.models import User
 from app.services.vendor_profile_service import VendorProfileService
+from app.services.bulk_upload_service import BulkUploadService
 
 logger = logging.getLogger(__name__)
 
@@ -382,4 +384,109 @@ def verify_testimonial(testimonial_id):
         
     except Exception as e:
         logger.error(f"Error verifying testimonial: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# Bulk Upload Endpoints
+@bp.route('/bulk-upload/<string:upload_type>', methods=['POST'])
+@jwt_required()
+def bulk_upload(upload_type):
+    """Bulk upload data from CSV or Excel file.
+    
+    Supported types: clients, stories, capabilities, testimonials
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        
+        if not user or not user.organization_id:
+            return jsonify({'error': 'User not associated with an organization'}), 400
+        
+        # Validate upload type
+        valid_types = ['clients', 'stories', 'capabilities', 'testimonials']
+        if upload_type not in valid_types:
+            return jsonify({'error': f'Invalid upload type. Must be one of: {", ".join(valid_types)}'}), 400
+        
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Parse file
+        try:
+            rows = BulkUploadService.parse_file(file)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        
+        if not rows:
+            return jsonify({'error': 'File is empty or has no valid data'}), 400
+        
+        # Process rows based on type
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        for idx, row in enumerate(rows, start=2):  # Start from 2 (assuming row 1 is header)
+            try:
+                if upload_type == 'clients':
+                    data = BulkUploadService.process_client_row(row)
+                    if data.get('client_name'):
+                        VendorProfileService.add_client(user.organization_id, data)
+                        success_count += 1
+                    else:
+                        errors.append(f"Row {idx}: Missing required field 'client_name'")
+                        error_count += 1
+                
+                elif upload_type == 'stories':
+                    data = BulkUploadService.process_story_row(row)
+                    if data.get('title'):
+                        VendorProfileService.add_success_story(user.organization_id, data)
+                        success_count += 1
+                    else:
+                        errors.append(f"Row {idx}: Missing required field 'title'")
+                        error_count += 1
+                
+                elif upload_type == 'capabilities':
+                    data = BulkUploadService.process_capability_row(row)
+                    if data.get('capability_name'):
+                        VendorProfileService.add_capability(user.organization_id, data)
+                        success_count += 1
+                    else:
+                        errors.append(f"Row {idx}: Missing required field 'capability_name'")
+                        error_count += 1
+                
+                elif upload_type == 'testimonials':
+                    data = BulkUploadService.process_testimonial_row(row)
+                    if data.get('testimonial_text'):
+                        VendorProfileService.add_testimonial(user.organization_id, data)
+                        success_count += 1
+                    else:
+                        errors.append(f"Row {idx}: Missing required field 'testimonial_text'")
+                        error_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing row {idx}: {str(e)}")
+                errors.append(f"Row {idx}: {str(e)}")
+                error_count += 1
+        
+        # Return summary
+        response = {
+            'success': True,
+            'message': f'Processed {len(rows)} rows',
+            'success_count': success_count,
+            'error_count': error_count,
+        }
+        
+        if errors:
+            response['errors'] = errors[:10]  # Limit to first 10 errors
+            if len(errors) > 10:
+                response['errors'].append(f'... and {len(errors) - 10} more errors')
+        
+        return jsonify(response), 200 if error_count == 0 else 207  # 207 = Multi-Status
+        
+    except Exception as e:
+        logger.error(f"Error in bulk upload: {str(e)}")
         return jsonify({'error': str(e)}), 500

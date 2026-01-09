@@ -18,6 +18,7 @@ import ClientModal from './ClientModal.tsx';
 import SuccessStoryModal from './SuccessStoryModal.tsx';
 import CapabilityModal from './CapabilityModal.tsx';
 import TestimonialModal from './TestimonialModal.tsx';
+import BulkUploadModal from './BulkUploadModal.tsx';
 
 type TabType = 'overview' | 'clients' | 'stories' | 'capabilities' | 'testimonials';
 
@@ -35,6 +36,8 @@ export default function VendorProfileManager() {
     const [showStoryModal, setShowStoryModal] = useState(false);
     const [showCapabilityModal, setShowCapabilityModal] = useState(false);
     const [showTestimonialModal, setShowTestimonialModal] = useState(false);
+    const [showBulkUpload, setShowBulkUpload] = useState(false);
+    const [bulkUploadType, setBulkUploadType] = useState<'clients' | 'stories' | 'capabilities' | 'testimonials'>('clients');
     const [editingItem, setEditingItem] = useState<any>(null);
 
     useEffect(() => {
@@ -83,7 +86,7 @@ export default function VendorProfileManager() {
             const response = await vendorProfileApi.getCapabilities();
             setCapabilities(response.data);
         } catch (error) {
-            toast.error('Failed to load capabilities');
+            toast.error('Failed to load accelerators');
         }
     };
 
@@ -132,7 +135,7 @@ export default function VendorProfileManager() {
         { id: 'overview', label: 'Overview', icon: BriefcaseIcon, count: null },
         { id: 'clients', label: 'Clients', icon: UserGroupIcon, count: profile?.stats?.clients_count },
         { id: 'stories', label: 'Success Stories', icon: TrophyIcon, count: profile?.stats?.success_stories_count },
-        { id: 'capabilities', label: 'Capabilities', icon: SparklesIcon, count: profile?.stats?.capabilities_count },
+        { id: 'capabilities', label: 'Accelerators', icon: SparklesIcon, count: profile?.stats?.capabilities_count },
         { id: 'testimonials', label: 'Testimonials', icon: ChatBubbleLeftRightIcon, count: profile?.stats?.testimonials_count },
     ];
 
@@ -253,16 +256,30 @@ export default function VendorProfileManager() {
                     <div>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-semibold">Client Portfolio</h3>
-                            <button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setShowClientModal(true);
-                                }}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                <PlusIcon className="h-4 w-4" />
-                                Add Client
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setBulkUploadType('clients');
+                                        setShowBulkUpload(true);
+                                    }}
+                                    className="px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    Bulk Upload
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setShowClientModal(true);
+                                    }}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add Client
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -330,16 +347,30 @@ export default function VendorProfileManager() {
                     <div>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-semibold">Success Stories</h3>
-                            <button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setShowStoryModal(true);
-                                }}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                <PlusIcon className="h-4 w-4" />
-                                Add Success Story
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setBulkUploadType('stories');
+                                        setShowBulkUpload(true);
+                                    }}
+                                    className="px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    Bulk Upload
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setShowStoryModal(true);
+                                    }}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add Success Story
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -444,27 +475,43 @@ export default function VendorProfileManager() {
                 {activeTab === 'capabilities' && (
                     <div>
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-semibold">Capabilities</h3>
-                            <button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setShowCapabilityModal(true);
-                                }}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                <PlusIcon className="h-4 w-4" />
-                                Add Capability
-                            </button>
+                            <h3 className="text-lg font-semibold">Accelerators</h3>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setBulkUploadType('capabilities');
+                                        setShowBulkUpload(true);
+                                    }}
+                                    className="px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    Bulk Upload
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setShowCapabilityModal(true);
+                                    }}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add Accelerator
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {capabilities.map((capability) => (
                                 <div key={capability.id} className="border border-border rounded-lg p-4 hover:shadow-md transition-shadow">
                                     <div className="flex justify-between items-start mb-3">
-                                        <div>
+                                        <div className="flex-1">
                                             <h4 className="font-semibold text-text-primary">{capability.capability_name}</h4>
-                                            {capability.category && (
-                                                <p className="text-sm text-text-secondary">{capability.category}</p>
+                                            {capability.time_saved && (
+                                                <p className="text-sm text-green-600 font-medium mt-1">
+                                                    ⚡ Saves {capability.time_saved}
+                                                </p>
                                             )}
                                         </div>
                                         <div className="flex gap-1">
@@ -479,24 +526,37 @@ export default function VendorProfileManager() {
                                             </button>
                                         </div>
                                     </div>
-                                    <p className="text-sm text-text-primary mb-3">{capability.description}</p>
-                                    <div className="flex items-center gap-4 text-sm">
-                                        {capability.years_of_experience && (
-                                            <span className="text-text-secondary">
-                                                {capability.years_of_experience} years exp.
-                                            </span>
-                                        )}
-                                        {capability.expertise_level && (
-                                            <span className={`px-2 py-0.5 rounded-full text-xs ${capability.expertise_level === 'expert'
-                                                ? 'bg-green-100 text-green-700'
-                                                : capability.expertise_level === 'intermediate'
-                                                    ? 'bg-blue-100 text-blue-700'
-                                                    : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {capability.expertise_level}
-                                            </span>
-                                        )}
-                                    </div>
+
+                                    {capability.description && (
+                                        <p className="text-sm text-text-primary mb-3">{capability.description}</p>
+                                    )}
+
+                                    {capability.technologies_used && capability.technologies_used.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mb-3">
+                                            {capability.technologies_used.map((tech, idx) => (
+                                                <span key={idx} className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
+                                                    {tech}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {capability.use_cases && (
+                                        <p className="text-xs text-text-secondary mb-2">
+                                            <span className="font-medium">Use Cases:</span> {capability.use_cases.substring(0, 100)}{capability.use_cases.length > 100 ? '...' : ''}
+                                        </p>
+                                    )}
+
+                                    {capability.demo_link && (
+                                        <a
+                                            href={capability.demo_link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-primary hover:underline"
+                                        >
+                                            🔗 View Demo
+                                        </a>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -504,8 +564,8 @@ export default function VendorProfileManager() {
                         {capabilities.length === 0 && (
                             <div className="text-center py-12 text-text-secondary">
                                 <SparklesIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                <p>No capabilities added yet</p>
-                                <p className="text-sm">Add your first capability to showcase your expertise</p>
+                                <p>No accelerators added yet</p>
+                                <p className="text-sm">Add your first accelerator/POC to showcase your ready-to-use solutions</p>
                             </div>
                         )}
                     </div>
@@ -515,16 +575,30 @@ export default function VendorProfileManager() {
                     <div>
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-semibold">Testimonials</h3>
-                            <button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setShowTestimonialModal(true);
-                                }}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                <PlusIcon className="h-4 w-4" />
-                                Add Testimonial
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setBulkUploadType('testimonials');
+                                        setShowBulkUpload(true);
+                                    }}
+                                    className="px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    Bulk Upload
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setShowTestimonialModal(true);
+                                    }}
+                                    className="btn-primary flex items-center gap-2"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add Testimonial
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -630,6 +704,23 @@ export default function VendorProfileManager() {
                         setShowTestimonialModal(false);
                         setEditingItem(null);
                         loadTestimonials();
+                        loadProfile();
+                    }}
+                />
+            )}
+
+            {showBulkUpload && (
+                <BulkUploadModal
+                    type={bulkUploadType}
+                    onClose={() => setShowBulkUpload(false)}
+                    onUpload={async (file) => {
+                        await vendorProfileApi.bulkUpload(bulkUploadType, file);
+                        setShowBulkUpload(false);
+                        // Reload the appropriate data
+                        if (bulkUploadType === 'clients') loadClients();
+                        else if (bulkUploadType === 'stories') loadStories();
+                        else if (bulkUploadType === 'capabilities') loadCapabilities();
+                        else if (bulkUploadType === 'testimonials') loadTestimonials();
                         loadProfile();
                     }}
                 />
