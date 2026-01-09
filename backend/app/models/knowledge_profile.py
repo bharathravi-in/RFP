@@ -103,7 +103,32 @@ class KnowledgeProfile(db.Model):
         }
         
         if include_items_count:
-            data['items_count'] = self.knowledge_items.filter_by(is_active=True).count()
+            # Count unique source files (not individual chunks)
+            # This gives the actual document/file count, not chunk count
+            from sqlalchemy import func
+            from ..extensions import db
+            from .knowledge import KnowledgeItem
+            
+            # Count distinct source_file values for items in this profile
+            file_count = db.session.query(
+                func.count(func.distinct(KnowledgeItem.source_file))
+            ).filter(
+                KnowledgeItem.knowledge_profile_id == self.id,
+                KnowledgeItem.is_active == True,
+                KnowledgeItem.source_file != None
+            ).scalar() or 0
+            
+            # If no source_file set, fallback to counting parent items (chunk_index=0 or parent_id=None)
+            if file_count == 0:
+                file_count = self.knowledge_items.filter(
+                    db.or_(
+                        KnowledgeItem.chunk_index == 0,
+                        KnowledgeItem.chunk_index == None
+                    ),
+                    KnowledgeItem.is_active == True
+                ).count()
+            
+            data['items_count'] = file_count
         
         return data
 

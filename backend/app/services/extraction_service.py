@@ -136,13 +136,18 @@ class QuestionExtractor:
             r'Transport\s*\|\s*\d+\s*\|\s*\d+',  # Transport scoring
         ]
         
-        # Prefixes to remove (more flexible patterns)
+        # Prefixes to remove (more flexible patterns including smart/curly apostrophes)
+        # U+2019 (RIGHT SINGLE QUOTATION MARK) is the most common smart apostrophe
         remove_prefixes = [
-            r"Service\s*provider'?s?\s*answer\s*:?\s*",  # Service provider's answer
-            r"Vendor'?s?\s*response\s*:?\s*",  # Vendor response
+            r"Service\s*provider[\u2019'`]?s?\s*answer\s*:?\s*",  # Service provider's answer
+            r"^Service\s+provider\u2019s\s+answer\s+",  # Exact match for smart apostrophe at start
+            r"Vendor[\u2019'`]?s?\s*response\s*:?\s*",  # Vendor's response
+            r"Vendor[\u2019'`]?s?\s*answer\s*:?\s*",  # Vendor's answer
             r"^Answer\s*:?\s*",  # Answer:
             r"^Response\s*:?\s*",  # Response:
-            r"Provider'?s?\s*answer\s*:?\s*",  # Provider's answer
+            r"Provider[\u2019'`]?s?\s*answer\s*:?\s*",  # Provider's answer
+            r"Bidder[\u2019'`]?s?\s*response\s*:?\s*",  # Bidder's response
+            r"Contractor[\u2019'`]?s?\s*answer\s*:?\s*",  # Contractor's answer
         ]
 
         

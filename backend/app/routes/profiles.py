@@ -178,6 +178,86 @@ def delete_profile(profile_id):
     return jsonify({'message': 'Profile deleted successfully'})
 
 
+@profiles_bp.route('/profiles/<int:profile_id>/link-folder/<int:folder_id>', methods=['POST'])
+@jwt_required()
+def link_folder_to_profile(profile_id, folder_id):
+    """
+    Link all knowledge items in a folder to this profile.
+    This ensures the profile's items_count reflects the folder contents.
+    """
+    from ..models import KnowledgeItem, KnowledgeFolder
+    
+    user = get_current_user()
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization required'}), 400
+    
+    # Verify profile exists and belongs to user's org
+    profile = KnowledgeProfile.query.filter_by(
+        id=profile_id,
+        organization_id=user.organization_id,
+        is_active=True
+    ).first()
+    
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+    
+    # Verify folder exists and belongs to user's org
+    folder = KnowledgeFolder.query.filter_by(
+        id=folder_id,
+        organization_id=user.organization_id
+    ).first()
+    
+    if not folder:
+        return jsonify({'error': 'Folder not found'}), 404
+    
+    # Update all items in the folder to link to this profile
+    updated_count = KnowledgeItem.query.filter_by(
+        folder_id=folder_id,
+        organization_id=user.organization_id,
+        is_active=True
+    ).update({'knowledge_profile_id': profile_id})
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Linked {updated_count} items from "{folder.name}" to profile "{profile.name}"',
+        'updated_count': updated_count,
+        'profile': profile.to_dict(include_items_count=True)
+    })
+
+
+@profiles_bp.route('/profiles/<int:profile_id>/unlink-items', methods=['POST'])
+@jwt_required()
+def unlink_items_from_profile(profile_id):
+    """Remove all items from a profile (set knowledge_profile_id to NULL)."""
+    from ..models import KnowledgeItem
+    
+    user = get_current_user()
+    if not user or not user.organization_id:
+        return jsonify({'error': 'Organization required'}), 400
+    
+    profile = KnowledgeProfile.query.filter_by(
+        id=profile_id,
+        organization_id=user.organization_id
+    ).first()
+    
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+    
+    # Unlink all items from this profile
+    updated_count = KnowledgeItem.query.filter_by(
+        knowledge_profile_id=profile_id,
+        organization_id=user.organization_id
+    ).update({'knowledge_profile_id': None})
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': f'Unlinked {updated_count} items from profile "{profile.name}"',
+        'updated_count': updated_count,
+        'profile': profile.to_dict(include_items_count=True)
+    })
+
 # Dimension lookup endpoints - from database
 @profiles_bp.route('/dimensions', methods=['GET'])
 @jwt_required()
