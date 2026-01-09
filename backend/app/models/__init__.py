@@ -56,6 +56,9 @@ from .vendor_success_story import VendorSuccessStory
 from .vendor_capability import VendorCapability
 from .vendor_testimonial import VendorTestimonial
 
+# Case Studies (NEW - Real case studies from vendor's past projects)
+from .case_study import CaseStudy
+
 __all__ = [
     'User',
     'Organization',
@@ -129,10 +132,11 @@ __all__ = [
     'CRMIntegration',
     'CRMSyncRecord',
     'CRMSyncLog',
-    # Vendor Profile
     'VendorProfile',
     'VendorClient',
     'VendorSuccessStory',
     'VendorCapability',
     'VendorTestimonial',
+    # Case Studies
+    'CaseStudy',
 ]

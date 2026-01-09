@@ -184,6 +184,47 @@ Generate {case_count} case studies now:"""
         self.config = AgentConfig(org_id=org_id, agent_type='case_study')
         logger.info(f"CaseStudyGeneratorAgent initialized with provider: {self.config.provider}")
     
+    def _get_case_studies_from_kb(
+        self,
+        industry: str = None,
+        project_type: str = None,
+        technologies: list = None,
+        limit: int = 5
+    ) -> list:
+        """
+        Retrieve real case studies from the knowledge base (database).
+        
+        Args:
+            industry: Target industry to match
+            project_type: Type of project to match
+            technologies: Technologies to match
+            limit: Max case studies to return
+            
+        Returns:
+            List of case studies in LLM-ready format
+        """
+        try:
+            from app.models import CaseStudy
+            
+            case_studies = CaseStudy.get_relevant_case_studies(
+                organization_id=self.org_id,
+                industry=industry,
+                project_type=project_type,
+                technologies=technologies,
+                limit=limit
+            )
+            
+            if case_studies:
+                logger.info(f"Found {len(case_studies)} real case studies from KB for industry={industry}")
+                return [cs.to_context_dict() for cs in case_studies]
+            else:
+                logger.info(f"No real case studies found in KB for org={self.org_id}")
+                return []
+                
+        except Exception as e:
+            logger.warning(f"Could not query case studies from KB: {e}")
+            return []
+    
     def generate_case_studies(
         self,
         project_data: Dict[str, Any],
@@ -195,6 +236,11 @@ Generate {case_count} case studies now:"""
         """
         Generate case studies for a proposal.
         
+        Enhanced flow:
+        1. First query REAL case studies from Knowledge Base (database)
+        2. If not enough, supplement with LLM-generated case studies
+        3. Mark source clearly (FROM_KNOWLEDGE_BASE vs ILLUSTRATIVE)
+        
         Args:
             project_data: Project information
             requirements: Key requirements from RFP
@@ -203,39 +249,78 @@ Generate {case_count} case studies now:"""
             vendor_profile: Vendor capabilities
             
         Returns:
-            Dict with generated case studies
+            Dict with case studies (real + generated)
         """
         try:
-            # Build context
-            context = self._build_context(
-                project_data, requirements, industry, vendor_profile
+            all_case_studies = []
+            kb_count = 0
+            generated_count = 0
+            
+            # Step 1: Get REAL case studies from Knowledge Base
+            kb_case_studies = self._get_case_studies_from_kb(
+                industry=industry,
+                project_type=project_data.get('type'),
+                limit=case_count
             )
             
-            # Generate using AI
-            prompt = self.MASTER_PROMPT.format(
-                case_study_context=json.dumps(context, indent=2),
-                case_count=case_count
-            )
+            if kb_case_studies:
+                all_case_studies.extend(kb_case_studies)
+                kb_count = len(kb_case_studies)
+                logger.info(f"Added {kb_count} real case studies from KB")
             
-            logger.info(f"Generating {case_count} case studies for: {project_data.get('name', 'Unknown')}")
+            # Step 2: If we need more, generate with LLM
+            remaining_needed = case_count - len(all_case_studies)
             
-            response_text = self.config.generate_content(
-                prompt,
-                temperature=0.7,  # More creative for case studies
-                max_tokens=5000
-            )
+            if remaining_needed > 0:
+                # Build context including existing KB case studies for reference
+                context = self._build_context(
+                    project_data, requirements, industry, vendor_profile
+                )
+                context['existing_case_studies'] = kb_case_studies  # For LLM context
+                context['additional_needed'] = remaining_needed
+                
+                # Generate using AI
+                prompt = self.MASTER_PROMPT.format(
+                    case_study_context=json.dumps(context, indent=2),
+                    case_count=remaining_needed
+                )
+                
+                logger.info(f"Generating {remaining_needed} additional case studies via LLM")
+                
+                response_text = self.config.generate_content(
+                    prompt,
+                    temperature=0.7,
+                    max_tokens=5000
+                )
+                
+                result = self._parse_response(response_text)
+                
+                if result and result.get('case_studies'):
+                    # Mark as illustrative
+                    for cs in result['case_studies']:
+                        cs['verification_status'] = 'ILLUSTRATIVE'
+                    all_case_studies.extend(result['case_studies'][:remaining_needed])
+                    generated_count = min(len(result['case_studies']), remaining_needed)
             
-            # Parse response
-            result = self._parse_response(response_text)
-            
-            if not result or not result.get('case_studies'):
-                result = self._generate_fallback_case_studies(project_data, industry, case_count)
+            # Step 3: Fallback to templates if nothing worked
+            if not all_case_studies:
+                fallback = self._generate_fallback_case_studies(project_data, industry, case_count)
+                all_case_studies = fallback.get('case_studies', [])
+                generated_count = len(all_case_studies)
             
             return {
                 'success': True,
-                'case_studies': result.get('case_studies', []),
-                'summary': result.get('summary', {}),
-                'case_count': len(result.get('case_studies', [])),
+                'case_studies': all_case_studies[:case_count],
+                'summary': {
+                    'total_generated': len(all_case_studies[:case_count]),
+                    'from_knowledge_base': kb_count,
+                    'ai_generated': generated_count,
+                    'industries_covered': list(set([cs.get('client_type', industry) for cs in all_case_studies])),
+                    'verification_note': f'{kb_count} verified case studies from KB, {generated_count} illustrative examples.'
+                },
+                'case_count': len(all_case_studies[:case_count]),
+                'kb_case_studies': kb_count,
+                'generated_case_studies': generated_count,
                 'generated_at': datetime.utcnow().isoformat(),
             }
             
@@ -243,12 +328,14 @@ Generate {case_count} case studies now:"""
             logger.error(f"Case study generation error: {str(e)}")
             fallback = self._generate_fallback_case_studies(project_data, industry, case_count)
             return {
-                'success': True,  # Return success with fallback
+                'success': True,
                 'case_studies': fallback.get('case_studies', []),
                 'summary': fallback.get('summary', {}),
                 'case_count': len(fallback.get('case_studies', [])),
+                'kb_case_studies': 0,
+                'generated_case_studies': len(fallback.get('case_studies', [])),
                 'generated_at': datetime.utcnow().isoformat(),
-                'note': 'Generated from templates. Configure LLM for customized case studies.'
+                'note': 'Generated from templates. Add real case studies to Knowledge Base for better results.'
             }
     
     def _build_context(
