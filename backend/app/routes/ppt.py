@@ -54,6 +54,7 @@ def generate_ppt(project_id):
     branding = data.get('branding', {})
     include_compliance = data.get('include_compliance', True)
     include_strategy = data.get('include_strategy', True)
+    skip_auto_diagram = data.get('skip_auto_diagram', True)  # Skip expensive auto-generation by default
     
     # Get organization for vendor profile
     organization = project.organization
@@ -170,8 +171,9 @@ def generate_ppt(project_id):
                     diagram_data = {'mermaid_code': first_diagram['mermaid_code']}
                     logger.info("Using diagram from ProjectStrategy.diagrams")
         
-        # AUTO-GENERATE diagram if none exists (Phase 2 enhancement)
-        if not diagram_data:
+        # AUTO-GENERATE diagram if none exists and not skipped (Phase 2 enhancement)
+        # This is expensive so skip by default for faster exports
+        if not diagram_data and not skip_auto_diagram:
             try:
                 from ..agents.diagram_generator_agent import get_diagram_generator_agent
                 

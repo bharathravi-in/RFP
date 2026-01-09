@@ -28,6 +28,7 @@ import UsageDashboard from '@/pages/UsageDashboard';
 import Onboarding from '@/pages/Onboarding';
 import AgentPerformanceDashboard from '@/pages/AgentPerformanceDashboard';
 import BrandingSettings from '@/pages/BrandingSettings';
+import CapabilityLedProposal from '@/pages/CapabilityLedProposal';
 import { SuperAdminDashboard, TenantManagement, FeatureFlags } from '@/pages/superadmin';
 
 // Layout
@@ -155,6 +156,7 @@ function App() {
                     <Route path="projects/:id" element={<ProjectDetail />} />
                     <Route path="projects/:id/workspace" element={<AnswerWorkspace />} />
                     <Route path="projects/:id/proposal" element={<ProposalBuilder />} />
+                    <Route path="projects/:id/capability" element={<CapabilityLedProposal />} />
                     <Route path="projects/:id/versions" element={<DocumentVersioning />} />
                     <Route path="knowledge" element={<KnowledgeBase />} />
                     <Route path="knowledge/:itemId/chat" element={<KnowledgeChatPage />} />

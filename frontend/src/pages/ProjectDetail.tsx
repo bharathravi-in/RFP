@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useDropzone } from 'react-dropzone';
 import {
     ArrowLeftIcon,
+    ArrowRightIcon,
     DocumentArrowUpIcon,
     DocumentTextIcon,
     SparklesIcon,
@@ -65,10 +66,20 @@ export default function ProjectDetail() {
     const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
     const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-    // Input method state (file upload or free text)
-    const [inputMethod, setInputMethod] = useState<'upload' | 'text'>('upload');
+    // Input method state (file upload, free text, or capability-led)
+    const [inputMethod, setInputMethod] = useState<'upload' | 'text' | 'capability'>('upload');
     const [rfpText, setRfpText] = useState('');
     const [isSubmittingText, setIsSubmittingText] = useState(false);
+
+    // Capability-Led proposal state
+    const [capabilityData, setCapabilityData] = useState({
+        client_product: '',
+        client_domain: '',
+        meeting_notes: '',
+        client_goals: [] as string[],
+        client_challenges: [] as string[],
+    });
+    const [isProcessingCapability, setIsProcessingCapability] = useState(false);
 
     const loadProject = useCallback(async () => {
         if (!id) return;
@@ -542,6 +553,17 @@ export default function ProjectDetail() {
                                 >
                                     ✏️ Enter Text
                                 </button>
+                                <button
+                                    onClick={() => setInputMethod('capability')}
+                                    className={clsx(
+                                        'px-4 py-2 text-sm font-medium transition-colors',
+                                        inputMethod === 'capability'
+                                            ? 'text-primary border-b-2 border-primary'
+                                            : 'text-text-muted hover:text-text-primary'
+                                    )}
+                                >
+                                    🎯 Capability-Led
+                                </button>
                             </div>
 
                             {/* Upload Tab Content */}
@@ -661,6 +683,35 @@ Example:
                                             </>
                                         )}
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Capability-Led Tab Content */}
+                            {inputMethod === 'capability' && (
+                                <div className="space-y-4">
+                                    <div className="bg-gradient-to-br from-purple-600/10 to-blue-600/10 border border-purple-500/30 rounded-xl p-8 text-center">
+                                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                                            <SparklesIcon className="w-8 h-8 text-white" />
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-text-primary mb-2">
+                                            Capability-Led Proposal
+                                        </h3>
+                                        <p className="text-secondary text-sm mb-6 max-w-md mx-auto">
+                                            Create a proposal based on client meeting notes - no RFP document required.
+                                            Perfect for proactive sales pitches and vendor-driven proposals.
+                                        </p>
+                                        <button
+                                            onClick={() => navigate(`/projects/${id}/capability`)}
+                                            className="btn-primary px-8 py-3 text-lg flex items-center gap-2 mx-auto"
+                                        >
+                                            <SparklesIcon className="w-5 h-5" />
+                                            Go to Capability-Led Builder
+                                            <ArrowRightIcon className="w-5 h-5" />
+                                        </button>
+                                        <p className="text-xs text-secondary mt-4">
+                                            One-click generation from meeting notes → Full proposal sections
+                                        </p>
+                                    </div>
                                 </div>
                             )}
                         </div>

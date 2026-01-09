@@ -59,6 +59,9 @@ from .vendor_testimonial import VendorTestimonial
 # Case Studies (NEW - Real case studies from vendor's past projects)
 from .case_study import CaseStudy
 
+# Capability-Led Proposal Context (NEW)
+from .capability_context import CapabilityContext
+
 __all__ = [
     'User',
     'Organization',
@@ -139,4 +142,6 @@ __all__ = [
     'VendorTestimonial',
     # Case Studies
     'CaseStudy',
+    # Capability-Led Proposal
+    'CapabilityContext',
 ]

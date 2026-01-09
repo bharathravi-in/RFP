@@ -102,6 +102,13 @@ from .metrics_service import (
     MetricType
 )
 
+# Capability-Led Proposal Agents (NEW - Sales-Led Proposals)
+from .capability_context_agent import CapabilityContextAgent, get_capability_context_agent
+from .capability_alignment_agent import CapabilityAlignmentAgent, get_capability_alignment_agent
+from .footprint_narrative_agent import FootprintNarrativeAgent, get_footprint_narrative_agent
+from .win_win_value_agent import WinWinValueAgent, get_win_win_value_agent
+from .capability_proposal_assembler_agent import CapabilityProposalAssemblerAgent, get_capability_proposal_assembler
+
 # Shared Constants for Cross-Agent Consistency (v2.0)
 from .shared_constants import (
     STANDARD_DEFINITIONS,
@@ -214,6 +221,17 @@ __all__ = [
     'validate_no_forbidden_phrases',
     'get_standard_metadata',
     'calculate_confidence_level',
+    # Capability-Led Proposal Agents (NEW)
+    'CapabilityContextAgent',
+    'get_capability_context_agent',
+    'CapabilityAlignmentAgent',
+    'get_capability_alignment_agent',
+    'FootprintNarrativeAgent',
+    'get_footprint_narrative_agent',
+    'WinWinValueAgent',
+    'get_win_win_value_agent',
+    'CapabilityProposalAssemblerAgent',
+    'get_capability_proposal_assembler',
 ]
 
 

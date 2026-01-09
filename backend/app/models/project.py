@@ -21,6 +21,10 @@ class Project(db.Model):
     completion_percent = db.Column(db.Float, default=0.0)
     due_date = db.Column(db.DateTime, nullable=True)
     
+    # Proposal type - determines input flow and agent pipeline
+    # Options: rfp_upload, rfp_text, capability_led
+    proposal_type = db.Column(db.String(30), default='rfp_upload')
+    
     # Multi-dimensional filtering fields for knowledge base selection
     client_type = db.Column(db.String(50), nullable=True)  # government, private, ngo
     geography = db.Column(db.String(50), nullable=True)  # Region code (US, EU, APAC)
@@ -102,6 +106,8 @@ class Project(db.Model):
             'outcome_notes': self.outcome_notes,
             'contract_value': self.contract_value,
             'loss_reason': self.loss_reason,
+            # Proposal type
+            'proposal_type': self.proposal_type or 'rfp_upload',
             # Knowledge profiles
             'knowledge_profile_ids': [p.id for p in self.knowledge_profiles] if self.knowledge_profiles else [],
             'organization_id': self.organization_id,

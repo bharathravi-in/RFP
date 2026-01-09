@@ -124,6 +124,8 @@ export const projectsApi = {
         industry: string;
         compliance_requirements: string[];
         knowledge_profile_ids: number[];
+        // Proposal type (NEW)
+        proposal_type: 'rfp_upload' | 'rfp_text' | 'capability_led';
         // Outcome fields
         outcome: 'pending' | 'won' | 'lost' | 'abandoned';
         outcome_date: string;
@@ -1250,6 +1252,63 @@ export const exportTemplatesApi = {
 
 // Alias for backwards compatibility
 export const templatesApi = exportTemplatesApi;
+
+// ===============================
+// Capability-Led Proposal API (NEW)
+// ===============================
+
+export interface CapabilityContextInput {
+    project_id: number;
+    meeting_notes?: string;
+    client_name?: string;
+    client_product?: string;
+    client_domain?: string;
+    client_goals?: string[];
+    client_challenges?: string[];
+    key_stakeholders?: { name: string; role: string; notes?: string }[];
+}
+
+export interface FootprintSelection {
+    case_study_ids?: number[];
+    success_story_ids?: number[];
+    testimonial_ids?: number[];
+    highlight_metrics?: { metric: string; value: string }[];
+}
+
+export const capabilityApi = {
+    // Process client meeting notes into structured context
+    processContext: (data: CapabilityContextInput) =>
+        api.post('/agents/capability/context', data),
+
+    // Generate capability alignment (map client needs to vendor strengths)
+    generateAlignment: (projectId: number, clientContext?: any) =>
+        api.post('/agents/capability/align', {
+            project_id: projectId,
+            client_context: clientContext
+        }),
+
+    // Get relevant footprints (case studies, success stories)
+    getFootprints: (projectId: number) =>
+        api.get(`/agents/capability/footprints/${projectId}`),
+
+    // Save selected footprints
+    saveFootprints: (projectId: number, data: FootprintSelection) =>
+        api.post(`/agents/capability/footprints/${projectId}`, data),
+
+    // Generate win-win value proposition
+    generateWinWin: (projectId: number) =>
+        api.post('/agents/capability/win-win', { project_id: projectId }),
+
+    // Generate full capability-led proposal
+    generateProposal: (projectId: number, sectionsToGenerate?: string[]) =>
+        api.post(`/agents/capability/generate/${projectId}`, {
+            sections_to_generate: sectionsToGenerate
+        }),
+
+    // Get capability context for a project
+    getContext: (projectId: number) =>
+        api.get(`/agents/capability/${projectId}`),
+};
 
 export default api;
 

@@ -5,6 +5,7 @@ Provides REST API endpoints for the multi-agent RFP analysis system.
 """
 from flask import Blueprint, request, jsonify, current_app
 import logging
+import json
 
 from app.agents import (
     get_orchestrator_agent,
@@ -2163,5 +2164,503 @@ def get_agent_timeouts():
             "export_generation": config.export_generation,
             "simple_validation": config.simple_validation
         }
+    })
+
+
+# =============================================================================
+# CAPABILITY-LED PROPOSAL ENDPOINTS (NEW - Sales-Led Proposals)
+# =============================================================================
+
+@agents_bp.route('/capability/context', methods=['POST'])
+def process_capability_context():
+    """
+    Process client meeting notes into structured context.
+    
+    Request body:
+    {
+        "project_id": int,
+        "meeting_notes": string,
+        "client_name": string (optional),
+        "client_product": string (optional),
+        "client_domain": string (optional),
+        "client_goals": [string] (optional),
+        "client_challenges": [string] (optional)
+    }
+    
+    Returns structured context for capability-led proposal.
+    """
+    from app.agents import get_capability_context_agent
+    from app.models import Project, CapabilityContext
+    
+    data = request.get_json() or {}
+    project_id = data.get('project_id')
+    
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    meeting_notes = data.get('meeting_notes', '')
+    if not meeting_notes and not data.get('client_product'):
+        return jsonify({"error": "meeting_notes or client_product is required"}), 400
+    
+    # Get or create capability context
+    context = CapabilityContext.get_or_create(project_id)
+    
+    # Update client info
+    context.update_client_info({
+        'client_product': data.get('client_product'),
+        'client_domain': data.get('client_domain'),
+        'client_challenges': data.get('client_challenges'),
+        'client_goals': data.get('client_goals'),
+        'meeting_notes': meeting_notes,
+        'key_stakeholders': data.get('key_stakeholders'),
+    })
+    
+    # Process with agent
+    agent = get_capability_context_agent(org_id=project.organization_id)
+    result = agent.process_context(
+        meeting_notes=meeting_notes,
+        client_name=data.get('client_name') or project.client_name,
+        client_product=data.get('client_product'),
+        client_domain=data.get('client_domain') or project.industry,
+        client_goals=data.get('client_goals'),
+        client_challenges=data.get('client_challenges')
+    )
+    
+    # Save structured context
+    if result.get('success'):
+        context.structured_context = result.get('structured_context')
+        context.identified_needs = result.get('identified_needs')
+        context.decision_criteria = result.get('decision_criteria')
+        from app.extensions import db
+        db.session.commit()
+    
+    return jsonify({
+        "success": result.get('success', False),
+        "context": result,
+        "capability_context_id": context.id
+    })
+
+
+@agents_bp.route('/capability/align', methods=['POST'])
+def generate_capability_alignment():
+    """
+    Map client needs to vendor strengths.
+    
+    Request body:
+    {
+        "project_id": int,
+        "client_context": dict (optional, fetched if not provided)
+    }
+    
+    Returns capability alignment mapping with proof points.
+    """
+    from app.agents import get_capability_alignment_agent
+    from app.models import Project, CapabilityContext
+    
+    data = request.get_json() or {}
+    project_id = data.get('project_id')
+    
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    # Get client context
+    client_context = data.get('client_context')
+    if not client_context:
+        context = CapabilityContext.query.filter_by(project_id=project_id).first()
+        if context and context.structured_context:
+            client_context = context.structured_context
+        else:
+            return jsonify({"error": "No client context found. Process context first."}), 400
+    
+    # Generate alignment
+    agent = get_capability_alignment_agent(org_id=project.organization_id)
+    result = agent.align_capabilities(
+        client_context=client_context,
+        vendor_profile=data.get('vendor_profile'),
+        case_studies=data.get('case_studies')
+    )
+    
+    # Save alignment
+    if result.get('success'):
+        context = CapabilityContext.query.filter_by(project_id=project_id).first()
+        if context:
+            context.update_alignment(
+                alignment_data=result.get('alignments', []),
+                score=result.get('average_score')
+            )
+    
+    return jsonify({
+        "success": result.get('success', False),
+        "alignment": result
+    })
+
+
+@agents_bp.route('/capability/footprints/<int:project_id>', methods=['GET'])
+def get_relevant_footprints(project_id: int):
+    """
+    Get relevant case studies and metrics for the project.
+    
+    Returns case studies from KB that match the project context.
+    """
+    from app.models import Project, CapabilityContext, CaseStudy, VendorSuccessStory
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    # Get context for filtering
+    context = CapabilityContext.query.filter_by(project_id=project_id).first()
+    industry = None
+    if context and context.structured_context:
+        industry = context.structured_context.get('client_overview', {}).get('industry')
+    industry = industry or project.industry
+    
+    # Get case studies
+    case_studies = CaseStudy.get_relevant_case_studies(
+        organization_id=project.organization_id,
+        industry=industry,
+        limit=10
+    )
+    
+    # Get success stories
+    success_stories = []
+    try:
+        success_stories = VendorSuccessStory.query.filter_by(
+            organization_id=project.organization_id
+        ).limit(10).all()
+    except Exception as e:
+        logger.warning(f"Could not fetch success stories: {e}")
+    
+    return jsonify({
+        "success": True,
+        "case_studies": [cs.to_dict() for cs in case_studies],
+        "success_stories": [ss.to_dict() for ss in success_stories] if success_stories else [],
+        "case_study_count": len(case_studies)
+    })
+
+
+@agents_bp.route('/capability/footprints/<int:project_id>', methods=['POST'])
+def save_selected_footprints(project_id: int):
+    """
+    Save selected footprints for the project.
+    
+    Request body:
+    {
+        "case_study_ids": [int],
+        "success_story_ids": [int],
+        "testimonial_ids": [int],
+        "highlight_metrics": [{"metric": str, "value": str}]
+    }
+    """
+    from app.models import CapabilityContext
+    
+    data = request.get_json() or {}
+    
+    context = CapabilityContext.query.filter_by(project_id=project_id).first()
+    if not context:
+        return jsonify({"error": "No capability context found"}), 404
+    
+    context.update_footprints(
+        case_studies=data.get('case_study_ids'),
+        success_stories=data.get('success_story_ids'),
+        testimonials=data.get('testimonial_ids'),
+        metrics=data.get('highlight_metrics')
+    )
+    
+    return jsonify({
+        "success": True,
+        "message": "Footprints saved"
+    })
+
+
+@agents_bp.route('/capability/win-win', methods=['POST'])
+def generate_win_win_value():
+    """
+    Generate mutual value propositions.
+    
+    Request body:
+    {
+        "project_id": int
+    }
+    
+    Returns win-win value proposition.
+    """
+    from app.agents import get_win_win_value_agent
+    from app.models import Project, CapabilityContext
+    
+    data = request.get_json() or {}
+    project_id = data.get('project_id')
+    
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    # Get context and alignments
+    context = CapabilityContext.query.filter_by(project_id=project_id).first()
+    if not context:
+        return jsonify({"error": "No capability context found"}), 404
+    
+    client_context = context.structured_context or {}
+    alignments = context.alignment_mapping or []
+    
+    # Generate win-win
+    agent = get_win_win_value_agent(org_id=project.organization_id)
+    result = agent.generate_win_win(
+        client_context=client_context,
+        alignments=alignments
+    )
+    
+    # Save win-win
+    if result.get('success'):
+        context.update_win_win(
+            client_value=result.get('client_value', {}).get('primary_benefits', []),
+            vendor_value=result.get('vendor_value', {}).get('strategic_benefits', []),
+            narrative=result.get('partnership_vision', {}).get('narrative')
+        )
+    
+    return jsonify({
+        "success": result.get('success', False),
+        "win_win": result
+    })
+
+
+@agents_bp.route('/capability/generate/<int:project_id>', methods=['POST'])
+def generate_capability_proposal(project_id: int):
+    """
+    ALL-IN-ONE endpoint for capability-led proposal generation.
+    
+    This endpoint handles the complete flow:
+    1. Save client info → 2. Process context → 3. Generate alignment
+    4. Generate footprints → 5. Generate win-win → 6. Assemble proposal
+    7. Create RFPSection records
+    
+    Request body:
+    {
+        "client_product": string (required),
+        "client_domain": string (optional),
+        "meeting_notes": string (required, min 50 chars),
+        "client_goals": [string] (optional),
+        "client_challenges": [string] (optional),
+        "client_name": string (optional)
+    }
+    """
+    from app.agents import (
+        get_capability_context_agent,
+        get_capability_alignment_agent,
+        get_footprint_narrative_agent,
+        get_win_win_value_agent,
+        get_capability_proposal_assembler
+    )
+    from app.models import Project, CapabilityContext, CaseStudy, RFPSection, RFPSectionType
+    from app.extensions import db
+    
+    data = request.get_json() or {}
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    org_id = project.organization_id
+    
+    # Validate required fields
+    client_product = data.get('client_product', '').strip()
+    meeting_notes = data.get('meeting_notes', '').strip()
+    
+    if not client_product:
+        return jsonify({"error": "client_product is required"}), 400
+    
+    if len(meeting_notes) < 50:
+        return jsonify({"error": "meeting_notes must be at least 50 characters"}), 400
+    
+    # Get or create capability context
+    context = CapabilityContext.query.filter_by(project_id=project_id).first()
+    if not context:
+        context = CapabilityContext(project_id=project_id)
+        db.session.add(context)
+    
+    # Update client info
+    context.client_product = client_product
+    context.client_domain = data.get('client_domain') or project.industry
+    context.client_challenges = data.get('client_challenges', [])
+    context.client_goals = data.get('client_goals', [])
+    context.meeting_notes = meeting_notes
+    context.generation_status = 'in_progress'
+    db.session.commit()
+    
+    logger.info(f"Starting capability-led proposal generation for project {project_id}")
+    
+    try:
+        # Step 1: Process context with AI
+        logger.info("Step 1: Processing client context...")
+        context_agent = get_capability_context_agent(org_id=org_id)
+        context_result = context_agent.process_context(
+            meeting_notes=meeting_notes,
+            client_name=data.get('client_name') or project.client_name,
+            client_product=client_product,
+            client_domain=context.client_domain,
+            client_goals=context.client_goals,
+            client_challenges=context.client_challenges
+        )
+        
+        if context_result.get('success'):
+            context.structured_context = context_result.get('structured_context')
+            context.identified_needs = context_result.get('identified_needs')
+            context.decision_criteria = context_result.get('decision_criteria')
+            db.session.commit()
+        
+        # Build client context with fallback (with type-safety!)
+        structured = context.structured_context
+        # Ensure structured_context is a dict, not a string
+        if isinstance(structured, str):
+            try:
+                structured = json.loads(structured) if structured else {}
+            except (json.JSONDecodeError, TypeError):
+                structured = {}
+        if not isinstance(structured, dict):
+            structured = {}
+        
+        client_context = structured if structured else {
+            'client_overview': {
+                'company_name': data.get('client_name') or project.client_name or 'Client',
+                'product_summary': client_product,
+                'industry': context.client_domain,
+            },
+            'identified_needs': context.identified_needs or context.client_challenges or [],
+            'goals': context.client_goals or [],
+        }
+        
+        # Step 2: Generate alignment
+        logger.info("Step 2: Generating capability alignment...")
+        align_agent = get_capability_alignment_agent(org_id=org_id)
+        align_result = align_agent.align_capabilities(client_context=client_context)
+        alignments = align_result.get('alignments', [])
+        context.alignment_mapping = alignments
+        context.alignment_score = align_result.get('average_score')
+        db.session.commit()
+        
+        # Step 3: Get footprint narratives
+        logger.info("Step 3: Generating footprint narrative...")
+        footprint_agent = get_footprint_narrative_agent(org_id=org_id)
+        footprint_result = footprint_agent.generate_narrative(
+            client_context=client_context,
+            case_studies=[],  # Can be extended to use selected case studies
+            alignments=alignments
+        )
+        
+        # Step 4: Generate win-win
+        logger.info("Step 4: Generating win-win value proposition...")
+        win_win_agent = get_win_win_value_agent(org_id=org_id)
+        win_win_result = win_win_agent.generate_win_win(
+            client_context=client_context,
+            alignments=alignments
+        )
+        
+        # Step 5: Assemble proposal
+        logger.info("Step 5: Assembling proposal sections...")
+        assembler = get_capability_proposal_assembler(org_id=org_id)
+        proposal_result = assembler.assemble_proposal(
+            client_context=client_context,
+            alignments=alignments,
+            footprint_narrative=footprint_result,
+            win_win_value=win_win_result,
+            sections_to_generate=None  # Generate all
+        )
+        
+        # Step 6: Create RFPSection records
+        if proposal_result.get('success'):
+            generated_sections = proposal_result.get('sections', [])
+            context.generated_sections = generated_sections
+            context.generation_status = 'complete'
+            
+            # Map capability section IDs to RFPSectionType slugs
+            capability_to_rfp_type_map = {
+                'executive_summary': 'executive_summary',
+                'understanding_client': 'our_understanding',
+                'industry_context': 'custom',
+                'capability_alignment': 'company_strengths',
+                'footprints': 'case_studies',
+                'win_win_value': 'custom',
+                'engagement_approach': 'technical_approach',
+                'next_steps': 'custom',
+            }
+            
+            # Delete existing sections for this project (to regenerate fresh)
+            RFPSection.query.filter_by(project_id=project_id).delete()
+            db.session.flush()
+            
+            # Create RFPSection records for each generated section
+            created_count = 0
+            for idx, section in enumerate(generated_sections):
+                section_id = section.get('section_id', '')
+                rfp_type_slug = capability_to_rfp_type_map.get(section_id, 'custom')
+                section_type = RFPSectionType.query.filter_by(slug=rfp_type_slug).first()
+                
+                if not section_type:
+                    section_type = RFPSectionType.query.filter_by(slug='custom').first()
+                
+                if section_type:
+                    rfp_section = RFPSection(
+                        project_id=project_id,
+                        section_type_id=section_type.id,
+                        title=section.get('name', section_type.name),
+                        order=section.get('order', idx),
+                        status='generated',
+                        content=section.get('content', ''),
+                        confidence_score=0.85,
+                        inputs={
+                            'capability_section_id': section_id,
+                            'key_messages': section.get('key_messages', []),
+                            'source': 'capability_led_proposal'
+                        }
+                    )
+                    db.session.add(rfp_section)
+                    created_count += 1
+            
+            logger.info(f"Created {created_count} RFPSection records for capability-led proposal")
+        else:
+            context.generation_status = 'error'
+        
+        db.session.commit()
+        
+        return jsonify({
+            "success": proposal_result.get('success', False),
+            "sections": proposal_result.get('sections', []),
+            "section_count": len(proposal_result.get('sections', [])),
+            "rfp_sections_created": created_count if proposal_result.get('success') else 0,
+            "message": "Capability-led proposal generated successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Capability proposal generation error: {e}", exc_info=True)
+        context.generation_status = 'error'
+        db.session.commit()
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+@agents_bp.route('/capability/<int:project_id>', methods=['GET'])
+def get_capability_context(project_id: int):
+    """Get full capability context for a project."""
+    from app.models import CapabilityContext
+    
+    context = CapabilityContext.query.filter_by(project_id=project_id).first()
+    if not context:
+        return jsonify({"error": "No capability context found"}), 404
+    
+    return jsonify({
+        "success": True,
+        "context": context.to_dict()
     })
 
