@@ -430,7 +430,7 @@ export default function ProposalBuilder() {
     return (
         <div className="h-[calc(100vh-140px)] flex flex-col -m-content overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 border-b border-border bg-white flex-wrap">
+            <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-4 py-2 sm:py-3 mb-2 border-b border-border bg-white flex-wrap">
                 {/* Back + Title */}
                 <div className="flex items-center gap-2 sm:gap-3">
                     <button
@@ -439,9 +439,13 @@ export default function ProposalBuilder() {
                     >
                         <ArrowLeftIcon className="h-4 w-4 text-gray-500" />
                     </button>
-                    <div>
-                        <h1 className="text-sm sm:text-base font-semibold text-gray-900">Proposal Builder</h1>
-                        <p className="text-xs text-gray-500 truncate max-w-[150px] sm:max-w-none">{project?.name}</p>
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <h1 className="text-sm sm:text-base font-semibold text-gray-900">Proposal Builder</h1>
+                        </div>
+                        <span className="px-3 py-1 bg-primary/10 text-primary font-semibold rounded-full text-sm border border-primary/20">
+                            {project?.name}
+                        </span>
                     </div>
                 </div>
 
@@ -513,13 +517,6 @@ export default function ProposalBuilder() {
                 {layoutMode === 'standard' && (
                     <div className="flex items-center bg-gray-100 rounded-lg p-0.5 overflow-x-auto flex-shrink-0 max-w-full">
                         <button
-                            onClick={() => navigate(`/projects/${id}/versions`)}
-                            className="px-2 sm:px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap"
-                        >
-                            <DocumentDuplicateIcon className="h-4 w-4 inline sm:mr-1" />
-                            <span className="hidden sm:inline">Versions</span>
-                        </button>
-                        <button
                             onClick={() => setViewMode('sections')}
                             className={clsx(
                                 'px-2 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
@@ -574,6 +571,16 @@ export default function ProposalBuilder() {
                 {layoutMode === 'standard' && (
                     <>
                         <div className="hidden md:flex items-center gap-2 ml-auto">
+                            {/* Versions - Separate section */}
+                            <button
+                                onClick={() => navigate(`/projects/${id}/versions`)}
+                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                                title="View and manage proposal versions"
+                            >
+                                <DocumentDuplicateIcon className="h-4 w-4" />
+                                Versions
+                            </button>
+
                             {/* View Proposal */}
                             <button
                                 onClick={() => navigate(`/projects/${id}/proposal-chat`)}
