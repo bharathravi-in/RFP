@@ -81,6 +81,13 @@ Rate each dimension from 0-5:
 - AI-sounding over-polished language
 - Empty adjectives ("robust", "innovative", "cutting-edge")
 
+## MANDATORY VALIDATION CHECKLIST:
+- [ ] Client name appears at least twice
+- [ ] At least one quantified metric or evidence
+- [ ] No forbidden marketing buzzwords
+- [ ] Risks or constraints acknowledged
+- [ ] Clear deliverables or next steps
+
 ## Output Format
 Return JSON:
 {{
@@ -92,20 +99,37 @@ Return JSON:
         "decision_usefulness": 0-5
     }},
     "overall_score": weighted_average,
+    "overall_grade": "A|B|C|D|F",
+    "confidence_level": "HIGH|MEDIUM|LOW",
     "issues": [
         {{
-            "type": "missing_evidence|generic_content|no_client_reference|etc",
+            "type": "missing_evidence|generic_content|no_client_reference|forbidden_phrase|etc",
             "location": "paragraph number or quote",
+            "severity": "critical|high|medium|low",
             "suggestion": "How to fix"
         }}
     ],
     "anti_patterns_found": ["phrase1", "phrase2"],
+    "validation_checklist": {{
+        "client_name_present": true/false,
+        "has_quantified_evidence": true/false,
+        "no_forbidden_phrases": true/false,
+        "risks_acknowledged": true/false,
+        "has_clear_deliverables": true/false
+    }},
     "regeneration_required": true/false,
     "improvement_priority": "high|medium|low",
     "specific_fixes": [
         "Add reference to client's offline-first constraint",
         "Include metric from similar deployment"
-    ]
+    ],
+    "procurement_assessment": {{
+        "evaluator_ready": true/false,
+        "would_pass_review": true/false,
+        "concerns": ["List of concerns an evaluator would have"]
+    }},
+    "word_count": 0,
+    "client_mention_count": 0
 }}
 
 Evaluate now:"""

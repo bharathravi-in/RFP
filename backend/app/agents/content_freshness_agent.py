@@ -79,11 +79,28 @@ Generate a JSON response with the following structure:
       "item_id": "ID of the library item",
       "status": "up_to_date|outdated|contradictory|uncertain",
       "confidence_score": 0.0 to 1.0,
+      "confidence_level": "HIGH|MEDIUM|LOW",
       "findings": "Explanation of what changed or why it is outdated",
-      "suggested_update": "Optional: Revised answer text based on new context",
-      "referenced_doc_id": "ID of the new document that caused the flag"
+      "specific_issue": "Exactly what is wrong",
+      "suggested_update": "Revised answer text based on new context",
+      "referenced_doc_id": "ID of the new document that caused the flag",
+      "urgency": "critical|high|medium|low",
+      "risk_if_not_updated": "What could happen if this outdated info is used"
     }}
-  ]
+  ],
+  "audit_summary": {{
+    "total_audited": 0,
+    "up_to_date": 0,
+    "outdated": 0,
+    "contradictory": 0,
+    "uncertain": 0
+  }},
+  "overall_confidence": {{
+    "score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "rationale": "Why this confidence"
+  }},
+  "priority_updates": ["List of item_ids that need immediate attention"]
 }}
 
 ## Guidelines:
@@ -91,6 +108,7 @@ Generate a JSON response with the following structure:
 2. If the new context contains a newer version of a software or a changed policy, flag the library item as "outdated".
 3. If the new context explicitly states something that contradicts the library answer, flag as "contradictory".
 4. If the library item is still accurate, flag as "up_to_date".
+5. Always explain the specific issue - don't be vague.
 
 Audit the content now:"""
 

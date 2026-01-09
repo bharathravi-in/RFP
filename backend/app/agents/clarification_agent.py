@@ -75,15 +75,33 @@ Consider:
   "priority_score": 0.0-1.0,
   "urgency_level": "critical|high|medium|low",
   "impact_without_clarification": "high|medium|low",
+  "proposal_impact": {{
+    "section_affected": "Which proposal section is impacted",
+    "quality_degradation": "How much quality drops without clarification",
+    "competitive_risk": "Risk of losing to competitor if not clarified"
+  }},
   "issues": [
     {{"type": "missing_info|ambiguity|scope|technical|context|risk", "description": "What's unclear", "severity": "critical|high|medium|low"}}
   ],
   "clarification_questions": [
-    {{"question": "Specific question to ask client", "priority": "critical|high|medium|low", "reasoning": "Why this is needed", "expected_answer_type": "text|number|yes_no|list|document"}}
+    {{
+      "question": "Specific question to ask client",
+      "priority": "critical|high|medium|low",
+      "reasoning": "Why this is needed",
+      "expected_answer_type": "text|number|yes_no|list|document",
+      "impact_if_unanswered": "What happens if not answered"
+    }}
   ],
   "assumptions_to_verify": ["List of assumptions we'd make without clarification"],
   "suggested_default_approach": "What we'd do if no clarification received",
-  "risk_score": 0.0-1.0
+  "risk_score": 0.0-1.0,
+  "client_communication": {{
+    "recommended_channel": "email|call|meeting",
+    "urgency_framing": "How to frame urgency to client",
+    "grouped_with": ["Other related questions to ask together"]
+  }},
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Why this confidence level"
 }}
 
 Return ONLY valid JSON."""

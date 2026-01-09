@@ -484,16 +484,50 @@ For each risk include: Description, Impact, Probability, Mitigation Strategy""",
                 'weight': 0.15
             }
         ],
+        # Forbidden phrases that reduce credibility and trigger procurement skepticism
         'anti_patterns': [
+            # Unsubstantiated superlatives (avoid unless proven)
+            'world-class',
+            'best-in-class',
+            'industry-leading',
+            'cutting-edge',
+            'state-of-the-art',
+            'revolutionary',
+            'unparalleled',
+            'unprecedented',
+            'unique',  # Unless verifiable
+            
+            # Marketing buzzwords with no meaning
             'comprehensive solution',
             'seamless integration',
-            'best-in-class',
             'robust platform',
-            'cutting-edge technology',
             'holistic approach',
-            'leverage synergies'
-        ]
+            'leverage synergies',
+            'paradigm shift',
+            'next-generation',
+            'transformational',
+            
+            # Over-promising
+            'guarantee',
+            '100% success',
+            'zero risk',
+            'flawless',
+            'perfect',
+            
+            # Aggressive competitive language
+            'beat the competition',
+            'crush competitors',
+            'dominate the market'
+        ],
+        # Quality validation scores (0-100)
+        'quality_thresholds': {
+            'min_client_mentions': 3,  # Per section
+            'min_evidence_per_section': 1,  # At least one proof point
+            'max_buzzword_density': 0.02,  # Max 2% of content
+            'min_specificity_score': 70  # Must score above 70
+        }
     }
+
     
     NARRATIVE_SECTION_PROMPT = """# CONSULTING-GRADE SECTION GENERATOR
 

@@ -166,21 +166,50 @@ Category: {category}
 9. **Length Appropriateness**: Is the answer length appropriate for the question?
 10. **Structure**: Is it well-organized with clear flow?
 
+### Enterprise Checks
+11. **Forbidden Phrases**: Check for marketing buzzwords (world-class, cutting-edge, synergy)
+12. **Client Specificity**: Does it reference the client's situation?
+13. **Evidence Density**: Are claims backed by evidence?
+
 Return JSON:
 {{
   "quality_score": 0.0-1.0,
+  "quality_grade": "A|B|C|D|F",
   "accuracy_score": 0.0-1.0,
   "compliance_score": 0.0-1.0,
   "readability_score": 0.0-1.0,
-  "issues": ["issue1", "issue2"],
-  "issue_severity": {{"issue1": "critical|high|medium|low"}},
+  "dimension_scores": {{
+    "accuracy": 0.0-1.0,
+    "completeness": 0.0-1.0,
+    "clarity": 0.0-1.0,
+    "relevance": 0.0-1.0,
+    "tone": 0.0-1.0
+  }},
+  "issues": [
+    {{"issue": "Issue description", "severity": "critical|high|medium|low", "fix": "How to fix"}}
+  ],
   "improvements": ["suggestion1", "suggestion2"],
   "verified_claims": true/false,
-  "unverified_claims": ["claim that lacks evidence"],
-  "compliance_concerns": ["any compliance issue found"],
+  "unverified_claims": [
+    {{"claim": "claim text", "risk": "What could go wrong"}}
+  ],
+  "compliance_concerns": [
+    {{"concern": "issue", "severity": "critical|high|medium|low"}}
+  ],
+  "forbidden_phrases_found": ["list of marketing buzzwords found"],
+  "ai_detection": {{
+    "likelihood": "low|medium|high",
+    "indicators": ["what triggered AI detection"]
+  }},
   "needs_human_review": true/false,
   "review_reason": "why human review needed if applicable",
   "recommended_action": "approve|revise|reject",
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Why this confidence level",
+  "procurement_assessment": {{
+    "evaluator_ready": true/false,
+    "concerns": ["List of evaluator concerns"]
+  }},
   "revised_answer": "optional improved answer if needed"
 }}
 

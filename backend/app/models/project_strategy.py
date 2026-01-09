@@ -52,6 +52,10 @@ class ProjectStrategy(db.Model):
     case_studies = db.Column(db.JSON, nullable=True)  # List of generated case studies
     case_studies_generated_at = db.Column(db.DateTime, nullable=True)
     
+    # Sprint Timeline Data (NEW)
+    sprint_timeline = db.Column(db.JSON, nullable=True)  # Sprint-based project timeline
+    sprint_timeline_generated_at = db.Column(db.DateTime, nullable=True)
+    
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -76,6 +80,8 @@ class ProjectStrategy(db.Model):
             'diagrams_generated_at': self.diagrams_generated_at.isoformat() if self.diagrams_generated_at else None,
             'case_studies': self.case_studies,
             'case_studies_generated_at': self.case_studies_generated_at.isoformat() if self.case_studies_generated_at else None,
+            'sprint_timeline': self.sprint_timeline,
+            'sprint_timeline_generated_at': self.sprint_timeline_generated_at.isoformat() if self.sprint_timeline_generated_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -124,4 +130,10 @@ class ProjectStrategy(db.Model):
         """Update case studies data."""
         self.case_studies = case_studies_data
         self.case_studies_generated_at = datetime.utcnow()
+        db.session.commit()
+
+    def update_sprint_timeline(self, timeline_data: dict):
+        """Update sprint timeline data."""
+        self.sprint_timeline = timeline_data
+        self.sprint_timeline_generated_at = datetime.utcnow()
         db.session.commit()

@@ -721,7 +721,7 @@ def generate_section_content(section_id):
             org_id=user.organization_id, 
             limit=10,  # Increased from 5 to allow more sources if relevant
             filters=dimension_filters if dimension_filters else None,
-            score_threshold=0.6  # Only return relevant results
+            score_threshold=0.4  # Lowered from 0.6 to capture more relevant items
         )
         print(f"[SOURCES DEBUG] Qdrant search returned {len(context)} results")
         for c in context:

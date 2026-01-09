@@ -85,11 +85,35 @@ Answer these questions honestly (Yes/No/Partial):
    - Compelling enough?
    - Differentiated enough?
 
+## PROCUREMENT RED FLAGS TO CHECK:
+- [ ] No marketing buzzwords (world-class, cutting-edge, synergy)
+- [ ] No unrealistic promises (100% uptime, zero risk, guaranteed success)
+- [ ] Pricing includes clear validity period and assumptions
+- [ ] All commitments are qualified ("subject to client dependencies")
+- [ ] Exclusions are explicitly listed
+- [ ] Assumptions are clearly stated
+
+## CONFIDENCE DIMENSIONS (Rate 0-100 each):
+1. **Technical Credibility**: Do they understand the technical challenge?
+2. **Delivery Confidence**: Do I believe they can deliver on time?
+3. **Value Clarity**: Is the value proposition clear and quantified?
+4. **Risk Management**: Are risks acknowledged with credible mitigations?
+5. **Client Understanding**: Do they understand OUR specific situation?
+
 ## Output Format
 Return JSON:
 {{
     "executive_ready": true/false,
     "trust_score": 0-10,
+    "confidence_dimensions": {{
+        "technical_credibility": 0-100,
+        "delivery_confidence": 0-100,
+        "value_clarity": 0-100,
+        "risk_management": 0-100,
+        "client_understanding": 0-100
+    }},
+    "overall_confidence": 0-100,
+    "confidence_grade": "A|B|C|D|F",
     "checklist": {{
         "explainable_in_3_bullets": true/false,
         "three_bullets": ["Bullet 1", "Bullet 2", "Bullet 3"],
@@ -99,17 +123,27 @@ Return JSON:
         "client_specific": true/false,
         "leadership_ready": true/false
     }},
+    "procurement_flags": {{
+        "has_marketing_buzzwords": true/false,
+        "has_unrealistic_promises": true/false,
+        "pricing_clear": true/false,
+        "commitments_qualified": true/false,
+        "exclusions_listed": true/false,
+        "assumptions_stated": true/false
+    }},
     "gaps": [
-        "Specific gap 1",
-        "Specific gap 2"
+        {{"gap": "Specific gap", "severity": "critical|high|medium|low", "fix_suggestion": "How to fix"}}
     ],
     "strengths": [
         "What's working well"
     ],
+    "forbidden_phrases_detected": ["list of marketing buzzwords found"],
     "executive_summary_rewrite_needed": true/false,
     "sections_needing_attention": ["Section names"],
     "verdict": "approve|revise|reject",
-    "verdict_reason": "1-2 sentence explanation"
+    "verdict_reason": "1-2 sentence explanation",
+    "procurement_safe": true/false,
+    "procurement_concerns": ["List of concerns a procurement officer would have"]
 }}
 
 Evaluate now with executive skepticism:"""

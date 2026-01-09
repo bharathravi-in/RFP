@@ -1124,9 +1124,12 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
     if strategy:
         has_strategy_content = (
             strategy.win_themes or 
+            strategy.competitive_analysis or  # Added competitive analysis check
             strategy.pricing or 
             strategy.legal_review or 
-            strategy.diagrams
+            strategy.diagrams or
+            strategy.case_studies or  # Added case studies check
+            strategy.sprint_timeline  # Added sprint timeline check
         )
         
         if has_strategy_content:
@@ -1162,6 +1165,120 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
                         benefit_run = benefit.add_run(f"Customer Benefit: {theme['customer_benefit']}")
                         benefit_run.font.size = Pt(10)
                         benefit_run.italic = True
+                    
+                    doc.add_paragraph()
+                
+                doc.add_paragraph()
+            
+            # Competitive Analysis
+            if strategy.competitive_analysis:
+                doc.add_heading('Competitive Analysis', level=2)
+                
+                comp_data = strategy.competitive_analysis
+                
+                # Market context
+                competitive_landscape = comp_data.get('competitive_landscape', {})
+                if competitive_landscape.get('market_context'):
+                    context_para = doc.add_paragraph()
+                    context_run = context_para.add_run(competitive_landscape['market_context'])
+                    context_run.font.size = Pt(10)
+                    doc.add_paragraph()
+                
+                # Competitive strategies
+                strategies = comp_data.get('competitive_strategies', [])
+                if strategies:
+                    doc.add_heading('Recommended Strategies', level=3)
+                    
+                    for strat in strategies[:5]:  # Limit to 5 strategies
+                        strat_para = doc.add_paragraph()
+                        strat_name = strat_para.add_run(f"{strat.get('strategy_name', 'Strategy')}: ")
+                        strat_name.bold = True
+                        strat_name.font.size = Pt(10)
+                        
+                        strat_desc = strat_para.add_run(strat.get('description', ''))
+                        strat_desc.font.size = Pt(10)
+                    
+                    doc.add_paragraph()
+                
+                # Key differentiators
+                differentiators = comp_data.get('key_differentiators', [])
+                if differentiators:
+                    doc.add_heading('Key Differentiators', level=3)
+                    
+                    for diff in differentiators[:5]:  # Limit to 5
+                        diff_para = safe_add_paragraph(doc, style='List Bullet')
+                        diff_text = diff if isinstance(diff, str) else diff.get('title', str(diff))
+                        diff_run = diff_para.add_run(diff_text)
+                        diff_run.font.size = Pt(10)
+                    
+                    doc.add_paragraph()
+                
+                doc.add_paragraph()
+            
+            # Sprint Timeline (NEW)
+            if strategy.sprint_timeline:
+                doc.add_heading('Sprint Timeline & Milestones', level=2)
+                
+                timeline_data = strategy.sprint_timeline
+                
+                # Summary info
+                summary = timeline_data.get('timeline_summary', {})
+                if summary:
+                    summary_para = doc.add_paragraph()
+                    total_sprints = summary.get('total_sprints', 0)
+                    total_weeks = summary.get('total_weeks', 0)
+                    team_size = summary.get('team_size', 0)
+                    summary_text = f"Project Duration: {total_sprints} sprints ({total_weeks} weeks) with a team of {team_size} resources"
+                    summary_run = summary_para.add_run(summary_text)
+                    summary_run.bold = True
+                    summary_run.font.size = Pt(11)
+                    doc.add_paragraph()
+                
+                # Sprint breakdown table
+                sprints = timeline_data.get('sprints', [])
+                if sprints:
+                    doc.add_heading('Sprint Breakdown', level=3)
+                    
+                    table = doc.add_table(rows=1, cols=4)
+                    table.style = 'Table Grid'
+                    
+                    headers = ['Sprint', 'Duration', 'Focus Area', 'Key Deliverables']
+                    header_cells = table.rows[0].cells
+                    for i, header in enumerate(headers):
+                        header_cells[i].paragraphs[0].add_run(header).bold = True
+                        header_cells[i].paragraphs[0].runs[0].font.size = Pt(9)
+                    
+                    for sprint in sprints[:10]:  # Limit to 10 sprints
+                        row = table.add_row()
+                        row.cells[0].text = str(sprint.get('sprint_number', ''))
+                        row.cells[1].text = f"{sprint.get('duration_weeks', 2)} weeks"
+                        row.cells[2].text = sprint.get('focus_area', sprint.get('phase', ''))
+                        deliverables = sprint.get('deliverables', [])
+                        row.cells[3].text = ', '.join(deliverables[:3]) if deliverables else ''
+                        
+                        for cell in row.cells:
+                            if cell.paragraphs[0].runs:
+                                cell.paragraphs[0].runs[0].font.size = Pt(9)
+                    
+                    style_table(table)
+                    doc.add_paragraph()
+                
+                # Milestones
+                milestones = timeline_data.get('milestones', [])
+                if milestones:
+                    doc.add_heading('Key Milestones', level=3)
+                    
+                    for milestone in milestones[:6]:  # Limit to 6 milestones
+                        ms_para = safe_add_paragraph(doc, style='List Bullet')
+                        ms_name = milestone.get('name', 'Milestone')
+                        ms_date = milestone.get('target_date', '')
+                        ms_run = ms_para.add_run(f"{ms_name}")
+                        ms_run.bold = True
+                        ms_run.font.size = Pt(10)
+                        if ms_date:
+                            date_run = ms_para.add_run(f" — {ms_date}")
+                            date_run.font.size = Pt(10)
+                            date_run.italic = True
                     
                     doc.add_paragraph()
                 
@@ -1212,6 +1329,85 @@ def generate_proposal_docx(project, sections, include_qa=True, questions=None, o
                             row.cells[2].text = f"{currency}{phase_total:,.2f}"
                         
                         style_table(table)
+                
+                doc.add_paragraph()
+            
+            # Case Studies
+            if strategy.case_studies:
+                doc.add_heading('Relevant Case Studies', level=2)
+                
+                case_studies_data = strategy.case_studies
+                case_studies = case_studies_data.get('case_studies', []) if isinstance(case_studies_data, dict) else case_studies_data
+                
+                for idx, study in enumerate(case_studies, 1):
+                    # Case Study Title
+                    title_para = doc.add_paragraph()
+                    title_run = title_para.add_run(f"Case Study {idx}: {study.get('title', 'Untitled')}")
+                    title_run.bold = True
+                    title_run.font.size = Pt(12)
+                    title_run.font.color.rgb = RGBColor(54, 95, 145)
+                    
+                    # Client/Industry info if available
+                    if study.get('client') or study.get('industry'):
+                        info_para = doc.add_paragraph()
+                        info_text = []
+                        if study.get('client'):
+                            info_text.append(f"Client: {study['client']}")
+                        if study.get('industry'):
+                            info_text.append(f"Industry: {study['industry']}")
+                        info_run = info_para.add_run(' | '.join(info_text))
+                        info_run.font.size = Pt(10)
+                        info_run.italic = True
+                        info_run.font.color.rgb = RGBColor(100, 100, 100)
+                    
+                    # Challenge
+                    if study.get('challenge'):
+                        challenge_heading = doc.add_paragraph()
+                        challenge_heading_run = challenge_heading.add_run('Challenge: ')
+                        challenge_heading_run.bold = True
+                        challenge_heading_run.font.size = Pt(10)
+                        challenge_para = doc.add_paragraph()
+                        challenge_para.add_run(study['challenge']).font.size = Pt(10)
+                    
+                    # Solution
+                    if study.get('solution'):
+                        solution_heading = doc.add_paragraph()
+                        solution_heading_run = solution_heading.add_run('Solution: ')
+                        solution_heading_run.bold = True
+                        solution_heading_run.font.size = Pt(10)
+                        solution_para = doc.add_paragraph()
+                        solution_para.add_run(study['solution']).font.size = Pt(10)
+                    
+                    # Results
+                    if study.get('results'):
+                        results_heading = doc.add_paragraph()
+                        results_heading_run = results_heading.add_run('Key Results: ')
+                        results_heading_run.bold = True
+                        results_heading_run.font.size = Pt(10)
+                        
+                        results = study['results']
+                        if isinstance(results, list):
+                            for result in results:
+                                if isinstance(result, dict):
+                                    result_para = safe_add_paragraph(doc, style='List Bullet')
+                                    metric = result.get('metric', '')
+                                    value = result.get('value', '')
+                                    result_run = result_para.add_run(f"{metric}: {value}")
+                                    result_run.font.size = Pt(10)
+                                else:
+                                    result_para = safe_add_paragraph(doc, style='List Bullet')
+                                    result_run = result_para.add_run(str(result))
+                                    result_run.font.size = Pt(10)
+                    
+                    # Technologies used
+                    if study.get('technologies'):
+                        tech_para = doc.add_paragraph()
+                        tech_run = tech_para.add_run(f"Technologies: {', '.join(study['technologies'])}")
+                        tech_run.font.size = Pt(9)
+                        tech_run.italic = True
+                        tech_run.font.color.rgb = RGBColor(100, 100, 100)
+                    
+                    doc.add_paragraph()  # Spacing between case studies
                 
                 doc.add_paragraph()
             

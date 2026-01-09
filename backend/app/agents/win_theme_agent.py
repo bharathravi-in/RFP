@@ -49,7 +49,11 @@ Generate a JSON response with the following structure:
       "customer_benefit": "How this benefits the client",
       "proof_points": ["Evidence 1", "Evidence 2", "Evidence 3"],
       "sections_to_apply": ["Executive Summary", "Why Choose Us"],
-      "priority": "primary|secondary|supporting"
+      "priority": "primary|secondary|supporting",
+      "rfp_requirements_addressed": ["REQ-1", "REQ-2"],
+      "evaluation_criteria_mapping": ["Technical Approach", "Experience"],
+      "specificity_score": 85,
+      "confidence_rationale": "Why this theme will resonate"
     }}
   ],
   "differentiators": [
@@ -59,7 +63,8 @@ Generate a JSON response with the following structure:
       "description": "What makes us different",
       "versus_competition": "How this compares to typical competitors",
       "evidence": "Proof or data supporting this",
-      "impact": "high|medium|low"
+      "impact": "high|medium|low",
+      "quantified_benefit": "Specific measurable benefit (e.g., 30% faster, $50K savings)"
     }}
   ],
   "value_propositions": [
@@ -79,8 +84,30 @@ Generate a JSON response with the following structure:
     "elevator_pitch": "30-second pitch for this opportunity",
     "executive_message": "Message for C-level executives",
     "technical_message": "Message for technical evaluators"
+  }},
+  "theme_validation": {{
+    "total_rfp_requirements": 0,
+    "requirements_covered": 0,
+    "coverage_percentage": 0,
+    "evaluation_criteria_addressed": [],
+    "specificity_assessment": "HIGH|MEDIUM|LOW",
+    "confidence_score": 85
   }}
 }}
+
+## MANDATORY CONSTRAINTS (MUST FOLLOW):
+1. Every theme MUST map to at least one specific RFP requirement
+2. Every theme MUST have 3+ specific, verifiable proof points
+3. Every differentiator MUST include a quantified benefit where possible
+4. All proof points MUST be based on the vendor profile provided
+5. Use client's exact terminology from RFP when possible
+
+## FORBIDDEN PHRASES (NEVER USE):
+- "World-class", "Best-in-class", "Industry-leading"
+- "Cutting-edge", "State-of-the-art", "Revolutionary"
+- "Unique", "Unparalleled", "Unprecedented" (unless proven with data)
+- "Synergy", "Leverage", "Paradigm shift"
+- "We are the best", "No one else can"
 
 ## Win Theme Principles:
 1. **Customer-Centric**: Focus on client outcomes, not our features
@@ -88,6 +115,7 @@ Generate a JSON response with the following structure:
 3. **Credible**: Back every claim with evidence
 4. **Consistent**: Apply themes throughout the proposal
 5. **Compelling**: Create emotional resonance
+6. **Specific**: Use numbers, dates, and concrete examples
 
 ## Guidelines:
 - Generate 3-5 primary win themes
@@ -96,6 +124,7 @@ Generate a JSON response with the following structure:
 - Consider the evaluation criteria
 - Create ghost competitive points that don't name competitors
 - Tailor messages to different stakeholders
+- Rate specificity honestly (don't inflate scores)
 
 Generate the win themes now:"""
 

@@ -33,6 +33,13 @@ Your task is to analyze proposal requirements (sections or questions) and sugges
 ## Scope Items to Route:
 {scope_items}
 
+## MANDATORY ROUTING CRITERIA:
+1. **Expertise Match**: Primary selection based on expertise tags
+2. **Workload Balance**: Consider current assignment count
+3. **Performance Track Record**: Prefer experts with high approval rates
+4. **Response Time**: Consider average completion time
+5. **Backup Coverage**: Always suggest secondary owner for critical items
+
 ## Output Format:
 Generate a JSON response with the following structure:
 {{
@@ -41,18 +48,38 @@ Generate a JSON response with the following structure:
       "item_id": "ID of the section or question",
       "suggested_owner_id": "ID of the best-fit user",
       "confidence_score": 0.0 to 1.0,
+      "confidence_level": "HIGH|MEDIUM|LOW",
       "reasoning": "Brief explanation of why this user is a good match based on their expertise tags",
       "secondary_owner_id": "ID of an alternative user",
-      "expertise_match_category": "The specific expertise tag that matched"
+      "expertise_match_category": "The specific expertise tag that matched",
+      "match_quality": {{
+        "tag_match_count": 0,
+        "semantic_relevance": 0.0-1.0,
+        "workload_factor": "light|moderate|heavy"
+      }},
+      "risk_factors": ["Any concerns about this assignment"],
+      "alternative_options": [
+        {{"user_id": "ID", "reason": "Why they could also work"}}
+      ]
     }}
-  ]
+  ],
+  "workload_distribution": {{
+    "user_id": {{"assigned_count": 0, "capacity": "available|busy|overloaded"}}
+  }},
+  "routing_confidence": {{
+    "overall_score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "concerns": ["Any overall routing concerns"]
+  }}
 }}
 
 ## Guidelines:
 1. Match keywords from the item text (e.g., "security", "cloud", "pricing") with user expertise tags.
 2. If no direct tag match exists, use semantic similarity to find the closest expert.
-3. Suggest a confidence score based on how well the expertise aligns.
-4. Keep the reasoning concise.
+3. Balance workload - avoid overloading a single expert.
+4. Consider performance history (approval rate, response time).
+5. Keep the reasoning concise but specific.
+6. Flag items where no good expert match exists.
 
 Analyze and suggest the routing now:"""
     

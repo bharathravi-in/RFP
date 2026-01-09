@@ -102,6 +102,48 @@ class ProposalQualityGateAgent:
         'why_choose_us': 150
     }
     
+    # Cross-agent consistency checks - Validate alignment across agents
+    CROSS_AGENT_CHECKS = {
+        'pricing_timeline': {
+            'description': 'Ensure pricing duration matches timeline duration',
+            'agents': ['pricing_calculator', 'sprint_timeline'],
+            'severity': 'critical'
+        },
+        'theme_coverage': {
+            'description': 'Ensure win themes are applied in proposal sections',
+            'agents': ['win_theme', 'proposal_writer'],
+            'severity': 'high'
+        },
+        'legal_clauses': {
+            'description': 'Ensure legal review recommendations are addressed',
+            'agents': ['legal_review', 'proposal_writer'],
+            'severity': 'high'
+        },
+        'competitive_positioning': {
+            'description': 'Ensure competitive strategies are reflected in content',
+            'agents': ['competitive_analysis', 'proposal_writer'],
+            'severity': 'medium'
+        }
+    }
+    
+    # Forbidden phrases that trigger immediate review (imported from shared_constants)
+    FORBIDDEN_PHRASES_PATTERNS = [
+        r'world[- ]class',
+        r'best[- ]in[- ]class',
+        r'industry[- ]leading',
+        r'cutting[- ]edge',
+        r'state[- ]of[- ]the[- ]art',
+        r'revolutionary',
+        r'unparalleled',
+        r'unprecedented',
+        r'synergy',
+        r'paradigm\s+shift',
+        r'leverage\s+(?:our|the|synergies)',
+        r'holistic\s+approach',
+        r'robust\s+(?:platform|solution)',
+        r'seamless\s+integration',
+    ]
+
     VALIDATION_PROMPT = """You are an Enterprise Proposal Quality Auditor reviewing a proposal before client submission.
 
 ## Proposal Content
@@ -117,6 +159,28 @@ Evaluate this proposal on the following dimensions (score 0.0-1.0 each):
 4. **Relevance** (15%): Does content directly address the RFP requirements?
 5. **Tone** (15%): Is the language executive-appropriate and confident?
 
+## MANDATORY VALIDATION CHECKS:
+
+### Enterprise Readiness Checklist
+- [ ] No forbidden marketing buzzwords (world-class, cutting-edge, etc.)
+- [ ] All claims backed by evidence or explicitly marked as assumptions
+- [ ] Pricing includes validity period and assumptions
+- [ ] Timeline includes dependencies and risks
+- [ ] Legal/compliance aspects addressed
+- [ ] Client name used consistently throughout
+
+### Cross-Agent Consistency
+- [ ] Pricing duration matches timeline duration
+- [ ] Win themes appear in Executive Summary and Why Choose Us
+- [ ] Case studies are relevant to RFP requirements
+- [ ] Assumptions are consistent across sections
+
+### Procurement Readiness
+- [ ] No vague language ("various solutions", "many features")
+- [ ] All commitments are qualified (e.g., "subject to client dependencies")
+- [ ] Exclusions are clearly listed
+- [ ] Payment terms are specified
+
 ## Response Format (JSON only)
 {{
   "dimension_scores": {{
@@ -128,20 +192,57 @@ Evaluate this proposal on the following dimensions (score 0.0-1.0 each):
   }},
   "overall_score": 0.0-1.0,
   "quality_level": "excellent|good|acceptable|poor",
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Basis for confidence assessment",
   "red_flags": [
-    {{"type": "flag_type", "text": "problematic text", "severity": "critical|high|medium|low", "suggestion": "how to fix"}}
+    {{
+      "type": "flag_type",
+      "text": "problematic text",
+      "severity": "critical|high|medium|low",
+      "suggestion": "how to fix",
+      "impact_if_ignored": "What happens if not fixed"
+    }}
+  ],
+  "forbidden_phrases_found": [
+    {{
+      "phrase": "the forbidden phrase",
+      "section": "where found",
+      "replacement_suggestion": "alternative phrasing"
+    }}
   ],
   "missing_elements": ["list of missing required elements"],
   "weak_sections": [
-    {{"section": "section_name", "issue": "what's wrong", "recommendation": "how to improve"}}
+    {{
+      "section": "section_name",
+      "issue": "what's wrong",
+      "recommendation": "how to improve",
+      "priority": "critical|high|medium|low"
+    }}
+  ],
+  "cross_agent_issues": [
+    {{
+      "issue_type": "pricing_timeline_mismatch|theme_not_applied|legal_not_addressed",
+      "description": "specific issue",
+      "recommendation": "how to fix"
+    }}
   ],
   "executive_readiness": {{
     "ready": true/false,
+    "score": 0-100,
     "blockers": ["list of issues blocking executive approval"],
-    "recommendations": ["list of improvements needed"]
+    "recommendations": ["list of improvements needed"],
+    "procurement_safe": true/false
   }},
   "approval_recommendation": "approve|revise|reject",
-  "revision_priority": ["ordered list of sections to revise first"]
+  "approval_rationale": "Why this recommendation",
+  "revision_priority": ["ordered list of sections to revise first"],
+  "validation_summary": {{
+    "total_sections": 0,
+    "sections_passing": 0,
+    "critical_issues": 0,
+    "high_issues": 0,
+    "enterprise_ready": true/false
+  }}
 }}
 
 Return ONLY valid JSON."""
@@ -197,7 +298,15 @@ Return ONLY valid JSON."""
             depth_issues
         )
         
-        # Step 6: Determine approval recommendation
+        # Step 6: Cross-agent consistency check (Gap 4 fix)
+        cross_agent_issues = self._validate_cross_agent_consistency(session_state)
+        
+        # Adjust score if cross-agent issues found
+        if cross_agent_issues:
+            critical_count = sum(1 for i in cross_agent_issues if i.get('severity') == 'critical')
+            overall_score = max(0, overall_score - (critical_count * 0.1))
+        
+        # Step 7: Determine approval recommendation
         approval = self._determine_approval(overall_score, red_flags, completeness_result)
         
         # Store in session state
@@ -224,6 +333,7 @@ Return ONLY valid JSON."""
             "completeness": completeness_result,
             "red_flags": red_flags,
             "depth_issues": depth_issues,
+            "cross_agent_issues": cross_agent_issues,  # NEW: Cross-agent validation results
             "weak_sections": ai_assessment.get("weak_sections", []),
             "executive_readiness": ai_assessment.get("executive_readiness", {}),
             "approval_recommendation": approval,
@@ -527,6 +637,104 @@ Return ONLY valid JSON."""
         instructions.sort(key=lambda x: x['priority'])
         
         return instructions
+    
+    def _validate_cross_agent_consistency(self, session_state: Dict) -> List[Dict]:
+        """
+        Gap 4 Fix: Runtime cross-agent consistency validation.
+        
+        Validates alignment between:
+        - Pricing duration ↔ Timeline duration
+        - Win themes ↔ Proposal sections
+        - Legal recommendations ↔ Proposal content
+        - Assumptions ↔ Consistency across sections
+        
+        Returns:
+            List of cross-agent issues with severity
+        """
+        issues = []
+        
+        # Check 1: Pricing ↔ Timeline duration consistency
+        pricing_result = session_state.get('pricing_result', {})
+        timeline_result = session_state.get('timeline_result', {})
+        
+        if pricing_result and timeline_result:
+            # Extract durations
+            pricing_weeks = pricing_result.get('total_weeks') or pricing_result.get('pricing_summary', {}).get('delivery_weeks', 0)
+            timeline_summary = timeline_result.get('timeline_summary', {})
+            timeline_weeks = timeline_summary.get('total_weeks', 0)
+            
+            if pricing_weeks and timeline_weeks:
+                difference = abs(pricing_weeks - timeline_weeks)
+                if difference > 2:  # More than 2 weeks difference is critical
+                    issues.append({
+                        'check': 'pricing_timeline',
+                        'severity': 'critical',
+                        'message': f'Pricing duration ({pricing_weeks}w) does not match timeline ({timeline_weeks}w)',
+                        'recommendation': 'Align pricing effort with sprint timeline before submission',
+                        'agents_involved': ['pricing_calculator', 'sprint_timeline']
+                    })
+                elif difference > 0:
+                    issues.append({
+                        'check': 'pricing_timeline',
+                        'severity': 'warning',
+                        'message': f'Minor duration difference: pricing={pricing_weeks}w, timeline={timeline_weeks}w',
+                        'recommendation': 'Verify alignment intentional',
+                        'agents_involved': ['pricing_calculator', 'sprint_timeline']
+                    })
+        
+        # Check 2: Win themes applied in content
+        win_themes_result = session_state.get('win_themes_result', {})
+        proposal_sections = session_state.get('proposal_sections', [])
+        
+        if win_themes_result and proposal_sections:
+            themes = win_themes_result.get('win_themes', [])
+            primary_themes = [t.get('theme_title', '') for t in themes if t.get('priority') == 'primary']
+            
+            # Check if primary themes appear in Executive Summary
+            exec_summary = next(
+                (s for s in proposal_sections if 'executive' in s.get('title', '').lower()),
+                None
+            )
+            if exec_summary and primary_themes:
+                content = exec_summary.get('content', '').lower()
+                missing_themes = [t for t in primary_themes if t.lower() not in content]
+                if missing_themes:
+                    issues.append({
+                        'check': 'theme_coverage',
+                        'severity': 'high',
+                        'message': f'Primary win themes not in Executive Summary: {missing_themes}',
+                        'recommendation': 'Incorporate win themes into Executive Summary for consistency',
+                        'agents_involved': ['win_theme', 'proposal_writer']
+                    })
+        
+        # Check 3: Team size consistency
+        if pricing_result and timeline_result:
+            pricing_team = pricing_result.get('team_composition', {}).get('total_resources', 0)
+            timeline_team = timeline_summary.get('team_size', 0) if timeline_summary else 0
+            
+            if pricing_team and timeline_team and abs(pricing_team - timeline_team) > 1:
+                issues.append({
+                    'check': 'team_size',
+                    'severity': 'high',
+                    'message': f'Team size mismatch: pricing={pricing_team}, timeline={timeline_team}',
+                    'recommendation': 'Ensure team composition aligns with timeline assumptions',
+                    'agents_involved': ['pricing_calculator', 'sprint_timeline']
+                })
+        
+        # Check 4: Generation method warnings (Gap 5 partial)
+        for key in ['pricing_result', 'timeline_result', 'win_themes_result']:
+            result = session_state.get(key, {})
+            if result.get('generation_method') == 'fallback':
+                issues.append({
+                    'check': 'fallback_generation',
+                    'severity': 'warning',
+                    'message': f'{key} was generated via fallback (not AI)',
+                    'recommendation': 'Review for accuracy - fallback outputs need manual verification',
+                    'agents_involved': [key.replace('_result', '')]
+                })
+        
+        logger.info(f"Cross-agent validation: {len(issues)} issues found")
+        return issues
 
 
 def get_proposal_quality_gate_agent(org_id: int = None) -> ProposalQualityGateAgent:

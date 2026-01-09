@@ -153,29 +153,53 @@ Analyze this answer for compliance-related claims and validate them:
 3. **Flag Issues**: Highlight unverified, overstated, or potentially false claims
 4. **Risk Assessment**: Rate the risk if this answer is submitted as-is
 5. **Suggested Revisions**: Provide safer, more accurate language
+6. **Jurisdictional Check**: Consider if claims are valid across relevant jurisdictions
+
+## MANDATORY VALIDATION:
+- Certification claims MUST be verified against org certifications
+- Date-sensitive claims (e.g., "certified since 2020") MUST be flagged for verification
+- Absolute claims ("100% compliant", "fully certified") MUST be qualified
+- Regional regulations (GDPR, CCPA, LGPD) MUST note applicability
 
 ## Response Format (JSON only)
 {{
   "compliance_claims": [
     {{
       "claim_text": "The specific claim made",
-      "framework": "GDPR|HIPAA|SOC2|ISO27001|PCI|FEDRAMP|CCPA|SOX|OTHER",
+      "framework": "GDPR|HIPAA|SOC2|ISO27001|PCI|FEDRAMP|CCPA|SOX|PDPA|LGPD|PIPL|OTHER",
       "claim_status": "verified|unverified|overstated|false",
       "risk_level": "critical|high|medium|low",
-      "explanation": "Why this status was assigned"
+      "explanation": "Why this status was assigned",
+      "evidence_required": "What would verify this claim",
+      "jurisdictional_scope": "Where this compliance applies"
     }}
   ],
   "overall_compliance_score": 0.0-1.0,
-  "risk_areas": ["List of high-risk areas"],
+  "compliance_grade": "A|B|C|D|F",
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Why this confidence",
+  "risk_areas": [
+    {{"area": "Risk area", "severity": "critical|high|medium|low", "mitigation": "How to address"}}
+  ],
+  "certification_expiry_concerns": [
+    {{"certification": "Cert name", "concern": "Expiry or renewal status"}}
+  ],
   "recommended_revisions": [
     {{
       "original": "Original problematic text",
       "revised": "Safer revised text",
-      "reason": "Why this change is needed"
+      "reason": "Why this change is needed",
+      "risk_if_unchanged": "What could happen if not changed"
     }}
   ],
+  "forbidden_claims": ["Claims that should never be made"],
   "requires_legal_review": true/false,
   "legal_review_reason": "Why legal review is needed if applicable",
+  "jurisdictional_considerations": [
+    {{"jurisdiction": "Region/Country", "regulation": "Applicable law", "note": "What to consider"}}
+  ],
+  "procurement_safe": true/false,
+  "procurement_concerns": ["Concerns a procurement officer would have"],
   "revised_answer": "Complete revised answer with safer language"
 }}
 

@@ -124,6 +124,8 @@ class DocumentAnalyzerAgent:
 6. EXTRACT ALL TABLES - look for tabular data with rows and columns
 7. EXTRACT ALL DATES - deadlines, milestones, submission dates
 8. DETECT ATTACHMENTS - look for references to appendices, exhibits, attachments
+9. DETECT BUYER MINDSET - risk appetite, decision style, value orientation
+10. IDENTIFY NON-NEGOTIABLES - mandatory requirements that cannot be compromised
 
 **EXTRACT THE FOLLOWING:**
 
@@ -155,6 +157,8 @@ class DocumentAnalyzerAgent:
 
 9. **Attachments/Appendices**: Referenced external documents
 
+10. **Buyer Mindset Analysis**: Infer the buyer's priorities and decision style
+
 **RESPOND WITH VALID JSON ONLY:**
 {{
   "sections": [
@@ -179,10 +183,25 @@ class DocumentAnalyzerAgent:
   "key_dates": [
     {{"description": "What the date is for", "date": "YYYY-MM-DD or as stated", "is_deadline": true/false, "is_mandatory": true/false}}
   ],
+  "buyer_mindset": {{
+    "risk_appetite": "low|medium|high",
+    "decision_style": "pilot_first|phased|big_bang",
+    "value_orientation": "cost_focused|value_focused|innovation_focused",
+    "buyer_type": "government|enterprise|ngo|healthcare|financial|other",
+    "evaluation_priorities": ["Priority 1", "Priority 2", "Priority 3"],
+    "non_negotiables": ["Must-have requirement 1", "Must-have requirement 2"],
+    "hidden_concerns": ["Implicit concern 1", "Implicit concern 2"]
+  }},
   "document_type": "rfp/rfq/rfi/questionnaire",
   "complexity_score": 0.0-1.0,
   "estimated_response_time_hours": 0,
-  "issuing_organization": "Organization name if identified"
+  "issuing_organization": "Organization name if identified",
+  "analysis_confidence": {{
+    "score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "rationale": "Why this confidence level",
+    "limitations": ["What could not be determined", "Areas needing clarification"]
+  }}
 }}
 
 **DOCUMENT TEXT:**

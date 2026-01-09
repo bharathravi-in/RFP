@@ -87,6 +87,22 @@ class SectionGenerationService:
         for i, item in enumerate(context[:5]):
             print(f"[SOURCES DEBUG]   Context {i}: title={item.get('title', 'N/A')}, has_content={bool(item.get('content') or item.get('content_preview'))}")
         
+        # Determine generation source type
+        if context and len(context) >= 2:
+            # Good KB coverage
+            generation_source = 'kb_sourced'
+            content_warning = None
+        elif context and len(context) == 1:
+            # Limited KB coverage
+            generation_source = 'partial_kb'
+            content_warning = 'Limited knowledge base content found. Consider adding more relevant documents to improve accuracy.'
+        else:
+            # No KB sources - generic AI generation
+            generation_source = 'generic_ai'
+            content_warning = 'No matching knowledge base content found. This is AI-generated from general knowledge. Consider: 1) Adding relevant documents to Knowledge Base, or 2) Using AI to generate knowledge from web sources.'
+        
+        print(f"[GENERATION SOURCE] {generation_source}: {len(context)} KB sources found")
+        
         # Prepare the prompt
         prompt = self._prepare_prompt(prompt_template, inputs, context, generation_params)
         
@@ -106,11 +122,17 @@ class SectionGenerationService:
             # Detect any flags/warnings
             flags = self._detect_flags(content, context, inputs, section_type_slug)
             
+            # Add low_kb_coverage flag if generic
+            if generation_source in ('generic_ai', 'partial_kb'):
+                flags.append('low_kb_coverage')
+            
             return {
                 'content': content,
                 'confidence_score': confidence_score,
                 'sources': sources,
                 'flags': flags,
+                'generation_source': generation_source,  # NEW: kb_sourced | partial_kb | generic_ai
+                'content_warning': content_warning,      # NEW: Warning message for user
             }
             
         except Exception as e:
@@ -120,6 +142,8 @@ class SectionGenerationService:
                 'confidence_score': 0.0,
                 'sources': [],
                 'flags': ['generation_error'],
+                'generation_source': 'error',
+                'content_warning': 'Generation failed. Please try again.',
             }
     
     def _prepare_prompt(
@@ -202,27 +226,54 @@ Generate the content now, following the reference format precisely:"""
         inputs: Dict,
         section_type: str
     ) -> float:
-        """Calculate confidence score based on available information"""
-        score = 0.5  # Base score
+        """
+        Calculate confidence score based on available information.
         
-        # Boost for context availability
+        Score factors:
+        - Base score: 0.4 (no context = low confidence)
+        - Context availability: up to 0.35 (based on quantity and quality)
+        - Source citations: up to 0.15 (based on relevance scores)
+        - Input completeness: up to 0.10
+        
+        Target: 80%+ when good KB context exists
+        """
+        score = 0.4  # Base score (was 0.5 - lowered so lack of KB context hurts more)
+        
+        print(f"[CONFIDENCE DEBUG] Starting calculation for {section_type}")
+        print(f"[CONFIDENCE DEBUG] Context items received: {len(context)}")
+        
+        # Boost for context availability (UP TO 0.35)
         if context:
-            context_boost = min(len(context) * 0.1, 0.3)  # Up to 0.3 boost
-            score += context_boost
+            num_sources = len(context)
+            # More sources = higher confidence (0.07 per source, max 0.35)
+            quantity_boost = min(num_sources * 0.07, 0.35)
+            score += quantity_boost
+            print(f"[CONFIDENCE DEBUG] Quantity boost: {quantity_boost} ({num_sources} sources)")
             
-            # Check context relevance scores
-            avg_relevance = sum(c.get('score', 0.5) for c in context) / len(context)
-            score += avg_relevance * 0.1
+            # Check context relevance scores (UP TO 0.15)
+            relevance_scores = [c.get('score', c.get('relevance', 0.5)) for c in context]
+            if relevance_scores:
+                avg_relevance = sum(relevance_scores) / len(relevance_scores)
+                relevance_boost = avg_relevance * 0.15
+                score += relevance_boost
+                print(f"[CONFIDENCE DEBUG] Relevance boost: {relevance_boost} (avg={avg_relevance:.2f})")
+        else:
+            print("[CONFIDENCE DEBUG] NO CONTEXT - check why Qdrant search returned empty")
         
-        # Check if all required inputs are provided
+        # Check if all required inputs are provided (UP TO 0.10)
         missing_inputs = [k for k, v in inputs.items() if not v]
         if not missing_inputs:
-            score += 0.1
+            score += 0.10
+            print("[CONFIDENCE DEBUG] All inputs complete: +0.10")
         else:
-            score -= len(missing_inputs) * 0.05
+            penalty = len(missing_inputs) * 0.03
+            score -= penalty
+            print(f"[CONFIDENCE DEBUG] Missing inputs {missing_inputs}: -{penalty}")
         
-        # Cap between 0.1 and 0.95
-        return max(0.1, min(0.95, score))
+        final_score = max(0.1, min(0.95, score))
+        print(f"[CONFIDENCE DEBUG] Final confidence: {final_score:.2f}")
+        
+        return final_score
     
     def _extract_sources(self, context: List[Dict]) -> List[Dict]:
         """Extract source citations from context items"""

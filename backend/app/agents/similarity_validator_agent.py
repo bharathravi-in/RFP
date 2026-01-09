@@ -66,6 +66,7 @@ Compare the generated content against the reference documents and identify:
 {{
   "overall_similarity_score": 0.0-1.0,
   "alignment_level": "high|acceptable|warning|deviation",
+  "validation_grade": "A|B|C|D|F",
   "aligned_elements": [
     {{"content": "aligned text snippet", "reference": "matching KB content", "score": 0.0-1.0}}
   ],
@@ -74,7 +75,8 @@ Compare the generated content against the reference documents and identify:
       "generated_text": "text that deviates",
       "expected_text": "what KB says",
       "severity": "critical|high|medium|low",
-      "recommendation": "how to fix"
+      "recommendation": "how to fix",
+      "risk": "What could go wrong if not fixed"
     }}
   ],
   "missing_citations": [
@@ -84,9 +86,16 @@ Compare the generated content against the reference documents and identify:
     {{"issue": "description", "sections_affected": ["section1", "section2"]}}
   ],
   "revision_suggestions": [
-    {{"original": "current text", "revised": "suggested revision", "reason": "why change"}}
+    {{"original": "current text", "revised": "suggested revision", "reason": "why change", "priority": "high|medium|low"}}
   ],
-  "confidence": 0.0-1.0
+  "procurement_risk": {{
+    "has_unapproved_claims": true/false,
+    "risk_level": "high|medium|low",
+    "concerns": ["What an evaluator might question"]
+  }},
+  "confidence": 0.0-1.0,
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Why this confidence"
 }}
 
 Return ONLY valid JSON."""

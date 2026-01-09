@@ -45,31 +45,79 @@ Generate a JSON response with the following structure:
     {{
       "case_id": "CS-001",
       "title": "Case Study Title",
-      "client_type": "Industry/Type",
+      "client_type": "[Industry Type] Organization",
+      "client_size": "Enterprise (1000+ employees)|Mid-Market (100-1000)|SMB (<100)",
       "challenge": "Brief description of the client's challenge",
       "solution": "How we addressed the challenge",
+      "approach": {{
+        "methodology": "Agile/Waterfall/Hybrid",
+        "phases": ["Phase 1: Discovery", "Phase 2: Design", "Phase 3: Build", "Phase 4: Deploy"],
+        "key_decisions": ["Decision that made difference"]
+      }},
       "results": [
-        {{"metric": "Cost Reduction", "value": "30%", "description": "Reduced operational costs"}},
-        {{"metric": "Time to Market", "value": "50% faster", "description": "Accelerated delivery"}}
+        {{
+          "metric": "Cost Reduction",
+          "value": "25%",
+          "description": "Reduced operational costs",
+          "measurement_method": "How this was measured",
+          "timeframe": "Within first 6 months"
+        }}
       ],
       "technologies": ["Tech1", "Tech2"],
       "duration": "6 months",
       "team_size": "8 professionals",
+      "team_composition": ["1 PM", "4 Developers", "2 QA", "1 Architect"],
       "key_differentiators": ["What made this special"],
+      "lessons_learned": ["Key insight from this project"],
       "testimonial": {{
         "quote": "Client testimonial quote",
-        "author": "Client Name, Title"
+        "author": "[Role], [Company Type] Client"
       }},
+      "verification_status": "ILLUSTRATIVE|FROM_KNOWLEDGE_BASE|VERIFIED",
       "relevance_score": 0.85,
-      "relevance_notes": "Why this is relevant to the RFP"
+      "relevance_notes": "Why this is relevant to the RFP",
+      "rfp_requirements_addressed": ["REQ-1", "REQ-2"]
     }}
   ],
   "summary": {{
     "total_generated": 3,
     "industries_covered": ["Industry1", "Industry2"],
-    "key_themes": ["Theme1", "Theme2"]
+    "key_themes": ["Theme1", "Theme2"],
+    "average_relevance_score": 0.80,
+    "verification_note": "These case studies are illustrative examples. Verify with actual client references before final submission."
+  }},
+  "validation": {{
+    "all_metrics_realistic": true,
+    "industry_match": true,
+    "size_match": true,
+    "technology_match": true,
+    "confidence_level": "HIGH|MEDIUM|LOW",
+    "confidence_rationale": "Basis for confidence",
+    "disclaimer": "Case studies are illustrative. Actual client references available upon request."
   }}
 }}
+
+## MANDATORY CONSTRAINTS (MUST FOLLOW):
+1. ALL metrics MUST be realistic and achievable (no "10x" or "90% reduction" claims)
+2. Use "[Company Type]" placeholder for client names unless from knowledge base
+3. Include realistic project duration for scope described
+4. Team composition MUST be realistic for project scope
+5. Always include verification_status to flag AI-generated content
+6. Map case studies to specific RFP requirements where possible
+
+## REALISTIC METRIC GUIDELINES:
+- Cost reduction: 15-35% is realistic, >50% is rare
+- Time savings: 20-40% is realistic, >60% is exceptional
+- Efficiency gains: 25-45% is realistic
+- Error reduction: 50-80% is achievable
+- Customer satisfaction: +10-25 NPS is good improvement
+
+## FORBIDDEN PATTERNS:
+- Unrealistic metrics ("99% reduction", "10x improvement")
+- Generic client names ("ABC Company", "XYZ Corp")
+- Vague outcomes ("improved efficiency" without numbers)
+- Testimonials that sound fake or promotional
+- Duration that is too short for scope
 
 ## Guidelines:
 - Create realistic, believable case studies
@@ -78,6 +126,7 @@ Generate a JSON response with the following structure:
 - Include relevant technologies and methodologies
 - Make testimonials authentic and specific
 - Ensure case studies align with RFP requirements
+- Be honest about verification status
 
 Generate {case_count} case studies now:"""
 

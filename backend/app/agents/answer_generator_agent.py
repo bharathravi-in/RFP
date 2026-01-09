@@ -171,16 +171,49 @@ Your answer text here with inline citations [Source: Document Name] where approp
 Sources Used:
 - [List each source referenced]"""
     
-    # Structured output format for better parsing
+    # Structured output format for better parsing - ENHANCED for enterprise grade
     STRUCTURED_OUTPUT_PROMPT = """Generate a response in the following JSON format:
 {{
   "answer": "Your complete answer text with [Source: X] citations inline",
-  "sources_used": ["Source 1 name", "Source 2 name"],
+  "answer_format": "paragraph|bullet|numbered|table|hybrid",
+  "word_count": 0,
+  "sources_used": [
+    {{"source_name": "Source 1", "source_type": "knowledge_base|vendor_profile|case_study|standard", "relevance": 0.0-1.0}}
+  ],
+  "confidence_score": 0.0-1.0,
+  "confidence_level": "HIGH|MEDIUM|LOW",
   "confidence_reasoning": "Why this confidence level",
   "key_claims": [
-    {{"claim": "Specific claim text", "source": "Source name or 'Needs Verification'", "verified": true/false}}
+    {{
+      "claim": "Specific claim text",
+      "source": "Source name or 'Needs Verification'",
+      "verified": true/false,
+      "claim_type": "factual|capability|metric|commitment"
+    }}
   ],
-  "limitations": "Any limitations or missing information"
+  "evidence_types_used": ["architecture|metric|delivery|constraint|case_study"],
+  "assumptions_made": [
+    {{"assumption": "What was assumed", "impact_if_wrong": "What happens if this assumption is incorrect"}}
+  ],
+  "forbidden_phrases_check": {{
+    "passed": true/false,
+    "phrases_found": ["list of marketing buzzwords found"],
+    "self_corrected": true/false
+  }},
+  "client_specificity": {{
+    "client_name_used": true/false,
+    "client_mentions": 0,
+    "constraints_acknowledged": ["list of client constraints addressed"]
+  }},
+  "quality_self_assessment": {{
+    "specificity_score": 0-100,
+    "evidence_density": 0-100,
+    "actionability": 0-100,
+    "overall_grade": "A|B|C|D|F"
+  }},
+  "limitations": "Any limitations or missing information",
+  "needs_review": true/false,
+  "review_reason": "Why manual review is needed (if applicable)"
 }}
 """
 

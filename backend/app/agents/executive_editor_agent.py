@@ -91,9 +91,17 @@ Transform this content to be executive-ready by:
 - One idea per paragraph
 - Maximum 3 sentences per paragraph for key points
 
+## FORBIDDEN PHRASES (Must remove):
+- "cutting-edge", "best-in-class", "world-class"
+- "seamless integration", "leverage synergies"
+- "holistic approach", "paradigm shift"
+- "it is important to note", "in today's rapidly evolving"
+- "comprehensive solution", "robust platform"
+
 ## Response Format (JSON only)
 {{
   "edited_content": "The executive-ready version of the content",
+  "quality_grade": "A|B|C|D|F",
   "changes_made": [
     {{"type": "change_type", "original": "before", "edited": "after", "reason": "why changed"}}
   ],
@@ -104,8 +112,13 @@ Transform this content to be executive-ready by:
     "after_flesch_score": 0
   }},
   "value_propositions_highlighted": ["list of value props made prominent"],
+  "forbidden_phrases_removed": ["list of phrases removed"],
   "executive_summary": "2-3 sentence TL;DR for executives",
   "key_messages": ["top 3 takeaways for reader"],
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Why this confidence",
+  "procurement_ready": true/false,
+  "concerns": ["Any concerns an executive evaluator would have"],
   "confidence_score": 0.0-1.0
 }}
 

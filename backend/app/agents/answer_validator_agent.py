@@ -141,18 +141,37 @@ Return ONLY valid JSON."""
 
 ## Task
 Determine if the claim is:
-1. VERIFIED - Directly supported by the context
+1. VERIFIED - Directly supported by the context with specific evidence
 2. PARTIALLY_VERIFIED - Related information exists but not exact match
-3. UNVERIFIED - No supporting information found
-4. CONTRADICTED - Context contradicts this claim
+3. UNVERIFIED - No supporting information found in context
+4. CONTRADICTED - Context explicitly contradicts this claim
+
+## MANDATORY CHECKS:
+- Is this claim factually accurate based on evidence?
+- Is this claim potentially risky for procurement (legal, financial, compliance)?
+- Would a skeptical evaluator question this claim?
+- Could this claim create a binding commitment?
 
 ## Response Format (JSON only)
 {{
   "status": "verified|partially_verified|unverified|contradicted",
   "confidence": 0.0-1.0,
-  "supporting_evidence": "Quote from context if found",
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "supporting_evidence": "Exact quote from context if found",
+  "evidence_source": "Name of the knowledge base item or document",
   "explanation": "Why this determination was made",
-  "suggested_revision": "How to fix if unverified or contradicted"
+  "procurement_risk": {{
+    "is_risky": true/false,
+    "risk_type": "legal|financial|compliance|commitment|none",
+    "risk_explanation": "Why this is risky for procurement"
+  }},
+  "claim_severity": "critical|high|medium|low",
+  "verification_date": "Context may be dated - flag if potentially outdated",
+  "suggested_revision": "How to fix if unverified or contradicted",
+  "qualifier_needed": true/false,
+  "qualifier_suggestion": "E.g., 'subject to final confirmation' or 'based on current capabilities'",
+  "needs_human_review": true/false,
+  "review_reason": "Why human review is required"
 }}
 
 Return ONLY valid JSON."""

@@ -45,15 +45,18 @@ Generate a JSON response with the following structure:
 {{
   "overall_risk_level": "low|medium|high|critical",
   "review_summary": "Brief summary of legal review findings",
+  "contract_value_context": "Assessment of risk proportional to contract value",
   "risk_items": [
     {{
       "risk_id": "RISK-001",
-      "category": "Liability|IP|Confidentiality|Indemnification|Payment|Termination|Compliance",
+      "category": "Liability|IP|Confidentiality|Indemnification|Payment|Termination|Compliance|Government",
       "severity": "low|medium|high|critical",
+      "severity_justification": "Why this severity level was assigned",
       "description": "Description of the risk",
       "location": "Section or clause where found",
       "recommendation": "Suggested mitigation or revision",
-      "suggested_language": "Optional: Suggested replacement text"
+      "suggested_language": "Optional: Suggested replacement text",
+      "impact_if_unaddressed": "What happens if this is not fixed"
     }}
   ],
   "missing_clauses": [
@@ -61,47 +64,99 @@ Generate a JSON response with the following structure:
       "clause_type": "Type of missing clause",
       "importance": "required|recommended|optional",
       "description": "Why this clause should be included",
-      "suggested_language": "Standard language to add"
+      "suggested_language": "Standard language to add",
+      "regulatory_requirement": "If required by specific regulation"
     }}
   ],
+  "compliance_matrix": {{
+    "gdpr": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+    "ccpa": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+    "hipaa": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+    "sox": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+    "pci_dss": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+    "iso_27001": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+    "government_specific": {{
+      "far_compliance": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+      "dfar_compliance": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING",
+      "small_business_provisions": "COMPLIANT|NOT_APPLICABLE|NEEDS_REVIEW|MISSING"
+    }}
+  }},
   "compliant_areas": [
     "List of areas that are properly covered"
   ],
   "recommendations": [
     "General recommendations for legal improvement"
-  ]
+  ],
+  "review_validation": {{
+    "sections_reviewed": 0,
+    "legal_sections_found": 0,
+    "risks_identified": 0,
+    "critical_blockers": 0,
+    "confidence_level": "HIGH|MEDIUM|LOW",
+    "confidence_rationale": "Basis for confidence in this review",
+    "limitations": ["What this review does NOT cover"],
+    "disclaimer": "This is AI-assisted review. Consult qualified legal counsel before submission."
+  }}
 }}
+
+## MANDATORY CONSTRAINTS (MUST FOLLOW):
+1. Calibrate risk severity to contract value (higher value = stricter review)
+2. For government/public sector: Check FAR, DFAR, and small business provisions
+3. Every HIGH/CRITICAL risk MUST have specific suggested language
+4. Include jurisdiction-specific compliance checks
+5. Always include disclaimer about consulting legal counsel
+6. Map risks to specific contract sections when possible
+
+## RISK SEVERITY DEFINITIONS:
+- CRITICAL: Deal-breaker, legal exposure > contract value, regulatory violation
+- HIGH: Significant financial risk, requires legal negotiation before signing
+- MEDIUM: Should be addressed but not blocking, standard negotiation item
+- LOW: Best practice recommendation, minor improvement opportunity
 
 ## Legal Review Checklist:
 1. **Liability & Indemnification**
    - Check for unlimited liability exposure
    - Review indemnification scope
    - Verify limitation of liability clauses
+   - Ensure liability cap is proportional to contract value
 
 2. **Intellectual Property**
    - Clarify IP ownership (pre-existing vs new)
    - Check licensing terms
    - Review IP assignment clauses
+   - Verify work-for-hire provisions
 
 3. **Confidentiality**
    - Verify NDA/confidentiality provisions
    - Check information handling requirements
    - Review disclosure exceptions
+   - Check for non-compete implications
 
 4. **Payment Terms**
    - Review payment milestones
    - Check late payment provisions
    - Verify invoice terms
+   - Review escrow/holdback provisions
 
 5. **Termination**
    - Check termination for convenience
    - Review termination for cause
    - Verify notice periods
+   - Review wind-down obligations
 
-6. **Compliance**
-   - Data protection (GDPR, CCPA)
+6. **Compliance (Enhanced)**
+   - Data protection (GDPR, CCPA, HIPAA)
    - Industry regulations
    - Security certifications
+   - Government contracting (FAR, DFAR) if applicable
+   - Accessibility requirements (Section 508)
+
+7. **Government Contracts (if applicable)**
+   - FAR 52.227-14 (Rights in Data)
+   - FAR 52.227-17 (Rights in Technical Data)
+   - DFAR 252.227-7013 (Technical Data Rights)
+   - Small business subcontracting plan
+   - ITAR/EAR export control
 
 ## Guidelines:
 - Be thorough but practical
@@ -109,6 +164,7 @@ Generate a JSON response with the following structure:
 - Provide actionable recommendations
 - Suggest specific language improvements
 - Flag any regulatory compliance concerns
+- Always recommend legal counsel review
 
 Perform the legal review now:"""
 

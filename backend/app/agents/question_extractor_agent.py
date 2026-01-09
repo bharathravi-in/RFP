@@ -112,7 +112,11 @@ Output: SKIP - This is example text, not a question requiring response
       "question_type": "direct|imperative|requirement|checkbox|table|scoring",
       "document_position": "beginning|middle|end",
       "requires_table_response": false,
-      "scoring_type": null
+      "scoring_type": null,
+      "complexity": "simple|moderate|complex",
+      "estimated_response_length": "short|medium|long|comprehensive",
+      "evidence_required": true/false,
+      "compliance_sensitive": true/false
     }}
   ],
   "total_count": 0,
@@ -129,7 +133,23 @@ Output: SKIP - This is example text, not a question requiring response
   }},
   "mandatory_count": 0,
   "optional_count": 0,
-  "table_questions_count": 0
+  "table_questions_count": 0,
+  "complexity_distribution": {{
+    "simple": 0,
+    "moderate": 0,
+    "complex": 0
+  }},
+  "extraction_confidence": {{
+    "score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "rationale": "Why this confidence level",
+    "potential_misses": ["Areas where questions may have been missed"]
+  }},
+  "rfp_characteristics": {{
+    "formality_level": "formal|semi-formal|informal",
+    "buyer_type": "government|enterprise|smb|ngo",
+    "response_format_required": "narrative|tabular|mixed"
+  }}
 }}
 
 **DOCUMENT TEXT:**

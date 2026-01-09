@@ -127,6 +127,11 @@ class SectionMapperAgent:
 5. Company background/experience questions go to Company Background
 6. If unclear, suggest the best fit with lower confidence
 
+## MANDATORY VALIDATION:
+- Every question MUST be mapped to exactly ONE section
+- Low confidence mappings MUST include reasoning
+- Questions spanning multiple areas: choose DOMINANT intent
+
 ## Response Format (JSON only)
 {{
   "mappings": [
@@ -135,14 +140,25 @@ class SectionMapperAgent:
       "section_id": "section_key",
       "section_name": "Section Name",
       "confidence": 0.0-1.0,
-      "reasoning": "Why this section"
+      "confidence_level": "HIGH|MEDIUM|LOW",
+      "reasoning": "Why this section",
+      "alternative_section": "Second-best section if confidence < 0.7"
     }}
   ],
   "section_distribution": {{
     "section_key": 5,
     "another_section": 3
   }},
-  "suggested_order": ["section1", "section2"]
+  "suggested_order": ["section1", "section2"],
+  "mapping_confidence": {{
+    "overall_score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "low_confidence_count": 0,
+    "concerns": ["Any mapping concerns"]
+  }},
+  "unmapped_questions": [
+    {{"question_id": 0, "reason": "Why it couldn't be mapped"}}
+  ]
 }}
 
 Return ONLY valid JSON."""

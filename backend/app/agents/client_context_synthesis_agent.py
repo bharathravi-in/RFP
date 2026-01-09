@@ -107,7 +107,18 @@ YOU MUST:
   "key_terminology": ["terms this client uses that we must echo"],
   "forbidden_references": ["terms that must NOT appear in this proposal"],
   "inference_confidence": 0.0-1.0,
-  "assumptions_made": ["assumption 1", "assumption 2"]
+  "confidence_level": "HIGH|MEDIUM|LOW",
+  "confidence_rationale": "Why this confidence level",
+  "assumptions_made": ["assumption 1", "assumption 2"],
+  "validation_requirements": {{
+    "must_verify": ["claims that must be verified before submission"],
+    "client_review_needed": ["areas needing client confirmation"]
+  }},
+  "proposal_guidance": {{
+    "tone": "formal|semi-formal|informal",
+    "emphasis": "What to emphasize",
+    "avoid": "What to avoid beyond forbidden terms"
+  }}
 }}
 
 CRITICAL RULES:

@@ -88,6 +88,7 @@ from .legal_review_agent import LegalReviewAgent, get_legal_review_agent
 from .win_theme_agent import WinThemeAgent, get_win_theme_agent
 from .competitive_analysis_agent import CompetitiveAnalysisAgent, get_competitive_analysis_agent
 from .case_study_agent import CaseStudyGeneratorAgent, get_case_study_agent
+from .sprint_timeline_agent import SprintTimelineAgent, get_sprint_timeline_agent
 # Narrative Control & Quality Gate Agents (NEW)
 from .proposal_narrative_architect_agent import ProposalNarrativeArchitectAgent, get_proposal_narrative_architect
 from .proposal_depth_scoring_agent import ProposalDepthScoringAgent, get_proposal_depth_scoring_agent
@@ -99,6 +100,23 @@ from .metrics_service import (
     AgentMetricsService,
     get_metrics_service,
     MetricType
+)
+
+# Shared Constants for Cross-Agent Consistency (v2.0)
+from .shared_constants import (
+    STANDARD_DEFINITIONS,
+    COMPLEXITY_MULTIPLIERS,
+    PROJECT_TYPE_CONFIGS,
+    RATE_CARD_METADATA,
+    FORBIDDEN_PHRASES,
+    CONFIDENCE_LEVELS,
+    STANDARD_ASSUMPTIONS,
+    STANDARD_EXCLUSIONS,
+    get_complexity_multiplier,
+    get_velocity_factor,
+    validate_no_forbidden_phrases,
+    get_standard_metadata,
+    calculate_confidence_level
 )
 
 
@@ -163,6 +181,9 @@ __all__ = [
     'get_competitive_analysis_agent',
     'CaseStudyGeneratorAgent',
     'get_case_study_agent',
+    # Sprint & Timeline Agent (NEW)
+    'SprintTimelineAgent',
+    'get_sprint_timeline_agent',
     # Narrative Control & Quality Gate Agents (NEW)
     'ProposalNarrativeArchitectAgent',
     'get_proposal_narrative_architect',
@@ -179,6 +200,20 @@ __all__ = [
     'AgentMetricsService',
     'get_metrics_service',
     'MetricType',
+    # Shared Constants for Cross-Agent Consistency
+    'STANDARD_DEFINITIONS',
+    'COMPLEXITY_MULTIPLIERS',
+    'PROJECT_TYPE_CONFIGS',
+    'RATE_CARD_METADATA',
+    'FORBIDDEN_PHRASES',
+    'CONFIDENCE_LEVELS',
+    'STANDARD_ASSUMPTIONS',
+    'STANDARD_EXCLUSIONS',
+    'get_complexity_multiplier',
+    'get_velocity_factor',
+    'validate_no_forbidden_phrases',
+    'get_standard_metadata',
+    'calculate_confidence_level',
 ]
 
 

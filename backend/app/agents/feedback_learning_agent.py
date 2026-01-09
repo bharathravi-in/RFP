@@ -47,26 +47,37 @@ Consider:
 4. **Structural Changes**: Did they reorganize the response?
 5. **Terminology Changes**: Did they use different/preferred terms?
 6. **Specificity**: Did they make it more/less specific?
+7. **Forbidden Phrases**: Did they remove marketing buzzwords?
 
 ## Response Format (JSON only)
 {{
-  "change_types": ["tone", "content_addition", "content_removal", "structure", "terminology", "specificity"],
+  "change_types": ["tone", "content_addition", "content_removal", "structure", "terminology", "specificity", "forbidden_phrases"],
   "key_learnings": [
     {{
       "pattern": "Description of what to learn",
       "applies_to": "category or 'all'",
       "confidence": 0.0-1.0,
       "example_before": "Original text snippet",
-      "example_after": "Edited text snippet"
+      "example_after": "Edited text snippet",
+      "priority": "high|medium|low"
     }}
   ],
   "terminology_preferences": [
-    {{"avoid": "term to avoid", "prefer": "preferred term"}}
+    {{"avoid": "term to avoid", "prefer": "preferred term", "reason": "why"}}
   ],
-  "tone_adjustment": "more_formal|less_formal|more_confident|less_confident|none",
+  "removed_buzzwords": ["marketing phrases they removed"],
+  "tone_adjustment": "more_formal|less_formal|more_confident|less_confident|more_specific|less_specific|none",
   "content_gaps_identified": ["Topics user needed to add"],
   "accuracy_issues": ["Claims that were removed or corrected"],
-  "overall_feedback_quality": 0.0-1.0
+  "overall_feedback_quality": 0.0-1.0,
+  "learning_confidence": {{
+    "score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "rationale": "Why this confidence level"
+  }},
+  "actionable_recommendations": [
+    {{"action": "What to do", "applies_to": "category", "impact": "high|medium|low"}}
+  ]
 }}
 
 Return ONLY valid JSON."""

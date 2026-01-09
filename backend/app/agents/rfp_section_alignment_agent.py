@@ -305,13 +305,26 @@ Analyze the ENTIRE RFP document and:
           "id": 1,
           "text": "Question text",
           "original_reference": "Section 3.2.1",
-          "intent": "What the question is really asking for"
+          "intent": "What the question is really asking for",
+          "mapping_confidence": "HIGH|MEDIUM|LOW"
         }}
       ],
-      "is_narrative_only": false
+      "is_narrative_only": false,
+      "section_importance": "critical|high|medium|low"
     }}
   ],
   "unmapped_questions": [],
+  "alignment_confidence": {{
+    "score": 0-100,
+    "level": "HIGH|MEDIUM|LOW",
+    "rationale": "Why this confidence level",
+    "low_confidence_mappings": 0
+  }},
+  "rfp_characteristics": {{
+    "formality": "formal|semi-formal|informal",
+    "buyer_type": "government|enterprise|smb|ngo",
+    "primary_focus": "What the RFP emphasizes most"
+  }},
   "analysis_notes": "Any important observations"
 }}
 

@@ -71,16 +71,36 @@ Analyze the RFP/project context and extract:
 
 8. **Tone Directive** - What voice should the proposal take?
 
+## MANDATORY CONSTRAINTS:
+- Client name MUST appear in core_problem and solution_thesis
+- Value pillars MUST be provable - no "we are best-in-class"
+- Each pillar MUST have 2+ specific proof points
+- Constraints MUST be acknowledged - these prove understanding
+- Forbidden phrases MUST be in the 'avoid' list
+
+## FORBIDDEN PHRASES (Must include in avoid list):
+- "comprehensive solution"
+- "seamless integration"
+- "best-in-class"
+- "world-class"
+- "cutting-edge"
+- "robust platform"
+- "industry-leading"
+- "holistic approach"
+- "digital transformation journey"
+- "leverage synergies"
+
 ## Output Format
 Return a JSON object:
 {{
     "core_problem": "Specific problem statement referencing client by name",
-    "solution_thesis": "1-2 sentence memorable solution summary",
+    "solution_thesis": "1-2 sentence memorable solution summary mentioning client",
     "value_pillars": [
         {{
             "pillar": "Pillar Name",
             "why_it_matters": "Specific to client",
-            "proof_points": ["Evidence 1", "Evidence 2"]
+            "proof_points": ["Evidence 1", "Evidence 2"],
+            "rfp_requirement_addressed": "Which RFP requirement this maps to"
         }}
     ],
     "client_constraints": ["Constraint 1", "Constraint 2"],
@@ -100,10 +120,19 @@ Return a JSON object:
     "tone_directive": {{
         "voice": "confident|humble|authoritative|collaborative",
         "style": "consultative|technical|executive|practical",
-        "avoid": ["Generic phrases to avoid", "Overused terms"]
+        "avoid": ["comprehensive solution", "seamless integration", "best-in-class", "world-class", "cutting-edge", "robust platform", "industry-leading"]
     }},
     "client_name": "Extracted client name",
-    "project_name": "Extracted project/scope name"
+    "project_name": "Extracted project/scope name",
+    "narrative_confidence": {{
+        "score": 0-100,
+        "level": "HIGH|MEDIUM|LOW",
+        "rationale": "Why this confidence level",
+        "assumptions": ["What was assumed from limited context"],
+        "needs_clarification": ["Areas where more info would help"]
+    }},
+    "validation_passed": true/false,
+    "validation_issues": ["Any issues found with the generated narrative"]
 }}
 
 ## Critical Rules:
@@ -112,6 +141,7 @@ Return a JSON object:
 3. Value pillars must be PROVABLE - connect to our actual capabilities.
 4. Constraints must be ACKNOWLEDGED - these become our proof of understanding.
 5. Tone must match buyer mindset.
+6. Always include forbidden phrases in the 'avoid' list.
 
 Generate the narrative foundation now:"""
 

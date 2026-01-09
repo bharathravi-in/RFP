@@ -42,13 +42,15 @@ Your task is to analyze the competitive landscape for this RFP opportunity and p
 Generate a JSON response with the following structure:
 {{
   "competitive_landscape": {{
-    "market_context": "Brief market analysis",
+    "market_context": "Brief market analysis with specific industry data",
+    "competitive_intensity": "HIGH|MEDIUM|LOW",
     "likely_competitors": [
       {{
         "type": "Large System Integrator|Boutique Firm|Product Vendor|Incumbent",
         "typical_strengths": ["Strength 1", "Strength 2"],
         "typical_weaknesses": ["Weakness 1", "Weakness 2"],
-        "likely_price_position": "Higher|Similar|Lower"
+        "likely_price_position": "Higher|Similar|Lower",
+        "win_probability_against": "HIGH|MEDIUM|LOW"
       }}
     ]
   }},
@@ -56,7 +58,8 @@ Generate a JSON response with the following structure:
     "strengths_vs_large_competitors": ["Advantage 1", "Advantage 2"],
     "strengths_vs_small_competitors": ["Advantage 1", "Advantage 2"],
     "areas_to_address": ["Potential concern 1"],
-    "recommended_positioning": "How to position ourselves"
+    "recommended_positioning": "How to position ourselves",
+    "unique_differentiator": "One thing only we can claim"
   }},
   "competitive_strategies": [
     {{
@@ -65,28 +68,56 @@ Generate a JSON response with the following structure:
       "description": "Detailed description",
       "when_to_use": "Situation where this applies",
       "key_messages": ["Message 1", "Message 2"],
-      "sections_to_emphasize": ["Section names"]
+      "sections_to_emphasize": ["Section names"],
+      "proof_point_required": "Specific evidence needed",
+      "effectiveness_rating": "HIGH|MEDIUM|LOW"
     }}
   ],
   "counter_objections": [
     {{
       "objection": "Potential client concern",
       "response": "How to address this",
-      "proof_points": ["Evidence to support"]
+      "proof_points": ["Evidence to support"],
+      "reframe": "How to turn this into a positive"
     }}
   ],
   "ghost_competitive_statements": [
     {{
       "statement": "Statement that highlights our advantage without naming competitors",
-      "target": "What competitor weakness this addresses"
+      "target": "What competitor weakness this addresses",
+      "usage_context": "Where to use this in proposal"
     }}
   ],
   "evaluation_impact": {{
     "technical_score_boosters": ["Ways to increase technical score"],
     "price_score_strategies": ["Ways to optimize price perception"],
     "risk_mitigation_points": ["Ways to reduce perceived risk"]
+  }},
+  "analysis_validation": {{
+    "data_sources_used": ["Historical win/loss", "Knowledge base", "Industry data"],
+    "specificity_score": 80,
+    "actionability_score": 85,
+    "confidence_level": "HIGH|MEDIUM|LOW",
+    "confidence_rationale": "Basis for confidence assessment",
+    "assumptions": ["Assumptions made in this analysis"],
+    "limitations": ["What this analysis does NOT cover"]
   }}
 }}
+
+## MANDATORY CONSTRAINTS (MUST FOLLOW):
+1. NEVER use generic or placeholder competitor profiles
+2. Every counter-strategy MUST have a specific proof point
+3. Ghost competitive statements MUST be subtle and legally defensible
+4. Include data-backed win probability estimates where available
+5. Map strategies to specific evaluation criteria mentioned in RFP
+6. Acknowledge limitations and assumptions explicitly
+
+## FORBIDDEN PATTERNS:
+- "Beat the competition" (too aggressive)
+- Naming specific competitors directly
+- Unsubstantiated claims about competitor weaknesses
+- Generic market analysis without specific context
+- Over-promising win probability
 
 ## Competitive Analysis Principles:
 1. **Never name competitors directly** - Use positioning ("Unlike traditional approaches...")
@@ -94,6 +125,7 @@ Generate a JSON response with the following structure:
 3. **Use evidence** - Back claims with data and case studies
 4. **Address weaknesses proactively** - Turn potential concerns into strengths
 5. **Highlight unique value** - What only we can deliver
+6. **Be honest about limitations** - Credibility over optimism
 
 ## Guidelines:
 - Analyze the typical competitive landscape for this type of project
@@ -101,6 +133,7 @@ Generate a JSON response with the following structure:
 - Provide actionable positioning strategies
 - Include ghost competitive messaging
 - Address common objections preemptively
+- Rate your confidence honestly
 
 Perform the competitive analysis now:"""
 

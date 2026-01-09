@@ -963,11 +963,29 @@ export const agentsApi = {
     // ========================================
     // PRICING CALCULATOR (NEW)
     // ========================================
-    calculatePricing: (projectId: number, options?: { complexity?: string; duration_weeks?: number }) =>
+    calculatePricing: (projectId: number, options?: {
+        complexity?: string;
+        duration_weeks?: number;
+        country?: string;
+        currency?: string;
+    }) =>
         api.post('/agents/calculate-pricing', { project_id: projectId, ...options }),
 
     estimateEffort: (requirements: string[], complexity: string = 'medium') =>
         api.post('/agents/estimate-effort', { requirements, complexity }),
+
+    // ========================================
+    // SPRINT TIMELINE (NEW)
+    // ========================================
+    calculateSprintTimeline: (projectId: number, options?: {
+        complexity?: string;
+        sprint_duration_weeks?: number;
+        team_size?: number;
+        start_date?: string;
+        buffer_percentage?: number;
+        project_type?: 'standard' | 'ai_ml' | 'enterprise';
+    }) =>
+        api.post('/agents/calculate-sprint-timeline', { project_id: projectId, ...options }),
 
     // ========================================
     // LEGAL REVIEW (NEW)
@@ -1035,6 +1053,9 @@ export const agentsApi = {
 
     saveCaseStudies: (projectId: number, caseStudiesData: Record<string, unknown>) =>
         api.post(`/agents/strategy/${projectId}/case-studies`, caseStudiesData),
+
+    saveSprintTimeline: (projectId: number, timelineData: Record<string, unknown>) =>
+        api.post(`/agents/strategy/${projectId}/sprint-timeline`, timelineData),
 
     // ========================================
     // EXPERT ROUTING & CONTENT FRESHNESS (NEW)

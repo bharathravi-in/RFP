@@ -965,7 +965,10 @@ def calculate_pricing():
     # Get currency - prefer project currency, then org settings, then default
     currency = project_data.get('currency') or data.get('currency') or 'USD'
     
-    logger.info(f"Calculating pricing with currency: {currency}")
+    # Get country - for country-specific cost models (labor rates, overhead)
+    country = data.get('country') or 'USA'
+    
+    logger.info(f"Calculating pricing with currency: {currency}, country: {country}")
     
     try:
         agent = get_pricing_calculator_agent(org_id=org_id)
@@ -976,7 +979,8 @@ def calculate_pricing():
             organization=organization,
             complexity=data.get('complexity', 'medium'),
             duration_weeks=data.get('duration_weeks'),
-            currency=currency  # Pass currency to agent
+            currency=currency,  # Pass currency to agent
+            country=country  # Pass country for cost model
         )
         return jsonify(result)
     except Exception as e:
@@ -1019,6 +1023,82 @@ def estimate_effort():
         return jsonify(result)
     except Exception as e:
         logger.error(f"Effort estimation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ===============================
+# Sprint Timeline Routes (NEW)
+# ===============================
+
+@agents_bp.route('/calculate-sprint-timeline', methods=['POST'])
+def calculate_sprint_timeline():
+    """
+    Calculate sprint-based project timeline.
+    
+    Request body:
+    {
+        "project_id": int,  // OR provide project_data directly
+        "project_data": {
+            "name": "Project Name",
+            "client_name": "Client",
+            "description": "..."
+        },
+        "sections": [{"title": "...", "content": "..."}],
+        "complexity": "low|medium|high|very_high",
+        "sprint_duration_weeks": 1|2|3|4,
+        "team_size": int (optional),
+        "start_date": "YYYY-MM-DD" (optional),
+        "buffer_percentage": int (optional),
+        "project_type": "standard|ai_ml|enterprise"
+    }
+    
+    Returns sprint timeline with deliverables, milestones, and governance.
+    """
+    from app.agents import get_sprint_timeline_agent
+    from app.models import Project, RFPSection
+    
+    data = request.get_json() or {}
+    
+    project_id = data.get('project_id')
+    project_data = data.get('project_data', {})
+    sections_data = data.get('sections', [])
+    
+    # If project_id provided, load project data
+    if project_id:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        
+        project_data = {
+            'name': project.name,
+            'client_name': project.client_name,
+            'description': project.description,
+            'industry': getattr(project, 'industry', 'Technology'),
+        }
+        
+        # Get sections
+        sections = RFPSection.query.filter_by(project_id=project_id).all()
+        sections_data = [{'title': s.title, 'content': s.content or ''} for s in sections]
+        
+        org_id = project.organization_id
+    else:
+        org_id = data.get('org_id')
+    
+    try:
+        agent = get_sprint_timeline_agent(org_id=org_id)
+        result = agent.calculate_timeline(
+            project_data=project_data,
+            sections=sections_data,
+            complexity=data.get('complexity', 'medium'),
+            sprint_duration_weeks=data.get('sprint_duration_weeks', 2),
+            team_size=data.get('team_size'),
+            start_date=data.get('start_date'),
+            buffer_percentage=data.get('buffer_percentage'),
+            project_type=data.get('project_type', 'standard')
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Sprint timeline calculation failed: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1982,6 +2062,28 @@ def save_case_studies(project_id: int):
     return jsonify({
         "success": True,
         "message": "Case studies saved"
+    })
+
+
+@agents_bp.route('/strategy/<int:project_id>/sprint-timeline', methods=['POST'])
+def save_sprint_timeline(project_id: int):
+    """
+    Save sprint timeline data for a project.
+    """
+    from app.models import ProjectStrategy, Project
+    
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    
+    data = request.get_json() or {}
+    
+    strategy = ProjectStrategy.get_or_create(project_id)
+    strategy.update_sprint_timeline(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "Sprint timeline saved"
     })
 
 
