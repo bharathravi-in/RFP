@@ -520,50 +520,13 @@ export default function ProjectDetail() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="space-y-6">
-                {/* Health Dashboard Section (High Level) */}
-                <ProposalHealthDashboard projectId={Number(id)} />
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Left Column - Documents (2/3 width) */}
-                    <div className="lg:col-span-2 space-y-4">
-                        {/* Input Method Tabs */}
-                        <div className="card">
-                            {/* Tab Headers */}
-                            <div className="flex border-b border-border mb-4">
-                                <button
-                                    onClick={() => setInputMethod('upload')}
-                                    className={clsx(
-                                        'px-4 py-2 text-sm font-medium transition-colors',
-                                        inputMethod === 'upload'
-                                            ? 'text-primary border-b-2 border-primary'
-                                            : 'text-text-muted hover:text-text-primary'
-                                    )}
-                                >
-                                    📄 Upload File
-                                </button>
-                                <button
-                                    onClick={() => setInputMethod('text')}
-                                    className={clsx(
-                                        'px-4 py-2 text-sm font-medium transition-colors',
-                                        inputMethod === 'text'
-                                            ? 'text-primary border-b-2 border-primary'
-                                            : 'text-text-muted hover:text-text-primary'
-                                    )}
-                                >
-                                    ✏️ Enter Text
-                                </button>
-                                <button
-                                    onClick={() => setInputMethod('capability')}
-                                    className={clsx(
-                                        'px-4 py-2 text-sm font-medium transition-colors',
-                                        inputMethod === 'capability'
-                                            ? 'text-primary border-b-2 border-primary'
-                                            : 'text-text-muted hover:text-text-primary'
-                                    )}
-                                >
-                                    🎯 Capability-Led
-                                </button>
+            <div className="space-y-6 mt-6">
+                {/* Upload Section - Show at TOP when no documents */}
+                {documents.length === 0 && (
+                    <div className="card border-2 border-dashed border-primary bg-primary/5">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <DocumentArrowUpIcon className="h-5 w-5 text-primary" />
                             </div>
                             <div>
                                 <h3 className="font-semibold text-text-primary">Get Started</h3>
@@ -594,6 +557,17 @@ export default function ProjectDetail() {
                                 )}
                             >
                                 ✏️ Enter Text
+                            </button>
+                            <button
+                                onClick={() => setInputMethod('capability')}
+                                className={clsx(
+                                    'px-4 py-2 text-sm font-medium transition-colors',
+                                    inputMethod === 'capability'
+                                        ? 'text-primary border-b-2 border-primary'
+                                        : 'text-text-muted hover:text-text-primary'
+                                )}
+                            >
+                                🎯 Capability-Led
                             </button>
                         </div>
 
@@ -630,15 +604,7 @@ export default function ProjectDetail() {
                                     <textarea
                                         value={rfpText}
                                         onChange={(e) => setRfpText(e.target.value)}
-                                        placeholder="Paste or type the RFP requirements here...
-
-Example:
-- Executive summary describing your company and approach
-- Technical architecture and system requirements  
-- Implementation timeline and milestones
-- Pricing and payment terms
-- Team qualifications and experience
-- Security and compliance certifications"
+                                        placeholder="Paste or type the RFP requirements here..."
                                         className="w-full h-48 px-3 py-2 border border-border rounded-lg resize-none focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                                     />
                                     <p className="text-xs text-text-muted mt-1">
@@ -715,10 +681,39 @@ Example:
                                 </button>
                             </div>
                         )}
+
+                        {/* Capability-Led Tab Content */}
+                        {inputMethod === 'capability' && (
+                            <div className="space-y-4">
+                                <div className="bg-gradient-to-br from-purple-600/10 to-blue-600/10 border border-purple-500/30 rounded-xl p-8 text-center">
+                                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                                        <SparklesIcon className="w-8 h-8 text-white" />
+                                    </div>
+                                    <h3 className="text-xl font-semibold text-text-primary mb-2">
+                                        Capability-Led Proposal
+                                    </h3>
+                                    <p className="text-secondary text-sm mb-6 max-w-md mx-auto">
+                                        Create a proposal based on client meeting notes - no RFP document required.
+                                        Perfect for proactive sales pitches and vendor-driven proposals.
+                                    </p>
+                                    <button
+                                        onClick={() => navigate(`/projects/${id}/capability`)}
+                                        className="btn-primary px-8 py-3 text-lg flex items-center gap-2 mx-auto"
+                                    >
+                                        <SparklesIcon className="w-5 h-5" />
+                                        Go to Capability-Led Builder
+                                        <ArrowRightIcon className="w-5 h-5" />
+                                    </button>
+                                    <p className="text-xs text-secondary mt-4">
+                                        One-click generation from meeting notes → Full proposal sections
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* Health Dashboard Section (High Level) */}
+                {/* Health Dashboard Section */}
                 <ProposalHealthDashboard projectId={Number(id)} />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -751,38 +746,101 @@ Example:
                                     >
                                         ✏️ Enter Text
                                     </button>
+                                    <button
+                                        onClick={() => setInputMethod('capability')}
+                                        className={clsx(
+                                            'px-4 py-2 text-sm font-medium transition-colors',
+                                            inputMethod === 'capability'
+                                                ? 'text-primary border-b-2 border-primary'
+                                                : 'text-text-muted hover:text-text-primary'
+                                        )}
+                                    >
+                                        🎯 Capability-Led
+                                    </button>
                                 </div>
-                            )}
 
-                            {/* Capability-Led Tab Content */}
-                            {inputMethod === 'capability' && (
-                                <div className="space-y-4">
-                                    <div className="bg-gradient-to-br from-purple-600/10 to-blue-600/10 border border-purple-500/30 rounded-xl p-8 text-center">
-                                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                                            <SparklesIcon className="w-8 h-8 text-white" />
-                                        </div>
-                                        <h3 className="text-xl font-semibold text-text-primary mb-2">
-                                            Capability-Led Proposal
-                                        </h3>
-                                        <p className="text-secondary text-sm mb-6 max-w-md mx-auto">
-                                            Create a proposal based on client meeting notes - no RFP document required.
-                                            Perfect for proactive sales pitches and vendor-driven proposals.
+                                {/* Upload Tab Content */}
+                                {inputMethod === 'upload' && (
+                                    <div
+                                        {...getRootProps()}
+                                        className={clsx(
+                                            'border-2 border-dashed cursor-pointer transition-all text-center py-6 rounded-lg',
+                                            isDragActive
+                                                ? 'border-primary bg-primary-light'
+                                                : 'border-border hover:border-primary',
+                                            isUploading && 'opacity-50 pointer-events-none'
+                                        )}
+                                    >
+                                        <input {...getInputProps()} />
+                                        <DocumentArrowUpIcon className="h-8 w-8 text-primary mx-auto mb-2" />
+                                        <p className="text-text-primary font-medium">
+                                            {isDragActive ? 'Drop files here' : 'Drag & drop more RFP documents'}
+                                        </p>
+                                        <p className="text-xs text-text-muted mt-1">
+                                            PDF, DOCX, XLSX, PPTX up to 50MB
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Text Input Tab Content */}
+                                {inputMethod === 'text' && (
+                                    <div className="space-y-4">
+                                        <textarea
+                                            value={rfpText}
+                                            onChange={(e) => setRfpText(e.target.value)}
+                                            placeholder="Paste or type additional RFP requirements..."
+                                            className="w-full h-32 px-3 py-2 border border-border rounded-lg resize-none focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                                        />
+                                        <button
+                                            onClick={async () => {
+                                                if (rfpText.trim().length < 50) {
+                                                    toast.error('Please enter at least 50 characters');
+                                                    return;
+                                                }
+                                                setIsSubmittingText(true);
+                                                try {
+                                                    await documentsApi.fromText(Number(id), rfpText);
+                                                    setRfpText('');
+                                                    await loadProject();
+                                                    toast.success('Text added successfully!');
+                                                } catch (error: any) {
+                                                    toast.error(error.response?.data?.error || 'Failed to process text');
+                                                } finally {
+                                                    setIsSubmittingText(false);
+                                                }
+                                            }}
+                                            disabled={isSubmittingText || rfpText.trim().length < 50}
+                                            className={clsx(
+                                                'btn-primary flex items-center gap-2',
+                                                (isSubmittingText || rfpText.trim().length < 50) && 'opacity-50 cursor-not-allowed'
+                                            )}
+                                        >
+                                            <SparklesIcon className="h-4 w-4" />
+                                            Add Text
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Capability-Led Tab Content */}
+                                {inputMethod === 'capability' && (
+                                    <div className="bg-gradient-to-br from-purple-600/10 to-blue-600/10 border border-purple-500/30 rounded-xl p-6 text-center">
+                                        <SparklesIcon className="w-10 h-10 mx-auto mb-2 text-purple-500" />
+                                        <h3 className="font-semibold text-text-primary mb-2">Capability-Led Proposal</h3>
+                                        <p className="text-secondary text-sm mb-4">
+                                            Create proposal from client meeting notes
                                         </p>
                                         <button
                                             onClick={() => navigate(`/projects/${id}/capability`)}
-                                            className="btn-primary px-8 py-3 text-lg flex items-center gap-2 mx-auto"
+                                            className="btn-primary flex items-center gap-2 mx-auto"
                                         >
-                                            <SparklesIcon className="w-5 h-5" />
-                                            Go to Capability-Led Builder
-                                            <ArrowRightIcon className="w-5 h-5" />
+                                            <SparklesIcon className="w-4 h-4" />
+                                            Go to Builder
+                                            <ArrowRightIcon className="w-4 h-4" />
                                         </button>
-                                        <p className="text-xs text-secondary mt-4">
-                                            One-click generation from meeting notes → Full proposal sections
-                                        </p>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Document List */}
                         {documents.length > 0 && (
@@ -1064,7 +1122,7 @@ Example:
                 state={uploadState}
                 percentage={uploadPercent}
                 fileName={currentFileName}
-                inputMode={inputMethod}
+                inputMode={inputMethod === 'capability' ? 'upload' : inputMethod}
                 onClose={() => {
                     setShowProgressModal(false);
                     if (uploadState === 'complete') {
