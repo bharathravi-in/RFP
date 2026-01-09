@@ -1382,6 +1382,15 @@ def regenerate_section(section_id):
     
     result['content'] = content
     
+    # Save version history BEFORE content changes (for regeneration)
+    if section.content:  # Only save if there's existing content
+        save_section_version(
+            section=section,
+            user_id=int(user_id),
+            change_type='regenerate',
+            change_summary=f'Regenerated with feedback: {feedback[:100]}' if feedback else 'AI regeneration'
+        )
+    
     section.content = result['content']
     section.confidence_score = result['confidence_score']
     section.sources = result['sources']
