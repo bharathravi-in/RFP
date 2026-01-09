@@ -310,11 +310,18 @@ def add_revision_history_table(doc, project, organization=None):
     version_number = getattr(project, 'version', 1) or 1
     current_date = datetime.now()
     
-    # Get author name
+    # Get author name from VendorProfile model
     author_name = 'Proposal Team'
-    if organization and hasattr(organization, 'settings') and organization.settings:
-        vendor_profile = organization.settings.get('vendor_profile', {})
-        author_name = vendor_profile.get('contact_name', 'Proposal Team')
+    if organization:
+        try:
+            from app.models import VendorProfile
+            vendor_profile = VendorProfile.query.filter_by(
+                organization_id=organization.id
+            ).first()
+            if vendor_profile and vendor_profile.company_name:
+                author_name = vendor_profile.company_name
+        except Exception:
+            pass  # Keep default
     
     # Add current version row
     row = table.add_row()
@@ -681,22 +688,36 @@ def add_vendor_visibility_section(doc, project, organization=None):
     
     doc.add_paragraph()
     
-    # Get vendor profile data from organization settings or defaults
-    org_settings = {}
-    if organization and hasattr(organization, 'settings') and organization.settings:
-        org_settings = organization.settings
+    # ========================================
+    # GET VENDOR PROFILE FROM DATABASE MODEL
+    # ========================================
+    # Read from VendorProfile model (not organization.settings which is outdated)
+    vendor_profile_data = {}
+    vendor_profile_model = None
     
-    vendor_profile = org_settings.get('vendor_profile', {})
+    if organization:
+        try:
+            from app.models import VendorProfile
+            vendor_profile_model = VendorProfile.query.filter_by(
+                organization_id=organization.id
+            ).first()
+            
+            if vendor_profile_model:
+                vendor_profile_data = vendor_profile_model.to_dict()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not load VendorProfile: {e}")
     
     # Company Information Table
     doc.add_heading('Company Information', level=2)
     
+    # Map VendorProfile model fields to display fields
     company_info = [
-        ('Company Name', vendor_profile.get('company_name', organization.name if organization else 'Not specified')),
-        ('Registration Country', vendor_profile.get('registration_country', 'Not specified')),
-        ('Years in Business', vendor_profile.get('years_in_business', 'Not specified')),
-        ('Employee Count', vendor_profile.get('employee_count', 'Not specified')),
-        ('Headquarters', vendor_profile.get('headquarters', 'Not specified')),
+        ('Company Name', vendor_profile_data.get('company_name') or (organization.name if organization else 'Not specified')),
+        ('Registration Country', vendor_profile_data.get('registration_country') or 'Not specified'),
+        ('Years in Business', str(vendor_profile_data.get('years_in_business')) if vendor_profile_data.get('years_in_business') else 'Not specified'),
+        ('Employee Count', vendor_profile_data.get('employee_count_range') or 'Not specified'),
+        ('Headquarters', vendor_profile_data.get('headquarters_location') or 'Not specified'),
     ]
     
     # Create table for company info
@@ -720,7 +741,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
     # Certifications & Compliance
     doc.add_heading('Certifications & Compliance', level=2)
     
-    certifications = vendor_profile.get('certifications', [])
+    certifications = vendor_profile_data.get('certifications') or []
     if not certifications:
         # Default certifications if not specified
         certifications = ['SOC 2 Type II', 'ISO 27001', 'GDPR Compliant']
@@ -735,7 +756,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
     # Industry Experience
     doc.add_heading('Industry Experience', level=2)
     
-    industries = vendor_profile.get('industries', [])
+    industries = vendor_profile_data.get('industries_served') or []
     if not industries:
         # Check if project has industry info
         if hasattr(project, 'industry') and project.industry:
@@ -757,7 +778,7 @@ def add_vendor_visibility_section(doc, project, organization=None):
     # Geographic Presence
     doc.add_heading('Geographic Presence', level=2)
     
-    geographies = vendor_profile.get('geographies', [])
+    geographies = vendor_profile_data.get('office_locations') or []
     if not geographies:
         # Check if project has geography info
         if hasattr(project, 'geography') and project.geography:

@@ -692,6 +692,34 @@ def generate_section_content(section_id):
     if section_type.template_type == 'diagram':
         return generate_diagram_section(section, project, user)
     
+    # ========================================
+    # RFP DOCUMENT CONTEXT (PRIMARY SOURCE)
+    # ========================================
+    # Fetch the project's RFP document text as PRIMARY context for AI
+    # This ensures content is generated specifically for THIS project's RFP
+    from app.models import Document
+    rfp_context = ""
+    rfp_doc_count = 0
+    try:
+        project_documents = Document.query.filter_by(
+            project_id=project.id, 
+            status='completed'
+        ).all()
+        
+        for doc in project_documents:
+            if doc.extracted_text:
+                rfp_context += f"\n\n=== RFP Document: {doc.filename} ===\n"
+                rfp_context += doc.extracted_text[:15000]  # Limit per document
+                rfp_doc_count += 1
+        
+        if rfp_context:
+            print(f"[RFP CONTEXT] Added {rfp_doc_count} RFP documents ({len(rfp_context)} chars) for project {project.id}")
+        else:
+            print(f"[RFP CONTEXT] WARNING: No RFP document text found for project {project.id}")
+    except Exception as e:
+        print(f"[RFP CONTEXT] Error fetching RFP documents: {e}")
+        db.session.rollback()
+    
     # Retrieve context from knowledge base with project dimension filtering
     from app.services.qdrant_service import get_qdrant_service
     from app.models import KnowledgeItem
@@ -841,6 +869,15 @@ def generate_section_content(section_id):
         print(f"[WIN THEMES] Failed to fetch win themes: {e}")
         # Rollback to clear aborted transaction state
         db.session.rollback()
+    
+    # ========================================
+    # ADD RFP CONTEXT TO GENERATION PARAMS
+    # ========================================
+    # Pass the RFP document context as PRIMARY reference for the AI
+    if rfp_context:
+        generation_params['rfp_document_context'] = rfp_context[:30000]  # Overall limit
+    generation_params['client_name'] = project.client_name or project.name or ''
+    generation_params['project_name'] = project.name or ''
     
     # Generate content
     generator = get_section_generator(org_id=user.organization_id)

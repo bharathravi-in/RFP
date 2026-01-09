@@ -161,9 +161,37 @@ class SectionGenerationService:
             placeholder = '{{' + key + '}}' 
             prompt = prompt.replace(placeholder, str(value) if value else '')
         
-        # Add context from knowledge base - this is CRITICAL for quality
+        # ========================================
+        # RFP DOCUMENT CONTEXT (PRIMARY SOURCE)
+        # ========================================
+        # Add RFP document content as the PRIMARY reference for the AI
+        # This is the actual RFP the client submitted - ALL content must align with it
+        if params and params.get('rfp_document_context'):
+            rfp_text = params['rfp_document_context']
+            project_name = params.get('project_name', 'this project')
+            client_name = params.get('client_name', 'the client')
+            
+            rfp_section = f"""
+
+---
+## RFP DOCUMENT CONTENT (PRIMARY REFERENCE - USE THIS)
+**Project:** {project_name}
+**Client:** {client_name}
+
+IMPORTANT: The following is the ACTUAL RFP document for this specific project. 
+ALL generated content MUST be based on and reference THIS specific RFP.
+Do NOT mention any other companies, projects, or requirements not in this document.
+
+{rfp_text[:25000]}
+
+---
+"""
+            prompt = f"{prompt}\n{rfp_section}"
+            print(f"[PROMPT DEBUG] Added RFP document context: {len(rfp_text)} chars for {client_name}")
+        
+        # Add context from knowledge base - SUPPLEMENTARY reference for style/format
         if context:
-            context_text = "\n\n---\n## REFERENCE MATERIALS FROM KNOWLEDGE BASE\nUse the following approved content as your PRIMARY reference for format, style, and content:\n"
+            context_text = "\n\n---\n## SUPPLEMENTARY REFERENCE MATERIALS FROM KNOWLEDGE BASE\nUse the following for format and style reference ONLY (content must come from RFP above):\n"
             for i, item in enumerate(context[:5], 1):  # Limit to top 5 items
                 title = item.get('title', 'Untitled')
                 content = item.get('content', item.get('content_preview', ''))
@@ -204,18 +232,19 @@ class SectionGenerationService:
             
             prompt = f"{prompt}\n{param_text}"
         
-        # Enhanced system instructions to use KB context as format reference
+        # Enhanced system instructions - RFP document is PRIMARY source
         system_prompt = """You are an expert proposal writer helping create enterprise RFP responses.
 
 CRITICAL INSTRUCTIONS:
-1. If Reference Materials from Knowledge Base are provided above, you MUST follow their exact format, structure, and writing style
-2. Use specific facts, metrics, and details from the reference materials - do NOT invent or use placeholder text
-3. If a previous proposal template is provided, match its professional structure exactly
-4. Replace any placeholders with actual content - NEVER output [bracketed placeholders]
-5. Write in formal, confident consulting-grade English
-6. Include specific numbers, dates, and concrete details when available from context
+1. If RFP DOCUMENT CONTENT is provided, this is your PRIMARY source of truth - base ALL content on it
+2. Reference the specific client name, requirements, and context from the RFP document
+3. Do NOT mention or reference any company/project/requirements other than those in the RFP
+4. Reference Materials from Knowledge Base are for FORMAT and STYLE reference only
+5. Replace any placeholders with actual content from the RFP - NEVER output [bracketed placeholders]
+6. Write in formal, confident consulting-grade English
+7. Include specific details from the RFP when available
 
-Generate the content now, following the reference format precisely:"""
+Generate the content now, specifically addressing THIS client's RFP requirements:"""
         
         return f"{system_prompt}\n\n---\n\n{prompt}"
 
