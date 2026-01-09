@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { projectsApi, questionsApi, knowledgeApi } from '@/api/client';
+import { vendorProfileApi, VendorProfile } from '@/api/vendorProfile';
 import { Project } from '@/types';
 import {
     FolderIcon,
@@ -43,6 +44,7 @@ export default function Dashboard() {
     const [error, setError] = useState<string | null>(null);
     const [showTour, setShowTour] = useState(false);
     const [profilesCount, setProfilesCount] = useState<number>(0);
+    const [vendorProfile, setVendorProfile] = useState<VendorProfile | null>(null);
 
 
     // Check if user has seen the tour on first load
@@ -101,6 +103,14 @@ export default function Dashboard() {
                     knowledgeProfilesCount = profilesResponse.data.profiles?.length || 0;
                 } catch { }
 
+                // Fetch vendor profile data
+                let vendorProfileData = null;
+                try {
+                    const vpResponse = await vendorProfileApi.getProfile();
+                    vendorProfileData = vpResponse.data;
+                } catch { }
+
+                setVendorProfile(vendorProfileData);
                 setProfilesCount(knowledgeProfilesCount);
                 setStats({ activeProjects, pendingReviews, completedProjects, totalQuestions, knowledgeItems });
                 setProjects(allProjects.sort((a: Project, b: Project) =>
@@ -131,9 +141,11 @@ export default function Dashboard() {
 
     const isNewUser = !loading && projects.length === 0;
 
+    const isVendorProfileComplete = vendorProfile?.company_name ? true : false;
+
     const isReadyForProject = (
         (organization?.name ? 1 : 0) +
-        ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
+        (isVendorProfileComplete ? 1 : 0) +
         (profilesCount > 0 ? 1 : 0) +
         (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0)
     ) === 4;
@@ -181,145 +193,139 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Onboarding Checklist for Everyone - Priority view for new users */}
-            {(isNewUser || (
-                (organization?.name ? 1 : 0) +
-                ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
-                (profilesCount > 0 ? 1 : 0) +
-                (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
-                (projects.length > 0 ? 1 : 0)
-            ) < 5) && (
-                    <div className="bg-white rounded-xl border border-gray-100 p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-900">Setup Checklist</h2>
-                                <p className="text-sm text-gray-500">Incomplete setup may lead to incorrect or generic content. Please complete all required checklist items.</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="h-2 w-32 bg-gray-100 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-primary transition-all duration-500"
-                                        style={{
-                                            width: `${(
-                                                (organization?.name ? 1 : 0) +
-                                                ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
-                                                (profilesCount > 0 ? 1 : 0) +
-                                                (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
-                                                (projects.length > 0 ? 1 : 0)
-                                            ) / 5 * 100}%`
-                                        }}
-                                    />
-                                </div>
-                                <span className="text-sm font-medium text-primary">
-                                    {Math.round((
-                                        (organization?.name ? 1 : 0) +
-                                        ((organization?.settings as any)?.vendor_profile?.registration_country ? 1 : 0) +
-                                        (profilesCount > 0 ? 1 : 0) +
-                                        (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
-                                        (projects.length > 0 ? 1 : 0)
-                                    ) / 5 * 100)}%
-                                </span>
-                            </div>
+            {/* Onboarding Checklist - Always visible */}
+            {(
+                <div className="bg-white rounded-xl border border-gray-100 p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900">Setup Checklist</h2>
+                            <p className="text-sm text-gray-500">Incomplete setup may lead to incorrect or generic content. Please complete all required checklist items.</p>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                            {/* Step 1: Organization */}
-                            <div className={clsx(
-                                "p-4 rounded-xl border transition-all",
-                                organization?.name ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
-                            )}>
-                                <div className="flex items-center gap-3 mb-2">
-                                    {organization?.name ? (
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                                    ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-                                    )}
-                                    <h3 className="font-semibold text-sm">Organization</h3>
-                                </div>
-                                <p className="text-xs text-gray-500 mb-3">Set up your team and company details.</p>
-                                <Link to="/settings?tab=organization" className="text-xs font-medium text-primary hover:underline">
-                                    {organization?.name ? "Update Settings →" : "Configure Now →"}
-                                </Link>
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-32 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-primary transition-all duration-500"
+                                    style={{
+                                        width: `${(
+                                            (organization?.name ? 1 : 0) +
+                                            (isVendorProfileComplete ? 1 : 0) +
+                                            (profilesCount > 0 ? 1 : 0) +
+                                            (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
+                                            (projects.length > 0 ? 1 : 0)
+                                        ) / 5 * 100}%`
+                                    }}
+                                />
                             </div>
-
-                            {/* Step 2: Vendor Profile */}
-                            <div className={clsx(
-                                "p-4 rounded-xl border transition-all",
-                                (organization?.settings as any)?.vendor_profile?.registration_country ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
-                            )}>
-                                <div className="flex items-center gap-3 mb-2">
-                                    {(organization?.settings as any)?.vendor_profile?.registration_country ? (
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                                    ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-                                    )}
-                                    <h3 className="font-semibold text-sm">Vendor Profile</h3>
-                                </div>
-                                <p className="text-xs text-gray-500 mb-3">Add certifications and business details.</p>
-                                <Link to="/settings?tab=vendor" className="text-xs font-medium text-primary hover:underline">
-                                    {(organization?.settings as any)?.vendor_profile?.registration_country ? "Edit Profile →" : "Complete Profile →"}
-                                </Link>
-                            </div>
-
-                            {/* Step 3: Knowledge Profile */}
-                            <div className={clsx(
-                                "p-4 rounded-xl border transition-all",
-                                profilesCount > 0 ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
-                            )}>
-                                <div className="flex items-center gap-3 mb-2">
-                                    {profilesCount > 0 ? (
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                                    ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-                                    )}
-                                    <h3 className="font-semibold text-sm">Knowledge Profile</h3>
-                                </div>
-                                <p className="text-xs text-gray-500 mb-3">Set up AI dimensions & filters.</p>
-                                <Link to="/settings?tab=knowledge" className="text-xs font-medium text-primary hover:underline">
-                                    {profilesCount > 0 ? "Manage Profiles →" : "Set Up Now →"}
-                                </Link>
-                            </div>
-
-                            {/* Step 4: Knowledge Base */}
-                            <div className={clsx(
-                                "p-4 rounded-xl border transition-all",
-                                (stats?.knowledgeItems && stats.knowledgeItems > 0) ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
-                            )}>
-                                <div className="flex items-center gap-3 mb-2">
-                                    {(stats?.knowledgeItems && stats.knowledgeItems > 0) ? (
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                                    ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-                                    )}
-                                    <h3 className="font-semibold text-sm">Knowledge Base</h3>
-                                </div>
-                                <p className="text-xs text-gray-500 mb-3">Upload your past proposals and docs.</p>
-                                <Link to="/knowledge" className="text-xs font-medium text-primary hover:underline">
-                                    {(stats?.knowledgeItems && stats.knowledgeItems > 0) ? "Add More →" : "Upload Documents →"}
-                                </Link>
-                            </div>
-
-                            {/* Step 5: First Project */}
-                            <div className={clsx(
-                                "p-4 rounded-xl border transition-all",
-                                projects.length > 0 ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
-                            )}>
-                                <div className="flex items-center gap-3 mb-2">
-                                    {projects.length > 0 ? (
-                                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                                    ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-                                    )}
-                                    <h3 className="font-semibold text-sm">First Project</h3>
-                                </div>
-                                <p className="text-xs text-gray-500 mb-3">Launch your first RFP response.</p>
-                                <Link to="/projects?action=create" className="text-xs font-medium text-primary hover:underline">
-                                    {projects.length > 0 ? "Create New →" : "Start Now →"}
-                                </Link>
-                            </div>
+                            <span className="text-sm font-medium text-primary">
+                                {Math.round((
+                                    (organization?.name ? 1 : 0) +
+                                    (isVendorProfileComplete ? 1 : 0) +
+                                    (profilesCount > 0 ? 1 : 0) +
+                                    (stats?.knowledgeItems && stats.knowledgeItems > 0 ? 1 : 0) +
+                                    (projects.length > 0 ? 1 : 0)
+                                ) / 5 * 100)}%
+                            </span>
                         </div>
                     </div>
-                )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        {/* Step 1: Organization */}
+                        <div className={clsx(
+                            "p-4 rounded-xl border transition-all",
+                            organization?.name ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                        )}>
+                            <div className="flex items-center gap-3 mb-2">
+                                {organization?.name ? (
+                                    <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                ) : (
+                                    <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                )}
+                                <h3 className="font-semibold text-sm">Organization</h3>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">Set up your team and company details.</p>
+                            <Link to="/settings?tab=organization" className="text-xs font-medium text-primary hover:underline">
+                                {organization?.name ? "Update Settings →" : "Configure Now →"}
+                            </Link>
+                        </div>
+
+                        {/* Step 2: Vendor Profile */}
+                        <div className={clsx(
+                            "p-4 rounded-xl border transition-all",
+                            isVendorProfileComplete ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                        )}>
+                            <div className="flex items-center gap-3 mb-2">
+                                {isVendorProfileComplete ? (
+                                    <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                ) : (
+                                    <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                )}
+                                <h3 className="font-semibold text-sm">Vendor Profile</h3>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">Add certifications and business details.</p>
+                            <Link to="/settings?tab=vendor" className="text-xs font-medium text-primary hover:underline">
+                                {isVendorProfileComplete ? "Edit Profile →" : "Complete Profile →"}
+                            </Link>
+                        </div>
+
+                        {/* Step 3: Knowledge Profile */}
+                        <div className={clsx(
+                            "p-4 rounded-xl border transition-all",
+                            profilesCount > 0 ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                        )}>
+                            <div className="flex items-center gap-3 mb-2">
+                                {profilesCount > 0 ? (
+                                    <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                ) : (
+                                    <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                )}
+                                <h3 className="font-semibold text-sm">Knowledge Profile</h3>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">Set up AI dimensions & filters.</p>
+                            <Link to="/settings?tab=knowledge" className="text-xs font-medium text-primary hover:underline">
+                                {profilesCount > 0 ? "Manage Profiles →" : "Set Up Now →"}
+                            </Link>
+                        </div>
+
+                        {/* Step 4: Knowledge Base */}
+                        <div className={clsx(
+                            "p-4 rounded-xl border transition-all",
+                            (stats?.knowledgeItems && stats.knowledgeItems > 0) ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                        )}>
+                            <div className="flex items-center gap-3 mb-2">
+                                {(stats?.knowledgeItems && stats.knowledgeItems > 0) ? (
+                                    <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                ) : (
+                                    <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                )}
+                                <h3 className="font-semibold text-sm">Knowledge Base</h3>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">Upload your past proposals and docs.</p>
+                            <Link to="/knowledge" className="text-xs font-medium text-primary hover:underline">
+                                {(stats?.knowledgeItems && stats.knowledgeItems > 0) ? "Add More →" : "Upload Documents →"}
+                            </Link>
+                        </div>
+
+                        {/* Step 5: First Project */}
+                        <div className={clsx(
+                            "p-4 rounded-xl border transition-all",
+                            projects.length > 0 ? "bg-green-50/50 border-green-100" : "bg-gray-50 border-gray-100"
+                        )}>
+                            <div className="flex items-center gap-3 mb-2">
+                                {projects.length > 0 ? (
+                                    <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                ) : (
+                                    <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
+                                )}
+                                <h3 className="font-semibold text-sm">First Project</h3>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">Launch your first RFP response.</p>
+                            <Link to="/projects?action=create" className="text-xs font-medium text-primary hover:underline">
+                                {projects.length > 0 ? "Create New →" : "Start Now →"}
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* New User Onboarding Banner - Keep but emphasize checklist above */}
             {isNewUser && (
