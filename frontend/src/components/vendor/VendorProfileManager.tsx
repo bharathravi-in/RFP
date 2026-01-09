@@ -19,6 +19,7 @@ import SuccessStoryModal from './SuccessStoryModal.tsx';
 import CapabilityModal from './CapabilityModal.tsx';
 import TestimonialModal from './TestimonialModal.tsx';
 import BulkUploadModal from './BulkUploadModal.tsx';
+import CompanyInfoModal from './CompanyInfoModal.tsx';
 
 type TabType = 'overview' | 'clients' | 'stories' | 'capabilities' | 'testimonials';
 
@@ -37,6 +38,7 @@ export default function VendorProfileManager() {
     const [showCapabilityModal, setShowCapabilityModal] = useState(false);
     const [showTestimonialModal, setShowTestimonialModal] = useState(false);
     const [showBulkUpload, setShowBulkUpload] = useState(false);
+    const [showCompanyInfoModal, setShowCompanyInfoModal] = useState(false);
     const [bulkUploadType, setBulkUploadType] = useState<'clients' | 'stories' | 'capabilities' | 'testimonials'>('clients');
     const [editingItem, setEditingItem] = useState<any>(null);
 
@@ -194,28 +196,61 @@ export default function VendorProfileManager() {
             <div className="bg-surface rounded-xl border border-border p-6">
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
-                        <div>
-                            <h3 className="text-lg font-semibold mb-4">Company Information</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm text-text-secondary">Company Name</label>
-                                    <p className="font-medium">{profile?.company_name || 'Not set'}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm text-text-secondary">Registration Country</label>
-                                    <p className="font-medium">{profile?.registration_country || 'Not set'}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm text-text-secondary">Years in Business</label>
-                                    <p className="font-medium">{profile?.years_in_business || 'Not set'}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm text-text-secondary">Employee Count</label>
-                                    <p className="font-medium">{profile?.employee_count_range || 'Not set'}</p>
-                                </div>
+                        {/* Company Information Header with Edit */}
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-semibold">Company Information</h3>
+                            <button
+                                onClick={() => setShowCompanyInfoModal(true)}
+                                className="btn-secondary btn-sm flex items-center gap-2"
+                            >
+                                <PencilIcon className="h-4 w-4" />
+                                Edit
+                            </button>
+                        </div>
+
+                        {/* Basic Info Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-sm text-text-secondary">Company Name</label>
+                                <p className="font-medium">{profile?.company_name || 'Not set'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm text-text-secondary">Registration Country</label>
+                                <p className="font-medium">{profile?.registration_country || 'Not set'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm text-text-secondary">Years in Business</label>
+                                <p className="font-medium">{profile?.years_in_business || 'Not set'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm text-text-secondary">Employee Count</label>
+                                <p className="font-medium">{profile?.employee_count_range || 'Not set'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm text-text-secondary">Annual Revenue</label>
+                                <p className="font-medium">{profile?.annual_revenue_range || 'Not set'}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm text-text-secondary">Headquarters</label>
+                                <p className="font-medium">{profile?.headquarters_location || 'Not set'}</p>
                             </div>
                         </div>
 
+                        {/* Branch Offices */}
+                        {profile?.office_locations?.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-medium text-text-secondary mb-2">Branch Offices</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {profile.office_locations.map((location: string, idx: number) => (
+                                        <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                                            📍 {location}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Company Description */}
                         {profile?.company_description && (
                             <div>
                                 <h4 className="text-sm font-medium text-text-secondary mb-2">Company Description</h4>
@@ -223,6 +258,22 @@ export default function VendorProfileManager() {
                             </div>
                         )}
 
+                        {/* Certifications */}
+                        {profile?.certifications?.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-medium text-text-secondary mb-2">Certifications</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {profile.certifications.map((cert: string, idx: number) => (
+                                        <span key={idx} className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm flex items-center gap-1">
+                                            <CheckCircleIcon className="h-4 w-4" />
+                                            {cert}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Industries Served */}
                         {profile?.industries_served?.length > 0 && (
                             <div>
                                 <h4 className="text-sm font-medium text-text-secondary mb-2">Industries Served</h4>
@@ -236,17 +287,48 @@ export default function VendorProfileManager() {
                             </div>
                         )}
 
-                        {profile?.certifications?.length > 0 && (
+                        {/* Mission Statement */}
+                        {profile?.mission_statement && (
                             <div>
-                                <h4 className="text-sm font-medium text-text-secondary mb-2">Certifications</h4>
+                                <h4 className="text-sm font-medium text-text-secondary mb-2">Mission Statement</h4>
+                                <p className="text-text-primary italic">"{profile.mission_statement}"</p>
+                            </div>
+                        )}
+
+                        {/* Value Proposition */}
+                        {profile?.value_proposition && (
+                            <div>
+                                <h4 className="text-sm font-medium text-text-secondary mb-2">Value Proposition</h4>
+                                <p className="text-text-primary">{profile.value_proposition}</p>
+                            </div>
+                        )}
+
+                        {/* Key Differentiators */}
+                        {profile?.key_differentiators?.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-medium text-text-secondary mb-2">Key Differentiators</h4>
                                 <div className="flex flex-wrap gap-2">
-                                    {profile.certifications.map((cert: string, idx: number) => (
-                                        <span key={idx} className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm flex items-center gap-1">
-                                            <CheckCircleIcon className="h-4 w-4" />
-                                            {cert}
+                                    {profile.key_differentiators.map((diff: string, idx: number) => (
+                                        <span key={idx} className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm">
+                                            ⭐ {diff}
                                         </span>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Empty State */}
+                        {!profile?.company_name && !profile?.headquarters_location && !profile?.certifications?.length && (
+                            <div className="text-center py-8 text-text-secondary">
+                                <BriefcaseIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                <p>No company information added yet</p>
+                                <p className="text-sm mb-4">Add your company details to help AI generate better proposals</p>
+                                <button
+                                    onClick={() => setShowCompanyInfoModal(true)}
+                                    className="btn-primary"
+                                >
+                                    Add Company Information
+                                </button>
                             </div>
                         )}
                     </div>
@@ -656,6 +738,17 @@ export default function VendorProfileManager() {
                         setShowClientModal(false);
                         setEditingItem(null);
                         loadClients();
+                        loadProfile();
+                    }}
+                />
+            )}
+
+            {showCompanyInfoModal && (
+                <CompanyInfoModal
+                    profile={profile}
+                    onClose={() => setShowCompanyInfoModal(false)}
+                    onSave={() => {
+                        setShowCompanyInfoModal(false);
                         loadProfile();
                     }}
                 />
