@@ -65,9 +65,12 @@ class VendorProfileService:
     
     # Client Management
     @staticmethod
-    def add_client(vendor_profile_id: int, data: Dict) -> VendorClient:
+    def add_client(organization_id: int, data: Dict) -> VendorClient:
         """Add a new client to vendor profile."""
-        client = VendorClient(vendor_profile_id=vendor_profile_id, **data)
+        # Get or create vendor profile for this organization
+        profile = VendorProfileService.get_or_create_profile(organization_id)
+        
+        client = VendorClient(vendor_profile_id=profile.id, **data)
         db.session.add(client)
         db.session.commit()
         return client
@@ -112,9 +115,12 @@ class VendorProfileService:
     
     # Success Story Management
     @staticmethod
-    def add_success_story(vendor_profile_id: int, data: Dict) -> VendorSuccessStory:
+    def add_success_story(organization_id: int, data: Dict) -> VendorSuccessStory:
         """Add a new success story."""
-        story = VendorSuccessStory(vendor_profile_id=vendor_profile_id, **data)
+        # Get or create vendor profile for this organization
+        profile = VendorProfileService.get_or_create_profile(organization_id)
+        
+        story = VendorSuccessStory(vendor_profile_id=profile.id, **data)
         db.session.add(story)
         db.session.commit()
         return story
@@ -168,9 +174,15 @@ class VendorProfileService:
     
     # Capability Management
     @staticmethod
-    def add_capability(vendor_profile_id: int, data: Dict) -> VendorCapability:
-        """Add a new capability."""
-        capability = VendorCapability(vendor_profile_id=vendor_profile_id, **data)
+    def add_capability(organization_id: int, data: Dict) -> VendorCapability:
+        """Add a new accelerator/capability."""
+        # Get or create vendor profile for this organization
+        profile = VendorProfileService.get_or_create_profile(organization_id)
+        
+        # Add organization_id to the data
+        data['organization_id'] = organization_id
+        
+        capability = VendorCapability(vendor_profile_id=profile.id, **data)
         db.session.add(capability)
         db.session.commit()
         return capability
@@ -198,20 +210,22 @@ class VendorProfileService:
     
     @staticmethod
     def get_capabilities(vendor_profile_id: int, core_only: bool = False) -> List[VendorCapability]:
-        """Get all capabilities."""
+        """Get all accelerators."""
         query = VendorCapability.query.filter_by(vendor_profile_id=vendor_profile_id)
         
-        if core_only:
-            query = query.filter_by(is_core_capability=True)
+        # core_only parameter is deprecated but kept for backward compatibility
+        # All accelerators are now considered important
         
-        return query.order_by(VendorCapability.is_core_capability.desc(),
-                            VendorCapability.display_order.asc()).all()
+        return query.order_by(VendorCapability.display_order.asc()).all()
     
     # Testimonial Management
     @staticmethod
-    def add_testimonial(vendor_profile_id: int, data: Dict) -> VendorTestimonial:
+    def add_testimonial(organization_id: int, data: Dict) -> VendorTestimonial:
         """Add a new testimonial."""
-        testimonial = VendorTestimonial(vendor_profile_id=vendor_profile_id, **data)
+        # Get or create vendor profile for this organization
+        profile = VendorProfileService.get_or_create_profile(organization_id)
+        
+        testimonial = VendorTestimonial(vendor_profile_id=profile.id, **data)
         db.session.add(testimonial)
         db.session.commit()
         return testimonial
