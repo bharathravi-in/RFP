@@ -54,8 +54,8 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
     const [diagrams, setDiagrams] = useState<GeneratedDiagram[]>([]);
     const [loading, setLoading] = useState(false);
     const [isLoadingTypes, setIsLoadingTypes] = useState(true);
+    const [isLoadingDiagrams, setIsLoadingDiagrams] = useState(true);
     const [saving, setSaving] = useState(false);
-    const isFirstRender = useRef(true);
     const hasLoadedFromServer = useRef(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -87,14 +87,25 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
     // Load saved diagrams on mount
     useEffect(() => {
         const loadSavedDiagrams = async () => {
+            setIsLoadingDiagrams(true);
             try {
                 const response = await agentsApi.getProjectStrategy(projectId);
                 if (response.data.success && response.data.strategy?.diagrams) {
+                    // Ensure diagrams is an array
+                    const diagramsData = Array.isArray(response.data.strategy.diagrams)
+                        ? response.data.strategy.diagrams
+                        : [];
                     hasLoadedFromServer.current = true;
-                    setDiagrams(response.data.strategy.diagrams);
+                    setDiagrams(diagramsData);
+                } else {
+                    // No diagrams saved, set empty array
+                    setDiagrams([]);
                 }
             } catch (err) {
                 console.error('Error loading saved diagrams:', err);
+                setDiagrams([]);
+            } finally {
+                setIsLoadingDiagrams(false);
             }
         };
         if (projectId) loadSavedDiagrams();
@@ -102,14 +113,10 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
 
     // Auto-save diagrams when they change (debounced)
     useEffect(() => {
-        if (!projectId || diagrams.length === 0) return;
+        // Don't save if still loading initial data
+        if (isLoadingDiagrams || !projectId) return;
 
-        // Skip saving on first render or immediately after loading from server
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return;
-        }
-
+        // Skip saving immediately after loading from server
         if (hasLoadedFromServer.current) {
             hasLoadedFromServer.current = false;
             return;
@@ -127,7 +134,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
         }, 2000); // 2 second debounce
 
         return () => clearTimeout(timer);
-    }, [diagrams, projectId]);
+    }, [diagrams, projectId, isLoadingDiagrams]);
 
     // Generate diagram
     const handleGenerateDiagram = async () => {
@@ -147,7 +154,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
                     id: `diagram-${Date.now()}`,
                     ...response.data.diagram,
                 };
-                setDiagrams(prev => [...prev, newDiagram]);
+                setDiagrams(prev => [...(Array.isArray(prev) ? prev : []), newDiagram]);
                 toast.success(`${response.data.diagram.title || 'Diagram'} generated!`);
             } else {
                 throw new Error(response.data.error || 'Failed to generate diagram');
@@ -179,7 +186,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
                     id: `diagram-${Date.now()}-${i}`,
                     ...d,
                 }));
-                setDiagrams(prev => [...prev, ...newDiagrams]);
+                setDiagrams(prev => [...(Array.isArray(prev) ? prev : []), ...newDiagrams]);
                 toast.success(`Generated ${response.data.diagrams.length} diagrams!`);
             } else {
                 throw new Error(response.data.error || 'Failed to generate diagrams');
@@ -195,7 +202,7 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
 
     // Remove diagram
     const handleRemoveDiagram = (diagramId: string) => {
-        setDiagrams(prev => prev.filter(d => d.id !== diagramId));
+        setDiagrams(prev => (Array.isArray(prev) ? prev : []).filter(d => d.id !== diagramId));
         toast.success('Diagram removed');
     };
 
@@ -203,10 +210,11 @@ export default function DiagramGenerator({ projectId, documentId }: DiagramGener
         return DIAGRAM_ICONS[iconName] || CubeIcon;
     };
 
-    if (isLoadingTypes) {
+    if (isLoadingTypes || isLoadingDiagrams) {
         return (
             <div className="flex items-center justify-center p-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <p className="text-sm text-gray-500 mt-4">Loading diagrams...</p>
             </div>
         );
     }
