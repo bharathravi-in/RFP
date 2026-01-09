@@ -424,6 +424,16 @@ def bulk_upload(upload_type):
         if not rows:
             return jsonify({'error': 'File is empty or has no valid data'}), 400
         
+        # Validate column structure
+        validation = BulkUploadService.validate_columns(rows, upload_type)
+        if not validation['valid']:
+            error_details = '\n'.join(validation['errors'])
+            return jsonify({
+                'error': 'CSV structure does not match template',
+                'details': validation['errors'],
+                'message': f'Please download the template and ensure your file has the correct columns.\n\n{error_details}'
+            }), 400
+        
         # Process rows based on type
         success_count = 0
         error_count = 0

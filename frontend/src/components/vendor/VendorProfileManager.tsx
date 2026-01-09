@@ -714,14 +714,16 @@ export default function VendorProfileManager() {
                     type={bulkUploadType}
                     onClose={() => setShowBulkUpload(false)}
                     onUpload={async (file) => {
-                        await vendorProfileApi.bulkUpload(bulkUploadType, file);
-                        setShowBulkUpload(false);
+                        const response = await vendorProfileApi.bulkUpload(bulkUploadType, file);
+
                         // Reload the appropriate data
-                        if (bulkUploadType === 'clients') loadClients();
-                        else if (bulkUploadType === 'stories') loadStories();
-                        else if (bulkUploadType === 'capabilities') loadCapabilities();
-                        else if (bulkUploadType === 'testimonials') loadTestimonials();
-                        loadProfile();
+                        if (bulkUploadType === 'clients') await loadClients();
+                        else if (bulkUploadType === 'stories') await loadStories();
+                        else if (bulkUploadType === 'capabilities') await loadCapabilities();
+                        else if (bulkUploadType === 'testimonials') await loadTestimonials();
+                        await loadProfile();
+
+                        return response.data;
                     }}
                 />
             )}

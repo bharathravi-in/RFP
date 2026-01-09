@@ -1,16 +1,89 @@
 """Bulk upload service for vendor profile data."""
 import csv
 import io
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 from werkzeug.datastructures import FileStorage
 import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Expected columns for each type
+EXPECTED_COLUMNS = {
+    'clients': {
+        'required': {'client_name'},
+        'optional': {
+            'client_industry', 'client_size', 'client_location', 'client_type',
+            'relationship_status', 'project_count', 'services_provided',
+            'technologies_used', 'is_reference_available', 'is_public'
+        }
+    },
+    'stories': {
+        'required': {'title'},
+        'optional': {'client_name', 'industry', 'challenge', 'solution', 'impact'}
+    },
+    'capabilities': {
+        'required': {'capability_name'},
+        'optional': {'description', 'technologies_used', 'use_cases', 'time_saved', 'demo_link'}
+    },
+    'testimonials': {
+        'required': {'testimonial_text'},
+        'optional': {'client_name', 'client_designation', 'client_company', 'rating'}
+    }
+}
+
 
 class BulkUploadService:
     """Service for handling bulk uploads of vendor profile data."""
+
+    @staticmethod
+    def validate_columns(rows: List[Dict[str, Any]], upload_type: str) -> Dict[str, Any]:
+        """Validate that the CSV columns match the expected template.
+        
+        Returns dict with 'valid' boolean and 'errors' list.
+        """
+        if not rows:
+            return {'valid': False, 'errors': ['File is empty']}
+        
+        # Get actual columns from first row
+        actual_columns = set(rows[0].keys())
+        
+        # Get expected columns
+        expected = EXPECTED_COLUMNS.get(upload_type)
+        if not expected:
+            return {'valid': False, 'errors': [f'Unknown upload type: {upload_type}']}
+        
+        required_columns = expected['required']
+        optional_columns = expected['optional']
+        all_expected_columns = required_columns | optional_columns
+        
+        errors = []
+        
+        # Check for missing required columns
+        missing_required = required_columns - actual_columns
+        if missing_required:
+            errors.append(f"Missing required columns: {', '.join(sorted(missing_required))}")
+        
+        # Check for unexpected columns (potential typos or wrong template)
+        unexpected_columns = actual_columns - all_expected_columns
+        if unexpected_columns:
+            # Filter out empty column names
+            unexpected_columns = {col for col in unexpected_columns if col and str(col).strip()}
+            if unexpected_columns:
+                errors.append(f"Unexpected columns (possible typo): {', '.join(sorted(unexpected_columns))}")
+        
+        # Check if required columns have at least one non-empty value
+        for col in required_columns:
+            if col in actual_columns:
+                has_value = any(row.get(col) and str(row.get(col)).strip() for row in rows)
+                if not has_value:
+                    errors.append(f"Required column '{col}' has no valid data in any row")
+        
+        return {
+            'valid': len(errors) == 0,
+            'errors': errors,
+            'warnings': []
+        }
 
     @staticmethod
     def parse_csv_file(file: FileStorage) -> List[Dict[str, Any]]:

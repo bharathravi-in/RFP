@@ -2,10 +2,18 @@ import { useState } from 'react';
 import { XMarkIcon, ArrowDownTrayIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
+interface BulkUploadResponse {
+    success: boolean;
+    message: string;
+    success_count: number;
+    error_count: number;
+    errors?: string[];
+}
+
 interface BulkUploadModalProps {
     type: 'clients' | 'stories' | 'capabilities' | 'testimonials';
     onClose: () => void;
-    onUpload: (file: File) => Promise<void>;
+    onUpload: (file: File) => Promise<BulkUploadResponse>;
 }
 
 const TEMPLATES = {
@@ -133,11 +141,63 @@ export default function BulkUploadModal({ type, onClose, onUpload }: BulkUploadM
 
         setUploading(true);
         try {
-            await onUpload(file);
-            toast.success('Upload completed successfully');
-            onClose();
+            const response = await onUpload(file);
+
+            // Check if response has error details
+            if (response && response.error_count > 0) {
+                const successMsg = `✓ ${response.success_count} rows imported successfully`;
+                const errorMsg = `✗ ${response.error_count} rows failed`;
+
+                toast.error(
+                    <div>
+                        <div className="font-semibold mb-1">Partial Upload Complete</div>
+                        <div>{successMsg}</div>
+                        <div>{errorMsg}</div>
+                        {response.errors && response.errors.length > 0 && (
+                            <div className="mt-2 text-xs">
+                                <div className="font-medium">Errors:</div>
+                                {response.errors.slice(0, 3).map((err: string, i: number) => (
+                                    <div key={i}>• {err}</div>
+                                ))}
+                            </div>
+                        )}
+                    </div>,
+                    { duration: 8000 }
+                );
+
+                // Only close if some rows were successful
+                if (response.success_count > 0) {
+                    setTimeout(() => onClose(), 2000);
+                }
+            } else if (response && response.success_count > 0) {
+                toast.success(`✓ Successfully imported ${response.success_count} rows`);
+                onClose();
+            } else {
+                toast.error('No valid data was imported');
+            }
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Upload failed');
+            const errorData = error.response?.data;
+            const errorMsg = errorData?.error || 'Upload failed';
+            const details = errorData?.details || [];
+            const message = errorData?.message;
+
+            toast.error(
+                <div className="max-w-md">
+                    <div className="font-semibold mb-1">Upload Failed</div>
+                    <div className="text-sm mb-2">{errorMsg}</div>
+                    {details.length > 0 && (
+                        <div className="text-xs space-y-1 mt-2">
+                            {details.map((detail: string, i: number) => (
+                                <div key={i} className="text-red-200">• {detail}</div>
+                            ))}
+                        </div>
+                    )}
+                    {message && !details.length && (
+                        <div className="text-xs mt-2 text-red-200 whitespace-pre-line">{message}</div>
+                    )}
+                </div>,
+                { duration: 10000 }
+            );
         } finally {
             setUploading(false);
         }
