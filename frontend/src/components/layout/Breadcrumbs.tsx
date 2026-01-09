@@ -106,7 +106,7 @@ export default function Breadcrumbs() {
     }
 
     return (
-        <nav className="flex items-center gap-2 text-sm mb-6" aria-label="Breadcrumb">
+        <nav className="flex items-center gap-2 text-sm mb-8" aria-label="Breadcrumb">
             {breadcrumbs.map((crumb, index) => (
                 <div key={index} className="flex items-center gap-2">
                     {index > 0 && (
