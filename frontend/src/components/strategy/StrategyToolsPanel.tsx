@@ -281,6 +281,7 @@ const StrategyToolsPanel: React.FC<StrategyToolsPanelProps> = ({ projectId }) =>
                     }
                     // Load competitive analysis
                     if (data.strategy.competitive_analysis) {
+                        console.log('[DEBUG] Loaded competitive_analysis:', JSON.stringify(data.strategy.competitive_analysis, null, 2));
                         setCompetitiveData(data.strategy.competitive_analysis);
                     }
                     // Load pricing and its associated currency/country
