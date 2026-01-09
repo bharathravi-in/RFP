@@ -43,7 +43,7 @@ export default function OrganizationOnboarding({ isOpen, onComplete }: Organizat
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center gap-2">
-                        <img src="/logo.svg" alt="RFP Pro" className="h-12 w-12" />
+                        <img src="/logo.png" alt="RFP Pro" className="h-12 w-12" />
                         <span className="font-bold text-2xl text-text-primary">RFP Pro</span>
                     </div>
                 </div>

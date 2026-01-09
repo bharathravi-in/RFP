@@ -18,21 +18,21 @@ export default {
                     elevated: '#F1F5F9',
                 },
 
-                // Primary Brand - Deep Indigo to Purple gradient
+                // Primary Brand - Corporate Blue
                 primary: {
-                    DEFAULT: '#4F46E5',
-                    hover: '#4338CA',
-                    light: '#EEF2FF',
-                    50: '#EEF2FF',
-                    100: '#E0E7FF',
-                    200: '#C7D2FE',
-                    300: '#A5B4FC',
-                    400: '#818CF8',
-                    500: '#6366F1',
-                    600: '#4F46E5',
-                    700: '#4338CA',
-                    800: '#3730A3',
-                    900: '#312E81',
+                    DEFAULT: '#1f3c85',
+                    hover: '#162d66',
+                    light: '#e8ecf5',
+                    50: '#e8ecf5',
+                    100: '#d1d9eb',
+                    200: '#a3b3d7',
+                    300: '#758dc3',
+                    400: '#4767af',
+                    500: '#2a4d99',
+                    600: '#1f3c85',
+                    700: '#162d66',
+                    800: '#0e1e47',
+                    900: '#070f28',
                 },
 
                 // Accent - Teal/Cyan for highlights
@@ -71,7 +71,7 @@ export default {
                 border: {
                     DEFAULT: '#E2E8F0',
                     light: '#F1F5F9',
-                    focus: '#4F46E5',
+                    focus: '#1f3c85',
                 },
             },
 
@@ -110,12 +110,12 @@ export default {
                 'card-hover': '0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05)',
                 'modal': '0 25px 50px -12px rgb(0 0 0 / 0.25)',
                 'button': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-                'glow': '0 0 20px rgb(79 70 229 / 0.2)',
+                'glow': '0 0 20px rgb(31 60 133 / 0.2)',
             },
 
             backgroundImage: {
-                'gradient-brand': 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #A855F7 100%)',
-                'gradient-brand-subtle': 'linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 50%, #FDF4FF 100%)',
+                'gradient-brand': 'linear-gradient(135deg, #1f3c85 0%, #3b5998 50%, #5d7ab5 100%)',
+                'gradient-brand-subtle': 'linear-gradient(135deg, #e8ecf5 0%, #f0f3f9 50%, #f5f7fc 100%)',
                 'gradient-card': 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%)',
                 'gradient-dark': 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
             },

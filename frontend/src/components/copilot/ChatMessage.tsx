@@ -101,7 +101,7 @@ function ChatMessage({ message, showTimestamp = true, userName = 'You', userAvat
                     <div className="flex items-center gap-2 mb-2">
                         {showTimestamp && <span className="text-xs text-slate-400">{formatTime(message.timestamp)}</span>}
                         <span className="font-semibold text-slate-700 text-sm">{userName}</span>
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary-600 flex items-center justify-center shadow-md shadow-primary-200">
                             {userAvatar ? (
                                 <img src={userAvatar} alt={userName} className="h-full w-full rounded-full object-cover" />
                             ) : (

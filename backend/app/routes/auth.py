@@ -133,7 +133,7 @@ def logout():
 def forgot_password():
     """Request password reset email."""
     import secrets
-    from datetime import timedelta
+    from datetime import datetime, timedelta
     from flask import current_app
     from ..services.email_service import get_email_service
     

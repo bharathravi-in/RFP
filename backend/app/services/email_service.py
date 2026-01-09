@@ -197,28 +197,58 @@ class EmailService:
         html_body = f"""
         <!DOCTYPE html>
         <html>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb;">
-            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited!</h1>
-            </div>
-            <div style="padding: 40px; background: white;">
-                <p style="font-size: 16px; color: #374151;">Hi there,</p>
-                <p style="font-size: 16px; color: #374151;">
-                    <strong>{inviter_name}</strong> has invited you to join <strong>{organization_name}</strong> on RFP Pro as a <strong>{role}</strong>.
-                </p>
-                <div style="background: #f3f4f6; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
-                    <p style="margin: 0 0 16px 0; color: #6b7280;">Click the button below to accept the invitation:</p>
-                    <a href="{invite_link}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                        Accept Invitation
-                    </a>
-                </div>
-                <p style="font-size: 14px; color: #9ca3af;">
-                    This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.
-                </p>
-            </div>
-            <div style="padding: 24px; text-align: center; color: #9ca3af; font-size: 12px; background: #f9fafb;">
-                <p style="margin: 0;">RFP Pro - AI-Powered RFP Responses</p>
-            </div>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f9fafb;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb;">
+                <tr>
+                    <td align="center" style="padding: 40px 20px;">
+                        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: #6366f1; padding: 40px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">You're Invited!</h1>
+                                </td>
+                            </tr>
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <p style="font-size: 16px; color: #374151; margin: 0 0 16px 0;">Hi there,</p>
+                                    <p style="font-size: 16px; color: #374151; margin: 0 0 24px 0;">
+                                        <strong>{inviter_name}</strong> has invited you to join <strong>{organization_name}</strong> on RFP Pro as a <strong>{role}</strong>.
+                                    </p>
+                                    <!-- Button -->
+                                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; border-radius: 8px;">
+                                        <tr>
+                                            <td style="padding: 24px; text-align: center;">
+                                                <p style="margin: 0 0 16px 0; color: #6b7280; font-size: 14px;">Click the button below to accept the invitation:</p>
+                                                <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                                                    <tr>
+                                                        <td style="background-color: #6366f1; border-radius: 8px;">
+                                                            <a href="{invite_link}" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px;">Accept Invitation</a>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <p style="font-size: 14px; color: #9ca3af; margin: 24px 0 0 0;">
+                                        This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.
+                                    </p>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="padding: 24px; text-align: center; background-color: #f9fafb;">
+                                    <p style="margin: 0; font-size: 12px; color: #9ca3af;">RFP Pro - AI-Powered RFP Responses</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         """
@@ -249,31 +279,61 @@ This invitation will expire in 7 days.
         html_body = f"""
         <!DOCTYPE html>
         <html>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb;">
-            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">Password Reset</h1>
-            </div>
-            <div style="padding: 40px; background: white;">
-                <p style="font-size: 16px; color: #374151;">Hi {user_name},</p>
-                <p style="font-size: 16px; color: #374151;">
-                    We received a request to reset your password. Click the button below to create a new password:
-                </p>
-                <div style="text-align: center; margin: 32px 0;">
-                    <a href="{reset_link}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                        Reset Password
-                    </a>
-                </div>
-                <p style="font-size: 14px; color: #6b7280;">
-                    This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.
-                </p>
-                <p style="font-size: 14px; color: #9ca3af; margin-top: 24px;">
-                    If the button doesn't work, copy and paste this link into your browser:<br>
-                    <a href="{reset_link}" style="color: #6366f1; word-break: break-all;">{reset_link}</a>
-                </p>
-            </div>
-            <div style="padding: 24px; text-align: center; color: #9ca3af; font-size: 12px; background: #f9fafb;">
-                <p style="margin: 0;">RFP Pro - AI-Powered RFP Responses</p>
-            </div>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f9fafb;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb;">
+                <tr>
+                    <td align="center" style="padding: 40px 20px;">
+                        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="background-color: #6366f1; padding: 40px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">Password Reset</h1>
+                                </td>
+                            </tr>
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <p style="font-size: 16px; color: #374151; margin: 0 0 16px 0;">Hi {user_name},</p>
+                                    <p style="font-size: 16px; color: #374151; margin: 0 0 32px 0;">
+                                        We received a request to reset your password. Click the button below to create a new password:
+                                    </p>
+                                    <!-- Button -->
+                                    <table width="100%" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                            <td align="center">
+                                                <table cellpadding="0" cellspacing="0">
+                                                    <tr>
+                                                        <td style="background-color: #6366f1; border-radius: 8px;">
+                                                            <a href="{reset_link}" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 16px;">Reset Password</a>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <p style="font-size: 14px; color: #6b7280; margin: 32px 0 0 0;">
+                                        This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.
+                                    </p>
+                                    <p style="font-size: 14px; color: #9ca3af; margin: 24px 0 0 0;">
+                                        If the button doesn't work, copy and paste this link into your browser:<br>
+                                        <a href="{reset_link}" style="color: #6366f1; word-break: break-all;">{reset_link}</a>
+                                    </p>
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style="padding: 24px; text-align: center; background-color: #f9fafb;">
+                                    <p style="margin: 0; font-size: 12px; color: #9ca3af;">RFP Pro - AI-Powered RFP Responses</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         """

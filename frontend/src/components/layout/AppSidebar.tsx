@@ -70,7 +70,7 @@ export default function AppSidebar({
             )}>
                 <div className={clsx("flex items-center", isCollapsed ? "" : "gap-3")}>
                     <img
-                        src="/logo.svg"
+                        src="/logo.png"
                         alt="RFP Pro"
                         className="h-10 w-10 flex-shrink-0"
                     />

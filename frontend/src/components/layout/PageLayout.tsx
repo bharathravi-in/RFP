@@ -173,7 +173,7 @@ export default function PageLayout() {
 
                         {/* Mobile branding - logo only on very small, text on sm+ */}
                         <div className="flex items-center gap-2 lg:hidden">
-                            <img src="/logo.svg" alt="RFP Pro" className="h-7 w-7 sm:h-8 sm:w-8" />
+                            <img src="/logo.png" alt="RFP Pro" className="h-7 w-7 sm:h-8 sm:w-8" />
                             <span className="hidden sm:inline font-display font-bold text-lg text-text-primary">RFP Pro</span>
                         </div>
 

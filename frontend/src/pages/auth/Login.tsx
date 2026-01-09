@@ -53,7 +53,7 @@ export default function Login() {
     return (
         <div className="min-h-screen flex">
             {/* Left Panel - Gradient with Features */}
-            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-purple-600 to-indigo-700 p-12 flex-col justify-between relative overflow-hidden">
+            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary-500 to-primary-700 p-12 flex-col justify-between relative overflow-hidden">
                 {/* Background Pattern */}
                 <div className="absolute inset-0 opacity-10">
                     <svg className="w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -69,9 +69,7 @@ export default function Login() {
                 {/* Logo */}
                 <div className="relative z-10">
                     <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                            <SparklesIcon className="h-7 w-7 text-white" />
-                        </div>
+                        <img src="/logo.png" alt="RFP Pro" className="h-12 w-12" />
                         <span className="text-white text-2xl font-bold">RFP Pro</span>
                     </div>
                 </div>
@@ -115,9 +113,7 @@ export default function Login() {
                     {/* Mobile Logo */}
                     <div className="lg:hidden text-center mb-8">
                         <div className="inline-flex items-center gap-2">
-                            <div className="h-10 w-10 bg-primary rounded-xl flex items-center justify-center">
-                                <SparklesIcon className="h-6 w-6 text-white" />
-                            </div>
+                            <img src="/logo.png" alt="RFP Pro" className="h-10 w-10" />
                             <span className="font-bold text-xl text-gray-900">RFP Pro</span>
                         </div>
                     </div>

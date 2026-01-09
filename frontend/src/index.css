@@ -7,9 +7,9 @@
 
 /* Branding CSS Variables - can be overridden dynamically */
 :root {
-    --brand-primary: #4F46E5;
-    --brand-secondary: #7C3AED;
-    --brand-accent: #06B6D4;
+    --brand-primary: #1f3c85;
+    --brand-secondary: #3b5998;
+    --brand-accent: #0891b2;
 
     /* Theme Colors - Light Mode */
     --color-background: #F8FAFC;
@@ -370,8 +370,13 @@ body {
     }
 
     @keyframes shimmer {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
+        0% {
+            background-position: 200% 0;
+        }
+
+        100% {
+            background-position: -200% 0;
+        }
     }
 
     .hover-elevate {

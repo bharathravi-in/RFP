@@ -49,9 +49,7 @@ export default function ForgotPassword() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center gap-2 mb-6">
-                        <div className="h-12 w-12 bg-primary rounded-xl flex items-center justify-center">
-                            <SparklesIcon className="h-7 w-7 text-white" />
-                        </div>
+                        <img src="/logo.png" alt="RFP Pro" className="h-12 w-12" />
                         <span className="font-bold text-2xl text-gray-900">RFP Pro</span>
                     </div>
                 </div>
