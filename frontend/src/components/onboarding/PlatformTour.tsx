@@ -32,10 +32,10 @@ interface Slide {
 const slides: Slide[] = [
     {
         id: 1,
-        icon: <RocketLaunchIcon className="w-16 h-16" />,
+        icon: <img src="/logo.png" alt="RFP Pro" className="w-16 h-16" />,
         title: "Welcome to RFP Pro",
         subtitle: "AI-Powered Proposal Management",
-        description: "Transform how you create winning proposals with our intelligent platform powered by 27 specialized AI agents.",
+        description: "Transform how you create winning proposals with our intelligent platform powered by 39 specialized AI agents.",
         features: [
             "Automated RFP analysis",
             "AI-generated answers",
@@ -75,7 +75,7 @@ const slides: Slide[] = [
     {
         id: 4,
         icon: <CpuChipIcon className="w-16 h-16" />,
-        title: "27 AI Agents",
+        title: "39 AI Agents",
         subtitle: "Step 3: Intelligent Processing",
         description: "Our specialized AI agents work together to analyze, generate, validate, and polish your proposal content.",
         features: [
@@ -221,10 +221,10 @@ const PlatformTour: React.FC<PlatformTourProps> = ({ isOpen, onClose, onComplete
                                 key={index}
                                 onClick={() => goToSlide(index)}
                                 className={`h-2 rounded-full transition-all duration-300 ${index === currentSlide
-                                        ? 'w-8 bg-gradient-to-r ' + slide.color
-                                        : index < currentSlide
-                                            ? 'w-2 bg-white/60'
-                                            : 'w-2 bg-white/20'
+                                    ? 'w-8 bg-gradient-to-r ' + slide.color
+                                    : index < currentSlide
+                                        ? 'w-2 bg-white/60'
+                                        : 'w-2 bg-white/20'
                                     }`}
                             />
                         ))}
@@ -263,8 +263,8 @@ const PlatformTour: React.FC<PlatformTourProps> = ({ isOpen, onClose, onComplete
                             onClick={prevSlide}
                             disabled={currentSlide === 0}
                             className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${currentSlide === 0
-                                    ? 'text-gray-500 cursor-not-allowed'
-                                    : 'text-white hover:bg-white/10'
+                                ? 'text-gray-500 cursor-not-allowed'
+                                : 'text-white hover:bg-white/10'
                                 }`}
                         >
                             <ArrowLeftIcon className="w-5 h-5" />
