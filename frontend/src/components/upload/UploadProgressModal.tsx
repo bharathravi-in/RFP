@@ -247,11 +247,11 @@ export const UploadProgressModal: React.FC<UploadProgressModalProps> = ({
                                                         className={`w-2 h-2 rounded-full transition-all duration-300 ${isPast
                                                             ? 'bg-green-500'
                                                             : isCurrent
-                                                                ? 'bg-purple-500 animate-pulse'
+                                                                ? 'bg-primary animate-pulse'
                                                                 : 'bg-gray-300'
                                                             }`}
                                                     />
-                                                    <span className={`text-xs mt-1 ${isCurrent ? 'text-purple-600 font-medium' : 'text-gray-400'
+                                                    <span className={`text-xs mt-1 ${isCurrent ? 'text-primary font-medium' : 'text-gray-400'
                                                         }`}>
                                                         {step.label}
                                                     </span>

@@ -49,7 +49,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
 export default function Projects() {
     const { user } = useAuthStore();
     const { t } = useTranslation();
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'owner';
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');

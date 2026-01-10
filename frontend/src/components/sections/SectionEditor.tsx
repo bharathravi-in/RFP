@@ -46,7 +46,7 @@ interface SectionEditorProps {
 
 export default function SectionEditor({ section, projectId, onUpdate }: SectionEditorProps) {
     const { user } = useAuthStore();
-    const canApprove = user?.role === 'admin' || user?.role === 'reviewer';
+    const canApprove = user?.role === 'admin' || user?.role === 'owner' || user?.role === 'reviewer';
 
     const [content, setContent] = useState(section.content || '');
     const [isGenerating, setIsGenerating] = useState(false);

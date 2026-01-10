@@ -466,7 +466,7 @@ export default function ProposalBuilder() {
                                 cy="20"
                                 r="16"
                                 fill="none"
-                                stroke={completionPercent === 100 ? '#22C55E' : '#6366F1'}
+                                stroke={completionPercent === 100 ? '#22C55E' : '#1f3c85'}
                                 strokeWidth="3"
                                 strokeDasharray={`${completionPercent} 100`}
                                 strokeLinecap="round"
@@ -640,7 +640,7 @@ export default function ProposalBuilder() {
                                             }}
                                             className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
                                         >
-                                            <DocumentDuplicateIcon className="h-4 w-4 text-purple-500" />
+                                            <DocumentDuplicateIcon className="h-4 w-4 text-primary" />
                                             Use Template...
                                         </button>
                                     </div>
@@ -708,7 +708,7 @@ export default function ProposalBuilder() {
                                                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sections ({sections.length})</span>
                                                     <button
                                                         onClick={() => setShowTypeSelector(true)}
-                                                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-all shadow-sm"
+                                                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-white bg-primary rounded-md hover:bg-primary-dark transition-all shadow-sm"
                                                         title="Add Section"
                                                     >
                                                         <PlusIcon className="h-3.5 w-3.5" />
@@ -722,7 +722,7 @@ export default function ProposalBuilder() {
                                                             onClick={() => setSelectedSection(section)}
                                                             className={clsx(
                                                                 'w-full text-left px-3 py-2 text-sm border-b border-gray-50 hover:bg-gray-50',
-                                                                selectedSection?.id === section.id && 'bg-indigo-50 border-l-2 border-l-indigo-500'
+                                                                selectedSection?.id === section.id && 'bg-primary/10 border-l-2 border-l-primary'
                                                             )}
                                                         >
                                                             <div className="flex items-center gap-2">
@@ -735,7 +735,7 @@ export default function ProposalBuilder() {
                                                 <div className="p-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2 flex-shrink-0">
                                                     <button
                                                         onClick={() => setShowBatchRegenerate(true)}
-                                                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+                                                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors"
                                                     >
                                                         <SparklesIcon className="h-3.5 w-3.5" />
                                                         Batch AI
@@ -782,7 +782,7 @@ export default function ProposalBuilder() {
                                                     onClick={() => setViewSubPhase('summary')}
                                                     className={clsx(
                                                         'px-3 py-1.5 text-sm font-medium border-b-2 transition-all',
-                                                        viewSubPhase === 'summary' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        viewSubPhase === 'summary' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'
                                                     )}
                                                 >
                                                     Summary
@@ -791,7 +791,7 @@ export default function ProposalBuilder() {
                                                     onClick={() => setViewSubPhase('view')}
                                                     className={clsx(
                                                         'px-3 py-1.5 text-sm font-medium border-b-2 transition-all',
-                                                        viewSubPhase === 'view' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        viewSubPhase === 'view' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'
                                                     )}
                                                 >
                                                     Full Proposal
@@ -800,7 +800,7 @@ export default function ProposalBuilder() {
                                                     onClick={() => setViewSubPhase('versions')}
                                                     className={clsx(
                                                         'px-3 py-1.5 text-sm font-medium border-b-2 transition-all',
-                                                        viewSubPhase === 'versions' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        viewSubPhase === 'versions' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'
                                                     )}
                                                 >
                                                     Version History
@@ -822,7 +822,7 @@ export default function ProposalBuilder() {
                                                                         <button
                                                                             onClick={() => setShowExportMenu(!showExportMenu)}
                                                                             disabled={isExporting}
-                                                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-all text-sm font-medium"
+                                                                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark shadow-sm transition-all text-sm font-medium"
                                                                         >
                                                                             <ArrowDownTrayIcon className="h-5 w-5" />
                                                                             Export Final Proposal
@@ -865,7 +865,7 @@ export default function ProposalBuilder() {
                                                                         onClick={() => setViewSubPhase('view')}
                                                                         className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 shadow-sm transition-all text-sm font-medium"
                                                                     >
-                                                                        <EyeIcon className="h-5 w-5 text-indigo-500" />
+                                                                        <EyeIcon className="h-5 w-5 text-primary" />
                                                                         Preview Document
                                                                     </button>
                                                                 </div>
@@ -874,7 +874,7 @@ export default function ProposalBuilder() {
                                                             {/* Summary Stats */}
                                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                                                 <div className="bg-white rounded-lg border p-4 text-center">
-                                                                    <div className="text-2xl font-bold text-indigo-600">{sections.length}</div>
+                                                                    <div className="text-2xl font-bold text-primary">{sections.length}</div>
                                                                     <div className="text-xs text-gray-500 font-medium">Sections</div>
                                                                 </div>
                                                                 <div className="bg-white rounded-lg border p-4 text-center">
@@ -882,7 +882,7 @@ export default function ProposalBuilder() {
                                                                     <div className="text-xs text-gray-500 font-medium">Approved</div>
                                                                 </div>
                                                                 <div className="bg-white rounded-lg border p-4 text-center">
-                                                                    <div className="text-2xl font-bold text-purple-600">100%</div>
+                                                                    <div className="text-2xl font-bold text-primary">100%</div>
                                                                     <div className="text-xs text-gray-500 font-medium">Complete</div>
                                                                 </div>
                                                                 <div className="bg-white rounded-lg border p-4 text-center">
@@ -925,7 +925,7 @@ export default function ProposalBuilder() {
                                             'group flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-all',
                                             currentPhase === 'sections'
                                                 ? 'text-gray-300 bg-gray-50 cursor-not-allowed'
-                                                : 'text-gray-700 hover:bg-gray-100 hover:text-indigo-600 border border-gray-200'
+                                                : 'text-gray-700 hover:bg-gray-100 hover:text-primary border border-gray-200'
                                         )}
                                     >
                                         <ArrowLeftIcon className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
@@ -934,7 +934,7 @@ export default function ProposalBuilder() {
 
                                     <div className="flex flex-col items-center">
                                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Current Phase</span>
-                                        <span className="text-sm font-bold text-indigo-600 capitalize">{currentPhase}</span>
+                                        <span className="text-sm font-bold text-primary capitalize">{currentPhase}</span>
                                     </div>
 
                                     <button
@@ -948,7 +948,7 @@ export default function ProposalBuilder() {
                                             'group flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-xl transition-all shadow-md',
                                             currentPhase === 'view'
                                                 ? 'text-gray-300 bg-gray-50 cursor-not-allowed'
-                                                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg active:scale-95'
+                                                : 'bg-primary text-white hover:bg-primary-dark hover:shadow-lg active:scale-95'
                                         )}
                                     >
                                         Next
@@ -968,7 +968,7 @@ export default function ProposalBuilder() {
                                                 className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-50"
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    <BookOpenIcon className="h-4 w-4 text-purple-600" />
+                                                    <BookOpenIcon className="h-4 w-4 text-primary" />
                                                     <span className="text-xs font-medium text-gray-700">Knowledge Context</span>
                                                 </div>
                                                 <ChevronRightIcon className={clsx(
@@ -986,7 +986,7 @@ export default function ProposalBuilder() {
                                                             >
                                                                 📁 {p.name}
                                                                 {p.items_count !== undefined && (
-                                                                    <span className="text-purple-500">({p.items_count})</span>
+                                                                    <span className="text-primary-light">({p.items_count})</span>
                                                                 )}
                                                             </span>
                                                         ))}

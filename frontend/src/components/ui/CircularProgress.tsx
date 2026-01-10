@@ -39,9 +39,9 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
                 {/* Gradient Definition */}
                 <defs>
                     <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#A855F7" />
-                        <stop offset="50%" stopColor="#C084FC" />
-                        <stop offset="100%" stopColor="#E879F9" />
+                        <stop offset="0%" stopColor="#1f3c85" />
+                        <stop offset="50%" stopColor="#3b5998" />
+                        <stop offset="100%" stopColor="#0891b2" />
                     </linearGradient>
                 </defs>
 
@@ -53,7 +53,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={strokeWidth}
-                    className="text-gray-200"
+                    className="text-gray-100 dark:text-gray-800"
                 />
 
                 {/* Progress circle */}
@@ -74,7 +74,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
             {/* Percentage text */}
             {showText && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-semibold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
+                    <span className="text-2xl font-bold text-primary">
                         {Math.round(percentage)}%
                     </span>
                 </div>

@@ -31,7 +31,7 @@ export default function QuestionAnswerModal({
     onDelete,
 }: QuestionAnswerModalProps) {
     const { user } = useAuthStore();
-    const canApprove = user?.role === 'admin' || user?.role === 'reviewer';
+    const canApprove = user?.role === 'admin' || user?.role === 'owner' || user?.role === 'reviewer';
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);

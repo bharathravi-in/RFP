@@ -94,6 +94,14 @@ export interface VendorTestimonial {
     source_platform?: string;
 }
 
+export interface VendorExtractionResult {
+    company_info: Partial<VendorProfile>;
+    clients: VendorClient[];
+    success_stories: VendorSuccessStory[];
+    capabilities: VendorCapability[];
+    testimonials: VendorTestimonial[];
+}
+
 export const vendorProfileApi = {
     // Profile
     getProfile: () => api.get<VendorProfile>('/vendor-profile'),
@@ -125,11 +133,25 @@ export const vendorProfileApi = {
     deleteTestimonial: (id: number) => api.delete(`/vendor-profile/testimonials/${id}`),
     verifyTestimonial: (id: number, method: string) => api.post<VendorTestimonial>(`/vendor-profile/testimonials/${id}/verify`, { verification_method: method }),
 
-    // Bulk Upload
+    // Bulk Upload & Extraction
     bulkUpload: (type: 'clients' | 'stories' | 'capabilities' | 'testimonials', file: File) => {
         const formData = new FormData();
         formData.append('file', file);
         return api.post(`/vendor-profile/bulk-upload/${type}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+    },
+
+    extractFromDocument: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post<{
+            message: string;
+            vendor_profile: VendorExtractionResult;
+            source_document: string;
+        }>('/organizations/extract-vendor-profile', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },

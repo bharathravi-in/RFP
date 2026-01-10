@@ -8,17 +8,20 @@
 /* Branding CSS Variables - can be overridden dynamically */
 :root {
     --brand-primary: #1f3c85;
-    --brand-secondary: #3b5998;
+    --brand-primary-light: #3b5998;
+    --brand-primary-dark: #162a5e;
+    --brand-secondary: #64748b;
     --brand-accent: #0891b2;
+    --brand-accent-light: #ecfeff;
 
     /* Theme Colors - Light Mode */
-    --color-background: #F8FAFC;
-    --color-surface: #FFFFFF;
-    --color-surface-elevated: #F1F5F9;
-    --color-text-primary: #0F172A;
+    --color-background: #f8fafc;
+    --color-surface: #ffffff;
+    --color-surface-elevated: #f1f5f9;
+    --color-text-primary: #0f172a;
     --color-text-secondary: #475569;
-    --color-text-muted: #94A3B8;
-    --color-border: #E2E8F0;
+    --color-text-muted: #94a3b8;
+    --color-border: #e2e8f0;
 }
 
 /* Dark Mode Theme */
@@ -142,6 +145,21 @@ body {
 .dark .bg-surface {
     background-color: var(--color-surface) !important;
     border-color: var(--color-border) !important;
+}
+
+/* Spinner and Loader colors - ensure they use brand primary by default */
+.spinner,
+.animate-spin {
+    border-color: var(--brand-primary) !important;
+    border-top-color: transparent !important;
+}
+
+.bg-primary {
+    background-color: var(--brand-primary) !important;
+}
+
+.text-primary {
+    color: var(--brand-primary) !important;
 }
 
 /* Input fields in dark mode */

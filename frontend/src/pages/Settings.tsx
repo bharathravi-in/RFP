@@ -75,7 +75,7 @@ export default function Settings() {
     const { t } = useTranslation();
 
     // Filter tabs based on user role - hide admin-only and super-admin-only tabs
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'owner' || user?.role === 'super_admin';
     const isSuperAdmin = user?.role === 'super_admin';
     const tabs = allTabs.filter(tab => {
         if (tab.superAdminOnly) return isSuperAdmin;
@@ -392,6 +392,11 @@ export default function Settings() {
             const response = await organizationsApi.create({ name: newOrgName });
             setOrganization(response.data.organization);
             setOrgName(response.data.organization.name);
+
+            // Re-fetch user to get the updated role (e.g., viewer -> admin/owner)
+            const { fetchUser } = useAuthStore.getState();
+            await fetchUser();
+
             toast.success('Organization created successfully');
             setShowCreateOrg(false);
             setNewOrgName('');

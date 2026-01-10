@@ -265,7 +265,7 @@ export default function AppSidebar({
                                     {user?.name || 'User'}
                                 </p>
                                 <p className="text-xs text-text-muted truncate">
-                                    {user?.role === 'admin' ? 'Administrator' : 'Team Member'}
+                                    {(user?.role === 'admin' || user?.role === 'owner') ? 'Administrator' : 'Team Member'}
                                 </p>
                             </div>
                             <button

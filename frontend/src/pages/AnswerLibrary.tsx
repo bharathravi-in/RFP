@@ -36,7 +36,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; d
 
 export default function AnswerLibrary() {
     const { user } = useAuthStore();
-    const canApprove = user?.role === 'admin' || user?.role === 'reviewer';
+    const canApprove = user?.role === 'admin' || user?.role === 'owner' || user?.role === 'reviewer';
 
     const [items, setItems] = useState<AnswerLibraryItem[]>([]);
     const [loading, setLoading] = useState(true);

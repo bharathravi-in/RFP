@@ -232,23 +232,56 @@ def extract_vendor_profile():
             else:
                 return jsonify({'error': 'AI service not configured'}), 500
         
-        prompt = f"""Analyze the following company document and extract vendor profile information.
+        prompt = f"""Analyze the following company document and extract comprehensive vendor profile information.
 
 DOCUMENT TEXT:
-{document_text[:8000]}
+{document_text[:12000]}
 
-Extract the following information and return ONLY a valid JSON object with these fields:
-- registration_country: The country where the company is registered/headquartered (string)
-- years_in_business: How many years the company has been operating (number or null if not found)
-- employee_count: Number of employees/team size (number or null if not found)
-- certifications: List of certifications like ISO 27001, SOC 2, GDPR, etc. (array of strings)
-- geographies: List of regions/countries where the company operates (array of strings)
+Extract the following information and return ONLY a valid JSON object with these categories:
 
-If a field cannot be determined from the document, use null for numbers and empty array [] for lists.
-Return ONLY the JSON object, no markdown, no explanation.
+1. company_info:
+   - registration_country: string
+   - years_in_business: number or null
+   - employee_count_range: string (e.g. "51-200")
+   - annual_revenue_range: string (e.g. "$1M-$5M")
+   - headquarters_location: string
+   - company_description: string (summary)
+   - mission_statement: string
+   - value_proposition: string
+   - certifications: array of strings
+   - industries_served: array of strings
+   - key_differentiators: array of strings
 
-Example response:
-{{"registration_country": "United States", "years_in_business": 10, "employee_count": 150, "certifications": ["ISO 27001", "SOC 2"], "geographies": ["North America", "Europe"]}}
+2. clients: (Array of objects)
+   - client_name: string
+   - client_industry: string
+   - relationship_status: string (ongoing/completed)
+   - services_provided: array of strings
+
+3. success_stories: (Array of objects)
+   - title: string
+   - client_name: string
+   - industry: string
+   - challenge: string
+   - solution: string
+   - impact: string
+   - technologies_used: array of strings
+
+4. capabilities: (Array of objects)
+   - capability_name: string
+   - description: string
+   - technologies_used: array of strings
+   - time_saved: string (e.g. "40% reduction")
+
+5. testimonials: (Array of objects)
+   - testimonial_text: string
+   - client_name: string
+   - client_designation: string
+   - client_company: string
+   - rating: number (1-5)
+
+If some categories or fields are not found, leave lists as empty [] and strings as empty "".
+Return ONLY the JSON object, no markdown code blocks, no explanation.
 """
         
         # Call AI - handle different response types
@@ -272,16 +305,30 @@ Example response:
         # Parse JSON response
         import json
         # Clean up response if it has markdown code blocks
-        if response_text.startswith('```'):
-            response_text = response_text.split('```')[1]
-            if response_text.startswith('json'):
-                response_text = response_text[4:]
+        if '```' in response_text:
+            parts = response_text.split('```')
+            for part in parts:
+                if '{' in part and '}' in part:
+                    response_text = part
+                    if response_text.startswith('json'):
+                        response_text = response_text[4:]
+                    break
+        
         response_text = response_text.strip()
         
         try:
             vendor_profile = json.loads(response_text)
         except json.JSONDecodeError:
-            return jsonify({'error': 'Failed to parse AI response', 'raw_response': response_text}), 500
+            # Try to find JSON in the text if parsing failed
+            import re
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                try:
+                    vendor_profile = json.loads(json_match.group())
+                except:
+                    return jsonify({'error': 'Failed to parse AI response', 'raw_response': response_text}), 500
+            else:
+                return jsonify({'error': 'Failed to parse AI response', 'raw_response': response_text}), 500
         
         return jsonify({
             'message': 'Vendor profile extracted successfully',
